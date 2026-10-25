@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Quản lý cửa hàng</title>
+  <style>
+    /* ===== Token: Liquid Glass tiết chế (trung tính + 1 màu nhấn) ===== */
+    :root {
+      --bg: #eceef3;
+      --ink: #1c1c1e;
+      --mute: #6c6c72;
+      --line: rgba(60, 60, 67, .14);
+      --glass: rgba(255, 255, 255, .5);
+      --glass2: rgba(255, 255, 255, .8);
+      --edge: rgba(255, 255, 255, .9);
+      --edge2: rgba(255, 255, 255, .35);
+      --sh: 0 12px 34px rgba(20, 20, 40, .14);
+      --field: rgba(255, 255, 255, .6);
+      --btn: rgba(120, 120, 128, .14);
+      --btn2: rgba(120, 120, 128, .24);
+      --acc: #0a84ff;
+      --gray: #9a9aa0;
+      --pink: #ff8fb1;
+      --card: var(--glass);
+      --solid: var(--glass2)
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #17171a;
+        --ink: #f5f5f7;
+        --mute: #a1a1a8;
+        --line: rgba(255, 255, 255, .14);
+        --glass: rgba(52, 52, 60, .55);
+        --glass2: rgba(82, 82, 94, .75);
+        --edge: rgba(255, 255, 255, .28);
+        --edge2: rgba(255, 255, 255, .08);
+        --sh: 0 12px 34px rgba(0, 0, 0, .5);
+        --field: rgba(255, 255, 255, .08);
+        --btn: rgba(255, 255, 255, .12);
+        --btn2: rgba(255, 255, 255, .2)
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      scrollbar-width: none
+    }
+
+    *::-webkit-scrollbar {
+      display: none
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden
+    }
+
+    body {
+      height: 100dvh;
+      position: relative;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -.005em
+    }
+
+    canvas {
+      display: block;
+      touch-action: none
+    }
+
+    main {
+      position: absolute;
+      inset: 0
+    }
+
+    section {
+      position: absolute;
+      inset: 0;
+      display: none
+    }
+
+    section.on {
+      display: block
+    }
+
+    #cv {
+      width: 100%;
+      height: 100%
+    }
+
+    svg.ic {
+      flex: none;
+      pointer-events: none;
+      vertical-align: -2px
+    }
+
+    .mute {
+      color: var(--mute);
+      font-size: 12px
+    }
+
+    .code {
+      font: 600 12px ui-monospace, monospace;
+      color: var(--acc)
+    }
+
+    /* kính */
+    header,
+    .panel,
+    .box,
+    #toast {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(26px) saturate(185%);
+      backdrop-filter: blur(26px) saturate(185%);
+      border: 0;
+      box-shadow: var(--sh), inset 0 1px 0 var(--edge), inset 0 0 22px var(--edge2)
+    }
+
+    header {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 8px 7px 18px;
+      border-radius: 24px
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: -.015em;
+      margin: 0 auto 0 0;
+      white-space: nowrap
+    }
+
+    .panel {
+      position: absolute;
+      border-radius: 22px;
+      padding: 14px;
+      font-size: 13px
+    }
+
+    .panel h4 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--mute);
+      font-weight: 600;
+      letter-spacing: .06em
+    }
+
+    /* nút / segmented / chip: không bao giờ rớt dòng */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 0;
+      background: var(--btn);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 var(--edge2);
+      transition: transform .15s, background .15s
+    }
+
+    .btn:hover {
+      background: var(--btn2);
+      transform: translateY(-1px)
+    }
+
+    .btn:active {
+      transform: scale(.97)
+    }
+
+    .btn.pri {
+      background: var(--acc);
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(10, 132, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .35)
+    }
+
+    .btn.pri:hover {
+      background: #2b95ff
+    }
+
+    .btn.red {
+      color: #ff453a
+    }
+
+    .btn.red.arm {
+      background: #ff453a;
+      color: #fff
+    }
+
+    .btn.sm {
+      padding: 4px 10px;
+      font-size: 12px
+    }
+
+    .btn:disabled {
+      opacity: .4;
+      pointer-events: none
+    }
+
+    .seg {
+      display: inline-flex;
+      gap: 2px;
+      background: rgba(120, 120, 128, .16);
+      border-radius: 999px;
+      padding: 3px
+    }
+
+    .seg button {
+      border: 0;
+      background: none;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s
+    }
+
+    .seg button.on {
+      background: var(--glass2);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .14), inset 0 1px 0 var(--edge)
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 4px 0
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 0;
+      background: var(--btn);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 var(--edge2);
+      transition: transform .15s
+    }
+
+    .chip:hover {
+      transform: translateY(-1px)
+    }
+
+    .chip.on {
+      background: var(--ink);
+      color: var(--bg)
+    }
+
+    .chip.on .mi {
+      color: inherit !important
+    }
+
+    .mi {
+      display: inline-flex
+    }
+
+    .mt {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: none;
+      font-size: 11px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: var(--btn);
+      white-space: nowrap
+    }
+
+    /* ===== TAB CỬA HÀNG ===== */
+    #legend {
+      left: 12px;
+      top: 78px;
+      width: 250px;
+      max-height: calc(100% - 160px);
+      overflow: auto
+    }
+
+    #legend button {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      border: 0;
+      background: none;
+      color: var(--ink);
+      font: inherit;
+      padding: 6px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      text-align: left
+    }
+
+    #legend button:hover,
+    #legend button.on {
+      background: var(--btn)
+    }
+
+    #legend b {
+      font: 500 11px ui-monospace, monospace;
+      color: var(--acc)
+    }
+
+    #add {
+      display: none;
+      left: 50%;
+      top: 74px;
+      transform: translateX(-50%);
+      padding: 5px;
+      gap: 4px;
+      align-items: center;
+      border-radius: 999px;
+      white-space: nowrap
+    }
+
+    #add .btn {
+      margin: 0;
+      min-height: 38px
+    }
+
+    #add .ib {
+      width: 40px;
+      padding: 0
+    }
+
+    #add .ib.on {
+      background: var(--glass2);
+      color: var(--acc)
+    }
+
+    .sep {
+      width: 6px
+    }
+
+    #insp {
+      right: 12px;
+      top: 78px;
+      width: 236px;
+      max-height: calc(100% - 160px);
+      overflow: auto
+    }
+
+    #insp label {
+      display: block;
+      margin: 6px 0 0;
+      color: var(--mute);
+      font-size: 12px
+    }
+
+    #insp input[type=text] {
+      width: 100%;
+      border: 0;
+      background: var(--field);
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 7px 10px;
+      font: inherit;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, .07)
+    }
+
+    .ih {
+      display: flex;
+      justify-content: space-between;
+      align-items: center
+    }
+
+    .ih .btn {
+      margin: 0
+    }
+
+    #insp.min>*:not(h4):not(.code) {
+      display: none
+    }
+
+    .al {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px
+    }
+
+    .al .btn {
+      padding: 4px 2px;
+      font-size: 11px
+    }
+
+    .acts2 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px
+    }
+
+    #tools {
+      right: 12px;
+      bottom: 14px;
+      padding: 5px;
+      border-radius: 999px
+    }
+
+    input[type=range] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 5px;
+      background: rgba(120, 120, 128, .3);
+      margin: 10px 0
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .28), inset 0 0 0 .5px rgba(0, 0, 0, .08)
+    }
+
+    input[type=range]::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .28)
+    }
+
+    input[type=color] {
+      border-radius: 12px;
+      cursor: pointer
+    }
+
+    input[type=color]::-webkit-color-swatch-wrapper {
+      padding: 0
+    }
+
+    input[type=color]::-webkit-color-swatch {
+      border: 0;
+      border-radius: 12px
+    }
+
+    /* ===== TAB NHÂN VIÊN (thiết kế lại) ===== */
+    #staff {
+      padding: 76px 12px 12px;
+      gap: 12px
+    }
+
+    #staff.on {
+      display: grid;
+      grid-template-columns: 304px minmax(0, 1fr) 292px;
+      grid-template-rows: minmax(0, 1fr);
+      grid-template-areas: "list stage note"
+    }
+
+    #staff::before,
+    #staff::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(70px);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    #staff::before {
+      width: 340px;
+      height: 340px;
+      background: #7aa7ff;
+      left: 32%;
+      top: 12%;
+      opacity: .28
+    }
+
+    #staff::after {
+      width: 280px;
+      height: 280px;
+      background: #ffb3cc;
+      right: 10%;
+      bottom: 8%;
+      opacity: .22
+    }
+
+    #staff>.panel {
+      position: relative;
+      z-index: 1;
+      min-height: 0
+    }
+
+    #slist {
+      grid-area: list;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: auto;
+      padding: 12px;
+      border-radius: 28px
+    }
+
+    .sh {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 6px;
+      font-size: 15px;
+      flex: none
+    }
+
+    .sh span {
+      background: var(--btn);
+      border-radius: 999px;
+      padding: 1px 10px;
+      font-size: 12px;
+      color: var(--mute)
+    }
+
+    .srow {
+      display: block;
+      flex: none;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: var(--glass2);
+      color: var(--ink);
+      font: inherit;
+      border-radius: 22px;
+      padding: 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .08), inset 0 1px 0 var(--edge);
+      transition: transform .18s, box-shadow .18s
+    }
+
+    .srow:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .12), inset 0 1px 0 var(--edge)
+    }
+
+    .c1 {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .av {
+      flex: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 16px;
+      background: var(--btn);
+      box-shadow: inset 0 1px 0 var(--edge), 0 2px 8px rgba(0, 0, 0, .1)
+    }
+
+    .nm {
+      flex: 1;
+      min-width: 0
+    }
+
+    .nm b {
+      display: block;
+      font-weight: 650;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .nm small {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--mute);
+      font-size: 11px;
+      min-width: 0
+    }
+
+    .tx {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .cd {
+      flex: none;
+      font: 600 10px ui-monospace, monospace;
+      color: var(--mute)
+    }
+
+    .c2,
+    .c3 {
+      margin-top: 8px;
+      background: var(--field);
+      border-radius: 14px;
+      padding: 8px 10px
+    }
+
+    .c2 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px
+    }
+
+    .c2 .mt {
+      background: var(--glass2)
+    }
+
+    .c3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px
+    }
+
+    .c3 span {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .c3 em,
+    .dg em {
+      display: block;
+      font-style: normal;
+      color: var(--mute);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em
+    }
+
+    #addS {
+      position: sticky;
+      bottom: 0;
+      flex: none;
+      width: 100%;
+      min-height: 40px
+    }
+
+    #stage {
+      grid-area: stage;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 28px
+    }
+
+    .cvwrap {
+      position: relative;
+      flex: 1;
+      min-height: 0
+    }
+
+    .cvwrap canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%
+    }
+
+    .hint {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--mute);
+      background: var(--btn);
+      padding: 3px 12px;
+      border-radius: 999px;
+      pointer-events: none;
+      white-space: nowrap
+    }
+
+    #acts {
+      align-self: center;
+      flex: none;
+      margin: 4px 0 14px
+    }
+
+    #note {
+      grid-area: note;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+      border-radius: 28px;
+      padding: 16px
+    }
+
+    .nh {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .nh .av {
+      width: 44px;
+      height: 44px
+    }
+
+    .ni {
+      flex: 1;
+      min-width: 0
+    }
+
+    .ni b {
+      display: block;
+      font-size: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .ni .mute {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      overflow: hidden
+    }
+
+    .nt {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .dg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      background: var(--field);
+      border-radius: 16px;
+      padding: 10px 12px;
+      font-size: 12px
+    }
+
+    .dg div {
+      min-width: 0
+    }
+
+    .dg span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .dg .w {
+      grid-column: 1/-1
+    }
+
+    .dg .w span {
+      white-space: normal
+    }
+
+    .pers {
+      margin: 0;
+      font-size: 12px;
+      color: var(--mute)
+    }
+
+    @media (max-width:1000px) {
+      #staff.on {
+        grid-template-columns: 276px minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-areas: "list stage" "list note"
+      }
+
+      #note {
+        max-height: 210px;
+        border-radius: 24px
+      }
+
+      .dg {
+        grid-template-columns: repeat(4, 1fr)
+      }
+    }
+
+    /* ===== MODAL ===== */
+    #modal,
+    #dmodal,
+    #amodal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9;
+      background: rgba(20, 20, 34, .3);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px)
+    }
+
+    #modal.on,
+    #dmodal.on,
+    #amodal.on {
+      display: flex
+    }
+
+    .box {
+      position: relative;
+      width: min(380px, 100%);
+      border-radius: 32px;
+      padding: 24px;
+      -webkit-backdrop-filter: blur(44px) saturate(190%);
+      backdrop-filter: blur(44px) saturate(190%)
+    }
+
+    .box h2 {
+      margin: 0 0 4px;
+      font-size: 20px
+    }
+
+    .box.wide {
+      width: min(900px, 100%);
+      max-height: min(88dvh, 780px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .x {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--btn);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 var(--edge)
+    }
+
+    .mh {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding-right: 44px;
+      margin-bottom: 10px;
+      flex: none
+    }
+
+    .mh h2 {
+      margin: 0
+    }
+
+    .ed {
+      display: flex;
+      gap: 16px;
+      flex: 1;
+      min-height: 0
+    }
+
+    .pv {
+      position: relative;
+      flex: none;
+      width: min(340px, 42%);
+      border-radius: 24px;
+      overflow: hidden;
+      background: var(--field);
+      box-shadow: inset 0 1px 0 var(--edge), inset 0 0 24px var(--edge2)
+    }
+
+    .pv canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%
+    }
+
+    .pvb {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 8px
+    }
+
+    .pvb.seg button {
+      padding: 5px 12px;
+      font-size: 12px
+    }
+
+    .pvb.txt {
+      font-size: 12px;
+      color: var(--mute);
+      white-space: nowrap;
+      pointer-events: none
+    }
+
+    #form,
+    #alist {
+      flex: 1;
+      min-width: 0;
+      overflow: auto;
+      padding-right: 2px
+    }
+
+    #form {
+      font-size: 13px
+    }
+
+    .sec {
+      background: var(--btn);
+      border-radius: 20px;
+      padding: 12px 14px;
+      margin-bottom: 10px
+    }
+
+    .sec h5,
+    #dbox h5 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      color: var(--mute);
+      text-transform: uppercase;
+      letter-spacing: .06em
+    }
+
+    #dbox h5 {
+      margin-top: 14px
+    }
+
+    #form label,
+    #dbox label {
+      display: block;
+      margin: 6px 0;
+      color: var(--mute);
+      font-size: 12px
+    }
+
+    #form input:not([type=range]):not([type=color]),
+    #form select,
+    #form textarea,
+    #dbox textarea,
+    #dbox select {
+      width: 100%;
+      border: 0;
+      background: var(--field);
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 7px 10px;
+      font: inherit;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, .07)
+    }
+
+    #form input[type=color] {
+      width: 100%;
+      height: 32px;
+      border: 0;
+      padding: 0;
+      background: none
+    }
+
+    .g2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 10px
+    }
+
+    .trow {
+      display: grid;
+      grid-template-columns: 22px 92px 1fr 38px 1.2fr auto;
+      gap: 4px;
+      margin: 6px 0;
+      align-items: center
+    }
+
+    .trow input,
+    .trow select {
+      min-width: 0
+    }
+
+    .ti {
+      display: inline-flex;
+      justify-content: center
+    }
+
+    details summary {
+      cursor: pointer;
+      margin: 6px 0
+    }
+
+    .foot {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex: none;
+      margin-top: 12px;
+      padding-top: 12px
+    }
+
+    .ss {
+      display: none
+    }
+
+    #dbox {
+      display: block;
+      overflow: auto
+    }
+
+    #dbox textarea {
+      margin: 6px 0;
+      font: 12px ui-monospace, monospace
+    }
+
+    .err {
+      color: #ff453a;
+      margin: 8px 0
+    }
+
+    .ok {
+      margin: 8px 0
+    }
+
+    .ai {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: var(--btn);
+      color: var(--ink);
+      border-radius: 16px;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+      font: inherit;
+      cursor: pointer;
+      transition: background .15s
+    }
+
+    .ai small {
+      display: block;
+      opacity: .75;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .ai.on {
+      background: var(--acc);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(10, 132, 255, .35)
+    }
+
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 70px;
+      transform: translateX(-50%);
+      color: var(--ink);
+      padding: 10px 20px;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s;
+      z-index: 20;
+      white-space: nowrap;
+      max-width: 94vw;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    #toast.on {
+      opacity: 1
+    }
+
+    /* ===== ĐIỆN THOẠI ===== */
+    @media (max-width:720px) {
+      header {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        padding: 6px 8px 6px 14px;
+        border-radius: 20px
+      }
+
+      .lbl {
+        display: none
+      }
+
+      .btn {
+        min-height: 36px
+      }
+
+      .chip {
+        min-height: 32px
+      }
+
+      input,
+      select,
+      textarea {
+        font-size: 16px !important
+      }
+
+      #legend {
+        display: none
+      }
+
+      #add {
+        left: 8px;
+        right: 8px;
+        top: 66px;
+        transform: none;
+        max-width: none;
+        overflow-x: auto;
+        justify-content: flex-start;
+        border-radius: 20px
+      }
+
+      #add .btn {
+        flex: none
+      }
+
+      #insp {
+        left: 8px;
+        right: 8px;
+        top: auto;
+        bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-height: 44%;
+        padding: 12px
+      }
+
+      #insp.empty {
+        display: none
+      }
+
+      .al {
+        grid-template-columns: repeat(3, 1fr)
+      }
+
+      #tools {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px))
+      }
+
+      /* nhân viên */
+      #staff {
+        padding: 62px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+        gap: 8px
+      }
+
+      #staff.on {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        grid-template-areas: "stage" "note" "list"
+      }
+
+      #staff::before,
+      #staff::after {
+        opacity: .18
+      }
+
+      #stage {
+        border-radius: 24px
+      }
+
+      #acts {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        width: calc(100% - 20px);
+        margin: 2px 0 10px
+      }
+
+      #acts button {
+        padding: 7px 2px;
+        font-size: 11.5px;
+        text-align: center
+      }
+
+      .hint {
+        display: none
+      }
+
+      #note {
+        max-height: none;
+        overflow: hidden;
+        padding: 10px 12px;
+        gap: 8px;
+        border-radius: 22px
+      }
+
+      .dg,
+      .pers {
+        display: none
+      }
+
+      .nh .av {
+        width: 38px;
+        height: 38px
+      }
+
+      .ni b {
+        font-size: 14px
+      }
+
+      .nt {
+        flex-wrap: nowrap;
+        overflow: hidden
+      }
+
+      #slist {
+        flex-direction: row;
+        align-items: stretch;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 22px;
+        scroll-snap-type: x proximity
+      }
+
+      .sh {
+        display: none
+      }
+
+      .srow {
+        width: 210px;
+        flex: none;
+        padding: 10px;
+        scroll-snap-align: start
+      }
+
+      .srow:hover {
+        transform: none
+      }
+
+      .c3,
+      .cd {
+        display: none
+      }
+
+      .c2 {
+        flex-wrap: nowrap;
+        overflow: hidden;
+        margin-top: 8px
+      }
+
+      .av {
+        width: 36px;
+        height: 36px;
+        font-size: 15px
+      }
+
+      #addS {
+        position: static;
+        width: 48px;
+        min-height: 0;
+        height: 48px;
+        padding: 0;
+        border-radius: 50%;
+        align-self: center
+      }
+
+      .lbl2 {
+        display: none
+      }
+
+      /* modal dạng sheet */
+      #modal,
+      #dmodal,
+      #amodal {
+        align-items: flex-end;
+        padding: 0
+      }
+
+      .box,
+      .box.wide {
+        width: 100%;
+        max-height: 92dvh;
+        border-radius: 28px 28px 0 0;
+        padding: 16px 14px calc(14px + env(safe-area-inset-bottom, 0px))
+      }
+
+      .ed {
+        flex-direction: column;
+        gap: 10px
+      }
+
+      .pv {
+        width: 100%;
+        height: 30dvh;
+        min-height: 190px
+      }
+
+      .trow {
+        grid-template-columns: 22px 84px 1fr 38px auto
+      }
+
+      .trow input[data-p=desc] {
+        grid-column: 1/-1
+      }
+
+      .foot {
+        flex-wrap: nowrap;
+        gap: 6px
+      }
+
+      .foot .btn {
+        flex: 1 1 auto;
+        padding: 6px 8px;
+        font-size: 12px
+      }
+
+      .lg {
+        display: none
+      }
+
+      .ss {
+        display: inline
+      }
+
+      .x {
+        right: 12px;
+        top: 12px
+      }
+    }
+
+    @media (max-width:560px) {
+      header h1 {
+        display: none
+      }
+
+      header {
+        padding-left: 8px
+      }
+
+      .seg button {
+        padding: 7px 10px
+      }
+
+      #tabs {
+        flex: 1
+      }
+
+      #tabs button {
+        flex: 1
+      }
+    }
+
+    @media (max-width:480px) {
+      #foot .btn:not(.pri) svg {
+        display: none
+      }
+    }
+
+    @media (max-width:380px) {
+      #acts button {
+        font-size: 10.5px
+      }
+
+      .srow {
+        width: 196px
+      }
+    }
+
+
+    html,
+    body,
+    main,
+    section,
+    #staff {
+      overflow: clip
+    }
+
+    #modal {
+      padding: 0
+    }
+
+    #modal .box.wide {
+      width: 100%;
+      max-width: none;
+      height: 100dvh;
+      max-height: none;
+      border-radius: 0;
+      padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))
+    }
+
+    #modal .pv {
+      width: min(480px, 44%)
+    }
+
+    @media (max-width:720px) {
+      #modal .pv {
+        width: 100%;
+        height: 34dvh;
+        min-height: 150px
+      }
+    }
+
+    @media (max-height:520px) {
+      #modal .ed {
+        flex-direction: row
+      }
+
+      #modal .pv {
+        width: 42%;
+        height: auto;
+        min-height: 0
+      }
+
+      #modal .mh {
+        margin-bottom: 6px
+      }
+    }
+
+    /* Zoom + nhãn bộ phận */
+    .vc {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      z-index: 3
+    }
+
+    .vc button {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 10px;
+      font-size: 12px
+    }
+
+    .ptag {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--glass2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+      max-width: calc(100% - 200px);
+      white-space: nowrap;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .12), inset 0 1px 0 var(--edge);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      transition: background .25s, color .25s
+    }
+
+    .ptag.on {
+      background: var(--acc);
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(10, 132, 255, .4), inset 0 1px 0 rgba(255, 255, 255, .35)
+    }
+
+    .ptag button {
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      padding: 0;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .ptag .x {
+      display: none
+    }
+
+    .ptag.on .x {
+      display: inline;
+      opacity: .85
+    }
+
+    .ptag:not(.on) .o {
+      pointer-events: none;
+      cursor: default
+    }
+
+    /* ===== Form hồ sơ thiết kế lại: từng vùng là một thẻ kính riêng ===== */
+    #form {
+      padding: 0 2px 28px
+    }
+
+    .nav2 {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding: 0 0 12px
+    }
+
+    .nav2 .seg {
+      display: flex;
+      width: 100%;
+      background: var(--glass2);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .1), inset 0 1px 0 var(--edge);
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px)
+    }
+
+    .nav2 .seg button {
+      flex: 1;
+      padding: 6px 4px;
+      font-size: 12px
+    }
+
+    .nav2 .seg button.on {
+      background: var(--acc);
+      color: #fff;
+      box-shadow: none
+    }
+
+    .pc {
+      background: var(--btn);
+      border-radius: 24px;
+      padding: 16px;
+      margin: 0 0 14px;
+      box-shadow: 0 1px 0 var(--edge2) inset;
+      scroll-margin-top: 56px;
+      transition: background .3s, box-shadow .3s, opacity .3s, transform .3s
+    }
+
+    .pc>h5 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      font-size: 12px;
+      letter-spacing: .06em;
+      color: var(--mute);
+      text-transform: uppercase
+    }
+
+    .gt {
+      margin: 22px 4px 4px;
+      font-size: 16px;
+      font-weight: 650
+    }
+
+    .gs {
+      margin: 0 4px 12px;
+      font-size: 12px;
+      color: var(--mute)
+    }
+
+    /* chọn bộ phận: thẻ nổi lên như kính sáng, không viền */
+    .pc.sel>h5 {
+      color: var(--ink)
+    }
+
+    /* danh sách dạng iOS */
+    .ls {
+      background: var(--field);
+      border-radius: 16px;
+      overflow: hidden
+    }
+
+    #form .li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      padding: 9px 14px;
+      color: var(--ink);
+      font-size: 13px
+    }
+
+    #form .li+.li {
+      box-shadow: inset 0 1px 0 var(--line)
+    }
+
+    #form .li>span {
+      flex: none;
+      width: 86px;
+      color: var(--mute);
+      font-size: 12px
+    }
+
+    #form .li.ta {
+      align-items: flex-start
+    }
+
+    #form .li input,
+    #form .li select,
+    #form .li textarea {
+      flex: 1;
+      min-width: 0;
+      width: auto !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      outline: none !important;
+      border-radius: 8px !important;
+      padding: 4px 6px !important;
+      text-align: right
+    }
+
+    #form .li textarea {
+      text-align: left;
+      resize: none
+    }
+
+    /* điều khiển số: nhóm nút + bước ±, không còn thanh kéo */
+    .ln {
+      margin: 0 0 16px
+    }
+
+    .pc .ln:last-child {
+      margin-bottom: 0
+    }
+
+    .lt {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+      font-size: 13px
+    }
+
+    .lt span {
+      color: var(--mute)
+    }
+
+    .lt b {
+      font-variant-numeric: tabular-nums
+    }
+
+    .ctl2 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center
+    }
+
+    .sg button {
+      padding: 5px 11px;
+      font-size: 12px
+    }
+
+    .stp {
+      display: inline-flex;
+      gap: 6px;
+      margin-left: auto
+    }
+
+    .stp button {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--glass2);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .1), inset 0 1px 0 var(--edge);
+      transition: transform .15s
+    }
+
+    .stp button:hover {
+      transform: translateY(-1px)
+    }
+
+    .stp button:active {
+      transform: scale(.92)
+    }
+
+    .clr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px
+    }
+
+    .clr>span:first-child {
+      color: var(--mute)
+    }
+
+    .dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+      justify-content: flex-end
+    }
+
+    .dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1), 0 2px 6px rgba(0, 0, 0, .12);
+      transition: transform .15s, box-shadow .15s
+    }
+
+    #form .clr input[type=color] {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%
+    }
+
+    #form .clr input[type=color]::-webkit-color-swatch {
+      border-radius: 50%
+    }
+
+    /* Bỏ chấm tròn trạng thái chức vụ (thay bằng màu avatar bên dưới) */
+    .ud {
+      display: none
+    }
+
+    /* Thẻ đang chọn nổi khối (không viền, không chấm) */
+    .pc.sel {
+      transform: translateY(-3px) scale(1.012);
+      background-color: var(--glass2);
+      background-image: linear-gradient(180deg, var(--edge2), transparent 55%);
+      box-shadow: 0 22px 44px rgba(10, 10, 30, .22), 0 4px 10px rgba(10, 10, 30, .1), inset 0 1px 0 var(--edge)
+    }
+
+    #form.hs .pc[data-card]:not(.sel) {
+      opacity: .6;
+      transform: scale(.992)
+    }
+
+    /* Thẻ nhân viên đang chọn: không viền, nổi lên khỏi nền */
+    .srow {
+      background: var(--btn);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .06), inset 0 1px 0 var(--edge2)
+    }
+
+    .srow.on {
+      background-color: var(--glass2);
+      background-image: linear-gradient(180deg, var(--edge2), transparent 60%);
+      transform: translateY(-3px);
+      box-shadow: 0 18px 36px rgba(10, 10, 30, .24), 0 3px 8px rgba(10, 10, 30, .1), inset 0 1px 0 var(--edge)
+    }
+
+    /* Ô chọn màu: nổi khối thay vì vòng viền */
+    .dot.on {
+      transform: translateY(-2px) scale(1.2);
+      box-shadow: 0 8px 16px rgba(10, 10, 30, .35), inset 0 1px 0 rgba(255, 255, 255, .55)
+    }
+
+    /* Focus ô nhập: không outline, chỉ nổi nhẹ */
+    #form input:focus,
+    #form select:focus,
+    #form textarea:focus,
+    #dbox textarea:focus,
+    #insp input:focus {
+      outline: none !important;
+      background: var(--glass2) !important;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .14), inset 0 1px 0 var(--edge) !important
+    }
+
+    #form .li input:focus,
+    #form .li select:focus,
+    #form .li textarea:focus {
+      box-shadow: none !important;
+      background: var(--glass2) !important
+    }
+
+    /* Avatar thể hiện chức vụ bằng màu áo (xám / hồng) */
+    .av.rg-gray {
+      background: linear-gradient(145deg, #cfcfd4, #98989e);
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .25)
+    }
+
+    .av.rg-pink {
+      background: linear-gradient(145deg, #ffc9dc, #ff8fb1);
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .2)
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Quản lý cửa hàng</h1><button class="btn" id="dataBtn" style="margin:0"></button>
+    <div class="seg" id="tabs"><button class="on" data-t="store">Cửa hàng</button><button data-t="staff">Nhân
+        viên</button></div>
+  </header>
+  <main>
+    <section id="store" class="on">
+      <canvas id="cv"></canvas>
+      <div class="panel" id="legend"></div>
+      <div class="panel" id="add"></div>
+      <div class="panel" id="insp"></div>
+      <div class="panel" id="tools">
+        <div class="seg"><button class="on" data-m="view">Xem</button><button data-m="edit">Chỉnh sửa</button></div>
+      </div>
+    </section>
+    <section id="staff">
+      <div class="panel" id="slist"></div>
+      <div class="panel" id="stage">
+        <div class="cvwrap"><canvas id="cv2"></canvas><span class="hint">Kéo để xoay nhân vật</span></div>
+        <div class="seg" id="acts"></div>
+      </div>
+      <div class="panel" id="note"></div>
+    </section>
+  </main>
+  <div id="modal">
+    <div class="box wide"><button class="x" id="mx"></button>
+      <div class="mh">
+        <h2>Hồ sơ nhân viên</h2><span class="code" id="mcode"></span>
+      </div>
+      <div class="ed">
+        <div class="pv"><canvas id="cv3"></canvas>
+          <div class="seg pvb" id="pvb"></div>
+        </div>
+        <div id="form"></div>
+      </div>
+      <div class="foot" id="foot"></div>
+    </div>
+  </div>
+  <div id="dmodal">
+    <div class="box wide" id="dbox"></div>
+  </div>
+  <div id="toast"></div>
+  <div id="amodal">
+    <div class="box wide"><button class="x" id="ax"></button>
+      <div class="mh">
+        <h2>Thêm quầy</h2>
+      </div>
+      <div class="ed">
+        <div class="pv"><canvas id="cv4"></canvas>
+          <div class="pvb txt">Kéo để xoay 360°</div>
+        </div>
+        <div id="alist"></div>
+      </div>
+      <div class="foot" style="justify-content:flex-end"><button class="btn pri" id="aok"
+          style="flex:1 1 auto"></button></div>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+ <script src="./script.js"></script>
+ <script src="./shelf-ui.js"></script>
+</body>
+
+</html>
