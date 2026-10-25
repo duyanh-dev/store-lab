@@ -1635,17 +1635,74 @@ function produceStand(it, g, T) {
   /* tường xanh phía sau + ống phun sương + biển */
   rb(0.05, topY - 0.45, d, 0x7a9a5a, sp, 0.45, 0, g, 0.01);
   for (let k = 0; k < 6 + T * 5; k++)
-    sph(0.07 + rd() * 0.04, pick([0x2e7d32, 0x43a047, 0x66bb6a], rd), sp + (rd() - 0.5) * 0.04, 0.55 + rd() * (topY - 0.7), (rd() - 0.5) * d, g, 0.5, 1, 1.2);
+    sph(
+      0.07 + rd() * 0.04,
+      pick([0x2e7d32, 0x43a047, 0x66bb6a], rd),
+      sp + (rd() - 0.5) * 0.04,
+      0.55 + rd() * (topY - 0.7),
+      (rd() - 0.5) * d,
+      g,
+      0.5,
+      1,
+      1.2,
+    );
   cylZ(0.012, d - 0.1, 0x9aa4ad, sp + (two ? 0 : 0.1), topY - 0.06, 0, g, 8);
   for (let k = 0; k < Math.max(3, n * 2); k++)
-    cyl(0.004, 0.004, 0.05, 0x9aa4ad, sp + (two ? 0 : 0.1), topY - 0.12, -d / 2 + 0.2 + k * ((d - 0.4) / Math.max(1, n * 2 - 1)), g, 5);
+    cyl(
+      0.004,
+      0.004,
+      0.05,
+      0x9aa4ad,
+      sp + (two ? 0 : 0.1),
+      topY - 0.12,
+      -d / 2 + 0.2 + k * ((d - 0.4) / Math.max(1, n * 2 - 1)),
+      g,
+      5,
+    );
   const Lw = Math.min(d - 0.1, 1.5);
   rb(0.05, 0.3, Lw, 0x1b5e20, sp, topY + 0.02, 0, g, 0.01);
   const sy = topY + 0.17;
   if (two) {
-    sign(g, "RAU CỦ QUẢ TƯƠI", "#2e7d32", "#ffffff", Lw - 0.04, 0.26, 0.027, sy, 0, Math.PI / 2, 0.35);
-    sign(g, "RAU CỦ QUẢ TƯƠI", "#2e7d32", "#ffffff", Lw - 0.04, 0.26, -0.027, sy, 0, -Math.PI / 2, 0.35);
-  } else sign(g, "RAU CỦ QUẢ TƯƠI", "#2e7d32", "#ffffff", Lw - 0.04, 0.26, sp + 0.027, sy, 0, Math.PI / 2, 0.35);
+    sign(
+      g,
+      "RAU CỦ QUẢ TƯƠI",
+      "#2e7d32",
+      "#ffffff",
+      Lw - 0.04,
+      0.26,
+      0.027,
+      sy,
+      0,
+      Math.PI / 2,
+      0.35,
+    );
+    sign(
+      g,
+      "RAU CỦ QUẢ TƯƠI",
+      "#2e7d32",
+      "#ffffff",
+      Lw - 0.04,
+      0.26,
+      -0.027,
+      sy,
+      0,
+      -Math.PI / 2,
+      0.35,
+    );
+  } else
+    sign(
+      g,
+      "RAU CỦ QUẢ TƯƠI",
+      "#2e7d32",
+      "#ffffff",
+      Lw - 0.04,
+      0.26,
+      sp + 0.027,
+      sy,
+      0,
+      Math.PI / 2,
+      0.35,
+    );
   cyl(0.02, 0.02, 0.5, 0x6b6b70, sp, topY - 0.5, -Lw / 2 + 0.05, g, 8);
   cyl(0.02, 0.02, 0.5, 0x6b6b70, sp, topY - 0.5, Lw / 2 - 0.05, g, 8);
   /* khung + sàn các tầng trên */
@@ -1653,7 +1710,21 @@ function produceStand(it, g, T) {
     const yd = 0.45 + t * SP;
     sides.forEach((s) => {
       const fx = s * w * 0.22;
-      [-1, 1].forEach((e) => [-1, 1].forEach((a) => rb(0.04, SP - 0.04, 0.04, 0x6b6b70, fx + a * 0.32, yd - SP, e * (d / 2 - 0.05), g, 0.006)));
+      [-1, 1].forEach((e) =>
+        [-1, 1].forEach((a) =>
+          rb(
+            0.04,
+            SP - 0.04,
+            0.04,
+            0x6b6b70,
+            fx + a * 0.32,
+            yd - SP,
+            e * (d / 2 - 0.05),
+            g,
+            0.006,
+          ),
+        ),
+      );
       rb(0.72, 0.04, d - 0.04, 0xb8956a, fx, yd - 0.04, 0, g, 0.01);
       rb(0.74, 0.015, d - 0.02, 0x8a6b45, fx, yd - 0.055, 0, g, 0.004);
     });
@@ -1662,13 +1733,31 @@ function produceStand(it, g, T) {
   for (let i = 0; i < n; i++)
     sides.forEach((s) => {
       const z = -d / 2 + 0.45 + (i * (d - 0.9)) / Math.max(1, n - 1);
-      for (let t = 0; t < T; t++) crate(g, s * w * 0.22, z, s, pick(list, rd), rd, 0.45 + t * SP, 0.12, t === T - 1);
+      for (let t = 0; t < T; t++)
+        crate(
+          g,
+          s * w * 0.22,
+          z,
+          s,
+          pick(list, rd),
+          rd,
+          0.45 + t * SP,
+          0.12,
+          t === T - 1,
+        );
     });
 }
- 
+
 /* ---- Tủ mát sữa chua / Yakult: một ô hàng (x0..x1 chiều sâu, z0..z1 chiều dài) ---- */
 const P_DAIRY = [0xffffff, 0xe53935, 0x43a047, 0xfdd835, 0xf48fb1, 0x81d4fa];
-const DAIRY_PRICES = ["7.900", "12.500", "17.900", "25.000", "28.900", "35.500"];
+const DAIRY_PRICES = [
+  "7.900",
+  "12.500",
+  "17.900",
+  "25.000",
+  "28.900",
+  "35.500",
+];
 function dairyCell(g, kind, x0, x1, y, z0, z1, rd) {
   const W = x1 - x0,
     L = z1 - z0,
@@ -1682,17 +1771,41 @@ function dairyCell(g, kind, x0, x1, y, z0, z1, rd) {
       for (let j = 0; j < nz; j++) {
         const x = x1 - 0.03 - r * 0.05,
           z = z0 + (L / nz) * (j + 0.5);
-        cyl(0.019, 0.02, 0.065, pick([0xf3e5f5, 0xffcdd2, 0xfff9c4, 0xc8e6c9, 0xffffff], rd), x, y, z, g, 10, 0.4);
-        cyl(0.016, 0.016, 0.012, pick([0xe53935, 0xe53935, 0xfdd835], rd), x, y + 0.065, z, g, 8, 0.4);
+        cyl(
+          0.019,
+          0.02,
+          0.065,
+          pick([0xf3e5f5, 0xffcdd2, 0xfff9c4, 0xc8e6c9, 0xffffff], rd),
+          x,
+          y,
+          z,
+          g,
+          10,
+          0.4,
+        );
+        cyl(
+          0.016,
+          0.016,
+          0.012,
+          pick([0xe53935, 0xe53935, 0xfdd835], rd),
+          x,
+          y + 0.065,
+          z,
+          g,
+          8,
+          0.4,
+        );
       }
     const bw = W - rows * 0.05 - 0.01;
-    if (bw > 0.04) rb(bw, 0.07, L - 0.02, 0xf4f4f0, x0 + bw / 2, y, zc, g, 0.008);
+    if (bw > 0.04)
+      rb(bw, 0.07, L - 0.02, 0xf4f4f0, x0 + bw / 2, y, zc, g, 0.008);
   } else if (kind === "cups") {
     /* hũ sữa chua nắp giấy bạc, 3 hàng */
     const xs = [x1 - 0.05, x1 - 0.14, x1 - 0.23].filter((x) => x > x0 + 0.03);
     fillRow(g, "cupy", 1, xs, y, 0.07, z0, z1, rd, P_DAIRY, 0.05);
     const bx = xs.length ? xs[xs.length - 1] - 0.06 : x1;
-    if (bx - x0 > 0.05) rb(bx - x0, 0.06, L - 0.02, 0xe8f1f5, (x0 + bx) / 2, y, zc, g, 0.008);
+    if (bx - x0 > 0.05)
+      rb(bx - x0, 0.06, L - 0.02, 0xe8f1f5, (x0 + bx) / 2, y, zc, g, 0.008);
   } else if (kind === "jars") {
     /* hũ thuỷ tinh sữa chua / pudding nắp trắng */
     const xs = [x1 - 0.06, x1 - 0.16].filter((x) => x > x0 + 0.03);
@@ -1708,7 +1821,17 @@ function dairyCell(g, kind, x0, x1, y, z0, z1, rd) {
           c = pick([0xffffff, 0xf5f5f0, 0xfdd835, 0xe53935], rd);
         for (let k = 0; k < 3; k++) {
           rb(0.18, 0.07, 0.14, c, x, y + k * 0.072, z, g, 0.006);
-          rb(0.004, 0.045, 0.1, pick([0xe53935, 0x1e88e5, 0x43a047], rd), x + 0.091, y + k * 0.072 + 0.012, z, g, 0.001);
+          rb(
+            0.004,
+            0.045,
+            0.1,
+            pick([0xe53935, 0x1e88e5, 0x43a047], rd),
+            x + 0.091,
+            y + k * 0.072 + 0.012,
+            z,
+            g,
+            0.001,
+          );
         }
       }
   } else {
@@ -1721,9 +1844,27 @@ function dairyCell(g, kind, x0, x1, y, z0, z1, rd) {
           yc = y + 0.03 + k * 0.058,
           c = pick([0x6d4c41, 0x8bc34a, 0xf5deb3, 0xa1887f, 0x558b2f], rd);
         cylX(0.03, bl, c, x1 - 0.03 - bl / 2, yc, z, g, 10);
-        cylX(0.0305, bl * 0.35, pick([0xffffff, 0xfff3e0], rd), x1 - 0.03 - bl * 0.6, yc, z, g, 10);
+        cylX(
+          0.0305,
+          bl * 0.35,
+          pick([0xffffff, 0xfff3e0], rd),
+          x1 - 0.03 - bl * 0.6,
+          yc,
+          z,
+          g,
+          10,
+        );
         cylX(0.014, 0.03, c, x1 - 0.015, yc, z, g, 8);
-        cylX(0.016, 0.014, pick([0xe53935, 0xfdd835, 0xffffff], rd), x1 - 0.002, yc, z, g, 8);
+        cylX(
+          0.016,
+          0.014,
+          pick([0xe53935, 0xfdd835, 0xffffff], rd),
+          x1 - 0.002,
+          yc,
+          z,
+          g,
+          8,
+        );
       }
   }
 }
@@ -1902,7 +2043,7 @@ const BUILD = {
   },
 
   /* ---------- rau củ quả ---------- */
-/* quầy rau củ quả tươi – nay là 2 tầng */
+  /* quầy rau củ quả tươi – nay là 2 tầng */
   produce(it, g) {
     produceStand(it, g, 2);
   },
@@ -1910,7 +2051,7 @@ const BUILD = {
   produce3(it, g) {
     produceStand(it, g, 3);
   },
- 
+
   /* ---------- tủ mát hở sữa chua – Yakult – nước (khung giống chiller) ---------- */
   dairy(it, g) {
     const [w, d] = it.size,
@@ -1922,17 +2063,77 @@ const BUILD = {
     /* đế + lưới hút gió inox phía trước */
     rb(w, 0.12, d, 0x3b3d44, 0, 0, 0, g, 0.02);
     rb(0.05, 0.24, d - 0.06, 0xaeb3ba, fx - 0.03, 0.1, 0, g, 0.01);
-    for (let k = 0; k < 5; k++) rb(0.054, 0.012, d - 0.1, 0x55595f, fx - 0.03, 0.15 + k * 0.036, 0, g, 0.003);
+    for (let k = 0; k < 5; k++)
+      rb(
+        0.054,
+        0.012,
+        d - 0.1,
+        0x55595f,
+        fx - 0.03,
+        0.15 + k * 0.036,
+        0,
+        g,
+        0.003,
+      );
     /* hai hông, lưng, nóc */
-    [-1, 1].forEach((s) => rb(w, H, 0.06, 0xe9eaee, 0, 0, s * (d / 2 - 0.03), g, 0.015));
+    [-1, 1].forEach((s) =>
+      rb(w, H, 0.06, 0xe9eaee, 0, 0, s * (d / 2 - 0.03), g, 0.015),
+    );
     rb(0.05, H, d, 0xe4e7ea, -fx + 0.025, 0, 0, g, 0.01);
     rb(w + 0.04, 0.28, d, 0xf1f2f4, 0.02, H - 0.28, 0, g, 0.03);
     /* đèn LED dưới nóc */
-    rb(0.07, 0.025, d - 0.16, 0xffffff, fx - 0.15, H - 0.305, 0, g, 0.005).material = glowMat(0xffffff, 0xdff0ff, 1.3);
+    rb(
+      0.07,
+      0.025,
+      d - 0.16,
+      0xffffff,
+      fx - 0.15,
+      H - 0.305,
+      0,
+      g,
+      0.005,
+    ).material = glowMat(0xffffff, 0xdff0ff, 1.3);
     /* bảng hiệu + banner đỏ nâu phía dưới như ảnh + đèn nhiệt độ */
-    sign(g, "SỮA CHUA • NƯỚC MÁT", "#0277bd", "#ffffff", Lw, 0.2, fx + 0.045, H - 0.14, 0, Math.PI / 2, 0.5);
-    sign(g, "CHUẨN NGON NHÀ LÀM", "#6d1b1b", "#ffcc80", Lw, 0.16, fx + 0.012, 0.22, 0, Math.PI / 2, 0.3);
-    if (d > 2.2) sign(g, "4°C", "#101418", "#69f0ae", 0.14, 0.06, fx + 0.046, H - 0.14, d / 2 - 0.16, Math.PI / 2, 1.0);
+    sign(
+      g,
+      "SỮA CHUA • NƯỚC MÁT",
+      "#0277bd",
+      "#ffffff",
+      Lw,
+      0.2,
+      fx + 0.045,
+      H - 0.14,
+      0,
+      Math.PI / 2,
+      0.5,
+    );
+    sign(
+      g,
+      "CHUẨN NGON NHÀ LÀM",
+      "#6d1b1b",
+      "#ffcc80",
+      Lw,
+      0.16,
+      fx + 0.012,
+      0.22,
+      0,
+      Math.PI / 2,
+      0.3,
+    );
+    if (d > 2.2)
+      sign(
+        g,
+        "4°C",
+        "#101418",
+        "#69f0ae",
+        0.14,
+        0.06,
+        fx + 0.046,
+        H - 0.14,
+        d / 2 - 0.16,
+        Math.PI / 2,
+        1.0,
+      );
     /* các tầng kệ */
     const ns = Math.max(2, Math.floor((d - 0.2) / 0.6)),
       sl = (d - 0.2) / ns,
@@ -1940,7 +2141,14 @@ const BUILD = {
       x1 = fx - 0.07;
     for (let t = 0; t < NT; t++) {
       const y = 0.4 + t * 0.36,
-        pool = t === 0 ? ["lay", "lay", "yakult"] : t === 1 ? ["yakult", "cups", "jars", "yakult"] : t === 2 ? ["cups", "yakult", "cups", "cartons"] : ["cartons", "cartons", "cups"];
+        pool =
+          t === 0
+            ? ["lay", "lay", "yakult"]
+            : t === 1
+              ? ["yakult", "cups", "jars", "yakult"]
+              : t === 2
+                ? ["cups", "yakult", "cups", "cartons"]
+                : ["cartons", "cartons", "cups"];
       rb(w - 0.08, 0.03, d - 0.08, 0xcfd3d8, 0, y, 0, g, 0.008);
       rb(0.02, 0.055, d - 0.1, 0xffffff, fx - 0.03, y, 0, g, 0.004);
       rb(0.014, 0.1, d - 0.1, 0xd4d8dd, -fx + 0.06, y + 0.03, 0, g, 0.004);
@@ -1949,7 +2157,19 @@ const BUILD = {
           z1 = z0 + sl - 0.03,
           zc = (z0 + z1) / 2;
         dairyCell(g, pick(pool, rd), x0, x1, y + 0.03, z0, z1, rd);
-        sign(g, pick(DAIRY_PRICES, rd), "#fdd835", "#111111", Math.min(0.12, sl * 0.5), 0.05, fx - 0.016, y + 0.028, zc, Math.PI / 2, 0);
+        sign(
+          g,
+          pick(DAIRY_PRICES, rd),
+          "#fdd835",
+          "#111111",
+          Math.min(0.12, sl * 0.5),
+          0.05,
+          fx - 0.016,
+          y + 0.028,
+          zc,
+          Math.PI / 2,
+          0,
+        );
       }
     }
   },
@@ -4382,7 +4602,6 @@ const zoom = (k) => {
   cam.r = THREE.MathUtils.clamp(cam.r * k, 3, cam.fit * 1.3);
 };
 
-
 /* biên cho phép trượt: quanh cửa hàng + sân + kho */
 function clampTarget() {
   cam.tx = THREE.MathUtils.clamp(cam.tx, -STORE.W / 2 - 6, STORE.W / 2 + 6);
@@ -4403,7 +4622,18 @@ function panPx(dx, dy) {
 }
 /* đi bằng bàn phím */
 const keysDown = new Set(),
-  PK = { w: "f", arrowup: "f", s: "b", arrowdown: "b", a: "l", arrowleft: "l", d: "r", arrowright: "r", q: "ql", e: "qr" };
+  PK = {
+    w: "f",
+    arrowup: "f",
+    s: "b",
+    arrowdown: "b",
+    a: "l",
+    arrowleft: "l",
+    d: "r",
+    arrowright: "r",
+    q: "ql",
+    e: "qr",
+  };
 function stepKeys(dt) {
   if (!keysDown.size) return;
   const sp = Math.max(2, cam.r * 0.7) * dt,
@@ -4426,7 +4656,11 @@ function stepKeys(dt) {
 addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
-  if (tab !== "store" || document.querySelector("#modal.on,#dmodal.on,#amodal.on")) return;
+  if (
+    tab !== "store" ||
+    document.querySelector("#modal.on,#dmodal.on,#amodal.on")
+  )
+    return;
   const k = PK[e.key.toLowerCase()];
   if (!k) return;
   keysDown.add(k);
@@ -4587,19 +4821,18 @@ function hit(e) {
   return o ? { code: o.userData.code, staff: o.userData.staff } : {};
 }
 let mode = "view",
-       selected = null,
-       drag = null,
-       moved = 0,
-       pinch = 0,
-       showStaff = true,
-       tapC = null,
-       panning = false,
-       cen = null;
-
+  selected = null,
+  drag = null,
+  moved = 0,
+  pinch = 0,
+  showStaff = true,
+  tapC = null,
+  panning = false,
+  cen = null;
 
 const ptrs = new Map();
 /* ───────── BƯỚC 3: THAY 4 handler pointerdown / pointermove / pointerup / pointercancel của cv ───────── */
- 
+
 cv.addEventListener("pointerdown", (e) => {
   cv.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId, [e.clientX, e.clientY]);
@@ -4607,7 +4840,9 @@ cv.addEventListener("pointerdown", (e) => {
   cam.vth = 0;
   tapC = null;
   /* chuột phải / giữa / Shift = trượt */
-  panning = e.pointerType === "mouse" && (e.button === 1 || e.button === 2 || e.shiftKey);
+  panning =
+    e.pointerType === "mouse" &&
+    (e.button === 1 || e.button === 2 || e.shiftKey);
   if (panning) cam.T = null;
   if (mode === "edit" && ptrs.size === 1 && !panning) {
     const c = pickItem(e);
@@ -6307,7 +6542,7 @@ let FR = 0,
       if (showStaff) stepNpc(n, dt, t);
     });
     stepCam(dt);
-    stepKeys(dt);        
+    stepKeys(dt);
     if (!ptrs.size && !cam.T && Math.abs(cam.vth) > 1e-4) {
       cam.th += cam.vth;
       cam.vth *= 0.93;
@@ -7018,8 +7253,10 @@ let FR = 0,
     if (s) tint(document.querySelector("#note .av"), s.role);
   }
 
-  setTimeout(() => toast("2 ngón / chuột phải / WASD để trượt quanh cửa hàng"), 1200);
-
+  setTimeout(
+    () => toast("2 ngón / chuột phải / WASD để trượt quanh cửa hàng"),
+    1200,
+  );
 })();
 
 /* ============ PATCH: BẢNG HIỆU MAXIDI v2 (IIFE, chỉ thêm mới) ============
@@ -7028,12 +7265,19 @@ let FR = 0,
      bảng chính + bảng phụ, đổi vị trí bảng phụ: Trước sân / Góc mái.
    - Lưu riêng trong localStorage "store-sign-v1", không đụng undo / xuất JSON. */
 (() => {
-  const { W, D } = STORE, hw = W / 2, hd = D / 2, FW = W + 0.6;
-  const MAG = 0xa81f7f, MAGS = "#a81f7f";
-  const FADE_EDIT = 0.3;           /* độ đục khi đang chỉnh sửa */
-  const FADE_ZOOM = 0.45;          /* độ đục tối thiểu khi zoom sát */
-  const ZOOM_START = 0.55, ZOOM_END = 0.3;  /* tỉ lệ cam.r/cam.fit bắt đầu / hết mờ */
-  const SMIN = 0.5, SMAX = 2.2, STEP = 0.1;
+  const { W, D } = STORE,
+    hw = W / 2,
+    hd = D / 2,
+    FW = W + 0.6;
+  const MAG = 0xa81f7f,
+    MAGS = "#a81f7f";
+  const FADE_EDIT = 0.3; /* độ đục khi đang chỉnh sửa */
+  const FADE_ZOOM = 0.45; /* độ đục tối thiểu khi zoom sát */
+  const ZOOM_START = 0.55,
+    ZOOM_END = 0.3; /* tỉ lệ cam.r/cam.fit bắt đầu / hết mờ */
+  const SMIN = 0.5,
+    SMAX = 2.2,
+    STEP = 0.1;
 
   /* trạng thái lưu được */
   const KEY = "store-sign-v1";
@@ -7042,27 +7286,42 @@ let FR = 0,
     const o = JSON.parse(localStorage.getItem(KEY));
     if (o && typeof o === "object") st = { ...st, ...o };
   } catch (e) {}
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+  const persist = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(st));
+    } catch (e) {}
+  };
 
   const mats = [];
   const mat = (o) => {
-    const m = new THREE.MeshStandardMaterial({ roughness: 0.55, transparent: true, ...o });
+    const m = new THREE.MeshStandardMaterial({
+      roughness: 0.55,
+      transparent: true,
+      ...o,
+    });
     mats.push(m);
     return m;
   };
-  const mMag = mat({ color: MAG }), mWhite = mat({ color: 0xf7f7f9 }),
-    mDark = mat({ color: 0x2b2d33 }), mGray = mat({ color: 0x8a8d94, metalness: 0.4, roughness: 0.4 });
+  const mMag = mat({ color: MAG }),
+    mWhite = mat({ color: 0xf7f7f9 }),
+    mDark = mat({ color: 0x2b2d33 }),
+    mGray = mat({ color: 0x8a8d94, metalness: 0.4, roughness: 0.4 });
   const root = new THREE.Group();
   scene.add(root);
 
   function logoTex(w, h) {
     const c = document.createElement("canvas");
-    c.width = w; c.height = h;
+    c.width = w;
+    c.height = h;
     const x = c.getContext("2d");
-    x.fillStyle = MAGS; x.fillRect(0, 0, w, h);
-    x.strokeStyle = "#fff"; x.lineWidth = w * 0.022;
+    x.fillStyle = MAGS;
+    x.fillRect(0, 0, w, h);
+    x.strokeStyle = "#fff";
+    x.lineWidth = w * 0.022;
     x.strokeRect(w * 0.04, w * 0.04, w * 0.92, h - w * 0.08);
-    x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillStyle = "#fff";
+    x.textAlign = "center";
+    x.textBaseline = "middle";
     x.font = `900 ${h * 0.36}px "Arial Black", Arial, sans-serif`;
     x.fillText("!M", w / 2, h * 0.36);
     x.font = `800 ${h * 0.13}px Arial, sans-serif`;
@@ -7076,7 +7335,12 @@ let FR = 0,
   const face = (p, tex, w, h, x, y, z, ry) => {
     const m = new THREE.Mesh(
       new THREE.PlaneGeometry(w, h),
-      mat({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.22 }),
+      mat({
+        map: tex,
+        emissive: 0xffffff,
+        emissiveMap: tex,
+        emissiveIntensity: 0.22,
+      }),
     );
     m.position.set(x, y, z);
     m.rotation.y = ry;
@@ -7097,7 +7361,9 @@ let FR = 0,
   face(mainG, logoTex(512, 512), 1.37, 1.37, 0, 0.725, 0.081, 0);
 
   /* 3) bảng phụ (hộp dọc): sideG + box + 2 trụ (chỉ hiện khi đặt trước sân) */
-  const sideG = new THREE.Group(), box = new THREE.Group(), posts = new THREE.Group();
+  const sideG = new THREE.Group(),
+    box = new THREE.Group(),
+    posts = new THREE.Group();
   sideG.add(box, posts);
   root.add(sideG);
   rb(0.24, 2.1, 1.4, mMag, 0, 0, 0, box, 0.03);
@@ -7105,24 +7371,39 @@ let FR = 0,
   face(box, bt, 1.32, 2.0, -0.121, 1.05, 0, -PI / 2);
   face(box, bt, 1.32, 2.0, 0.121, 1.05, 0, PI / 2);
   [-0.5, 0.5].forEach((z) => {
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.05, 10), mGray);
+    const c = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.06, 1.05, 10),
+      mGray,
+    );
     c.position.set(0, 0.525, z);
     posts.add(c);
   });
-  rb(0.5, 0.06, 1.4, mDark, 0, 0, 0, posts, 0.01);   /* bệ chân */
+  rb(0.5, 0.06, 1.4, mDark, 0, 0, 0, posts, 0.01); /* bệ chân */
 
-    /* tay đỡ (treo hông) + chân đế (trên mái) */
-  const arms = new THREE.Group(), foot = new THREE.Group();
+  /* tay đỡ (treo hông) + chân đế (trên mái) */
+  const arms = new THREE.Group(),
+    foot = new THREE.Group();
   sideG.add(arms, foot);
-  [-0.28, 0.22].forEach((y) => rb(0.06, 0.06, 0.34, mDark, 0, y, 0.03, arms, 0.01));
+  [-0.28, 0.22].forEach((y) =>
+    rb(0.06, 0.06, 0.34, mDark, 0, y, 0.03, arms, 0.01),
+  );
   rb(0.5, 0.06, 1.0, mDark, 0, -0.06, 0, foot, 0.01);
 
   /* 4) đèn rọi trên nóc */
   const TILT = 0.3;
   [-5.6, -2.8, 0, 2.8, 5.6].forEach((x) => {
-    const y0 = 4.14, z0 = hd + 0.2, L = 0.5;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, L, 6), mGray);
-    pole.position.set(x, y0 + (Math.cos(TILT) * L) / 2, z0 + (Math.sin(TILT) * L) / 2);
+    const y0 = 4.14,
+      z0 = hd + 0.2,
+      L = 0.5;
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, L, 6),
+      mGray,
+    );
+    pole.position.set(
+      x,
+      y0 + (Math.cos(TILT) * L) / 2,
+      z0 + (Math.sin(TILT) * L) / 2,
+    );
     pole.rotation.x = TILT;
     root.add(pole);
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.12), mDark);
@@ -7130,31 +7411,37 @@ let FR = 0,
     head.rotation.x = 0.6;
     root.add(head);
   });
-  root.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+  root.traverse((o) => {
+    if (o.isMesh) o.castShadow = false;
+  });
 
   /* 5) áp trạng thái lên cảnh */
-  const clampS = (v) => Math.round(Math.min(SMAX, Math.max(SMIN, v)) * 100) / 100;
-    function apply() {
+  const clampS = (v) =>
+    Math.round(Math.min(SMAX, Math.max(SMIN, v)) * 100) / 100;
+  function apply() {
     mainG.scale.setScalar(st.m);
     sideG.scale.setScalar(st.s);
     posts.visible = arms.visible = foot.visible = false;
     box.position.set(0, 0, 0);
-    if (st.pos === "yard") {            /* trước sân, trên 2 trụ */
+    if (st.pos === "yard") {
+      /* trước sân, trên 2 trụ */
       sideG.position.set(-hw + 0.35, 0, hd + 2.4);
       box.position.y = 1.05;
       posts.visible = true;
-    } else if (st.pos === "roof") {     /* treo hông: nhô ra trước mặt dựng, có tay đỡ, không chạm mái */
+    } else if (st.pos === "roof") {
+      /* treo hông: nhô ra trước mặt dựng, có tay đỡ, không chạm mái */
       sideG.position.set(-FW / 2 + 0.25, 3.57, hd + 0.42);
       box.position.set(0, -1.05, 0.22);
       arms.visible = true;
-    } else {                            /* trên mái: đứng trên gờ, cạnh dãy đèn */
+    } else {
+      /* trên mái: đứng trên gờ, cạnh dãy đèn */
       sideG.position.set(-FW / 2 + 0.9, 4.14, hd + 0.19);
       foot.visible = true;
     }
   }
   apply();
 
-  /* 6) bảng điều khiển (chỉ hiện ở Chỉnh sửa, khi chưa chọn quầy nào) */
+  /* 6) bảng điều khiển: thu gọn thành nút "Sửa bảng hiệu", bấm để mở / thu lại */
   const css = document.createElement("style");
   css.textContent = `#signp{left:50%;top:128px;transform:translateX(-50%);width:244px;display:none;z-index:4}
 #signp .r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
@@ -7167,38 +7454,73 @@ let FR = 0,
 
 #signp .r.c{flex-direction:column;align-items:stretch}
 #signp .r.c .seg{display:flex}
-#signp .r.c .seg button{flex:1;padding:6px 4px;font-size:12px}`;
+#signp .r.c .seg button{flex:1;padding:6px 4px;font-size:12px}
+
+/* nút thu gọn + đầu bảng có nút thu về */
+#signp .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#signp .hd h4{margin:0}
+#signp .hd .cls,#signp .tgl{-webkit-appearance:none;appearance:none;background:transparent;border:0;outline:0;box-shadow:none;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .2s ease}
+#signp .hd .cls{padding:2px 6px;font-size:12px;line-height:1.4;color:var(--mute);opacity:.85}
+#signp .hd .cls:hover,#signp .tgl:hover{opacity:.65}
+#signp .tgl{display:none;width:100%;padding:2px 4px;font-size:13px;font-weight:500;line-height:1.4;white-space:nowrap}
+#signp.min{width:auto}
+#signp.min .body,#signp.min .hd{display:none}
+#signp.min .tgl{display:block}
+@media (max-width:720px){#signp.min{left:auto;right:8px;width:auto}}`;
   document.head.appendChild(css);
   const pnl = document.createElement("div");
   pnl.className = "panel";
   pnl.id = "signp";
   $("#store").appendChild(pnl);
+
+  /* mặc định thu gọn mỗi lần vào chỉnh sửa; bấm nút để mở */
+  let open = false;
+  const syncOpen = () => pnl.classList.toggle("min", !open);
+
   function drawPanel() {
     const row = (l, k) =>
       `<div class="r"><span>${l}</span><span class="stp"><button data-k="${k}" data-d="-1" title="Nhỏ lại">−</button><b>${Math.round(st[k] * 100)}%</b><button data-k="${k}" data-d="1" title="Lớn hơn">+</button></span></div>`;
-    pnl.innerHTML = `<h4>BẢNG HIỆU</h4>${row("Bảng chính", "m")}${row("Bảng phụ", "s")}
-<div class="r c"><span>Vị trí bảng phụ</span><span class="seg"><button data-p="yard" class="${st.pos === "yard" ? "on" : ""}">Trước sân</button><button data-p="roof" class="${st.pos === "roof" ? "on" : ""}">Treo hông</button><button data-p="top" class="${st.pos === "top" ? "on" : ""}">Trên mái</button></span></div>`;
+    pnl.innerHTML = `<button class="tgl" data-t="open">Sửa bảng hiệu</button>
+<div class="hd"><h4>BẢNG HIỆU</h4><button class="cls" data-t="close" title="Thu về nút &quot;Sửa bảng hiệu&quot;">Thu gọn</button></div>
+<div class="body">${row("Bảng chính", "m")}${row("Bảng phụ", "s")}
+<div class="r c"><span>Vị trí bảng phụ</span><span class="seg"><button data-p="yard" class="${st.pos === "yard" ? "on" : ""}">Trước sân</button><button data-p="roof" class="${st.pos === "roof" ? "on" : ""}">Treo hông</button><button data-p="top" class="${st.pos === "top" ? "on" : ""}">Trên mái</button></span></div></div>`;
+    syncOpen();
   }
   drawPanel();
   pnl.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.k) st[b.dataset.k] = clampS(st[b.dataset.k] + b.dataset.d * STEP);
+    if (b.dataset.t) {
+      open = b.dataset.t === "open";
+      syncOpen();
+      return;
+    }
+    if (b.dataset.k)
+      st[b.dataset.k] = clampS(st[b.dataset.k] + b.dataset.d * STEP);
     if (b.dataset.p) st.pos = b.dataset.p;
-    apply(); persist(); drawPanel();
+    apply();
+    persist();
+    drawPanel();
   });
   /* chặn kéo/chụm trên bảng lọt xuống canvas */
   pnl.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   /* 7) mờ có kiểm soát */
-  let f = 1, last = performance.now(), shown = false;
+  let f = 1,
+    last = performance.now(),
+    shown = false;
   const _render = ren.render.bind(ren);
   ren.render = (s, c) => {
-    const n = performance.now(), dt = Math.min(0.05, (n - last) / 1000);
+    const n = performance.now(),
+      dt = Math.min(0.05, (n - last) / 1000);
     last = n;
-    const k = Math.min(1, Math.max(0, (cam.r / cam.fit - ZOOM_END) / (ZOOM_START - ZOOM_END)));
-    let goal = FADE_ZOOM + (1 - FADE_ZOOM) * k;           /* zoom: chỉ mờ khi sát */
-    if (mode === "edit") goal = Math.min(goal, FADE_EDIT); /* chỉnh sửa: mờ để bao quát */
+    const k = Math.min(
+      1,
+      Math.max(0, (cam.r / cam.fit - ZOOM_END) / (ZOOM_START - ZOOM_END)),
+    );
+    let goal = FADE_ZOOM + (1 - FADE_ZOOM) * k; /* zoom: chỉ mờ khi sát */
+    if (mode === "edit")
+      goal = Math.min(goal, FADE_EDIT); /* chỉnh sửa: mờ để bao quát */
     f += (goal - f) * (1 - Math.exp(-dt * 6));
     if (Math.abs(goal - f) < 0.004) f = goal;
     mats.forEach((m) => {
@@ -7207,8 +7529,773 @@ let FR = 0,
       m.depthWrite = f > 0.98;
     });
     root.visible = f > 0.03;
-const legOpen = !document.querySelector("#legend.shut") && innerWidth <= 1180;
-    const want = mode === "edit" && !selected && tab === "store" && !legOpen;    if (want !== shown) { shown = want; pnl.style.display = want ? "block" : "none"; }
+    const legOpen =
+      !document.querySelector("#legend.shut") && innerWidth <= 1180;
+    const want = mode === "edit" && !selected && tab === "store" && !legOpen;
+    if (want !== shown) {
+      shown = want;
+      pnl.style.display = want ? "block" : "none";
+      if (!want) {
+        open = false;
+        syncOpen();
+      } /* ẩn bảng → lần sau vào lại sẽ thu gọn */
+    }
     _render(s, c);
   };
+})();
+
+/* ============ PATCH: SÂN TRƯỚC + XE MÁY DỰNG HAI BÊN (IIFE, chỉ thêm mới) ============
+   - Sân lát gạch nối với cửa hàng, lối đi vào cửa, vạch kẻ ô xe, lề vỉa hè có chừa lối xe ra vào.
+   - 10 xe máy chi tiết (xe ga + xe số/xe thể thao): bánh vành nan/đúc + phanh đĩa, giảm xóc, ống pô,
+     gương, đèn pha/đèn hậu phát sáng, biển số, chân chống nghiêng xe, giỏ trước, thùng sau,
+     túi giao hàng, mũ bảo hiểm trên yên / móc tay lái.
+   - Gộp mesh bằng mergeGroup() có sẵn nên rất nhẹ. Không thuộc `groups` nên không bị chọn nhầm,
+     không ảnh hưởng undo / xuất JSON.
+   - Chỉnh nhanh: mảng SPEC bên dưới (vị trí x, màu, hướng, phụ kiện). */
+(() => {
+  const { W, D } = STORE,
+    hw = W / 2,
+    hd = D / 2;
+  const SW = 20.4,
+    Z0 = hd + 0.12,
+    Z1 = hd + 4.2,
+    SD = Z1 - Z0,
+    ZC = (Z0 + Z1) / 2;
+  const Y = new THREE.Group();
+
+  /* ---------- tiện ích ---------- */
+  const GC = {};
+  const G = (k, f) => GC[k] || (GC[k] = f());
+  const bx = (w, h, d) =>
+    G("b" + w + "|" + h + "|" + d, () => new THREE.BoxGeometry(w, h, d));
+  const UP = new THREE.Vector3(0, 1, 0);
+  const mk = (geo, mat, p, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.rotation.set(rx, ry, rz);
+    m.castShadow = m.receiveShadow = true;
+    p.add(m);
+    return m;
+  };
+  /* trụ nối 2 điểm bất kỳ (càng, giảm xóc, ống pô, tay lái, gương…) */
+  function strut(p, x1, y1, z1, x2, y2, z2, r, mat, seg = 8) {
+    const dx = x2 - x1,
+      dy = y2 - y1,
+      dz = z2 - z1,
+      L = Math.hypot(dx, dy, dz);
+    const m = new THREE.Mesh(
+      G(
+        "s" + r + "|" + seg + "|" + L.toFixed(3),
+        () => new THREE.CylinderGeometry(r, r, L, seg),
+      ),
+      mat,
+    );
+    m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+    m.quaternion.setFromUnitVectors(
+      UP,
+      new THREE.Vector3(dx, dy, dz).normalize(),
+    );
+    m.castShadow = true;
+    p.add(m);
+    return m;
+  }
+  const emi = (c, e, i) =>
+    new THREE.MeshStandardMaterial({
+      color: c,
+      emissive: e,
+      emissiveIntensity: i,
+      roughness: 0.3,
+    });
+  const MT = {
+    rubber: M(0x141416, 0.95),
+    black: M(0x232428, 0.6, 0.2),
+    dark: M(0x2a2b30, 0.5, 0.3),
+    seat: M(0x1a1a1c, 0.85),
+    chrome: M(0xd0d3d9, 0.25, 0.85),
+    alloy: M(0xa9adb4, 0.4, 0.7),
+    disc: M(0x8d9097, 0.35, 0.8),
+    eng: M(0x80838a, 0.5, 0.6),
+    exh: M(0x6e7178, 0.35, 0.8),
+    exh2: M(0x2d2e33, 0.6, 0.4),
+    mag: M(0x1f2024, 0.5, 0.4),
+    visor: M(0x15181d, 0.1, 0.5),
+    head: emi(0xffffff, 0xfff3c8, 0.9),
+    tail: emi(0xb71c1c, 0xff1a1a, 0.8),
+    amber: emi(0xffa000, 0xff9100, 0.6),
+    disp: emi(0x0a2a4a, 0x2a8cff, 0.7),
+  };
+  const bodyM = (c) => M(c, 0.32, 0.2);
+
+  /* ---------- biển số (6 mẫu, dùng chung vật liệu) ---------- */
+  const PL1 = ["59-X1", "59-P3", "50-H2", "59-C1", "51-F8", "59-S2"],
+    PL2 = ["123.45", "456.78", "234.56", "987.65", "345.67", "678.90"],
+    PLM = {};
+  function plate(B, y, z, n) {
+    const k = n % 6;
+    let m = PLM[k];
+    if (!m) {
+      const c = document.createElement("canvas");
+      c.width = 256;
+      c.height = 188;
+      const x = c.getContext("2d");
+      x.fillStyle = "#f4f4f0";
+      x.fillRect(0, 0, 256, 188);
+      x.strokeStyle = "#222";
+      x.lineWidth = 6;
+      x.strokeRect(5, 5, 246, 178);
+      x.fillStyle = "#16181c";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.font = "700 62px Arial";
+      x.fillText(PL1[k], 128, 62);
+      x.font = "700 74px Arial";
+      x.fillText(PL2[k], 128, 132);
+      const t = new THREE.CanvasTexture(c);
+      t.anisotropy = 4;
+      m = PLM[k] = new THREE.MeshStandardMaterial({ map: t, roughness: 0.45 });
+    }
+    const p = new THREE.Mesh(
+      G("plate", () => new THREE.PlaneGeometry(0.18, 0.13)),
+      m,
+    );
+    p.position.set(0, y, z);
+    p.rotation.y = PI; /* mặt biển quay ra sau xe (-z) */
+    B.add(p);
+  }
+
+  /* ---------- bộ phận dùng chung ---------- */
+  /* bánh xe: trục theo x. cast = mâm đúc, disc = phanh đĩa */
+  function wheel(p, z, R, cast, disc) {
+    const g = new THREE.Group();
+    g.position.set(0, R, z);
+    g.rotation.y = PI / 2;
+    p.add(g);
+    const tire = mk(
+      G("tire" + R, () => new THREE.TorusGeometry(R - 0.05, 0.05, 10, 26)),
+      MT.rubber,
+      g,
+      0,
+      0,
+      0,
+    );
+    tire.scale.z = 0.85;
+    mk(
+      G("rim" + R, () => new THREE.TorusGeometry(R - 0.085, 0.014, 6, 22)),
+      MT.chrome,
+      g,
+      0,
+      0,
+      0,
+    );
+    if (cast)
+      mk(
+        G(
+          "cf" + R,
+          () => new THREE.CylinderGeometry(R - 0.09, R - 0.09, 0.012, 20),
+        ),
+        MT.mag,
+        g,
+        0,
+        0,
+        0,
+        PI / 2,
+      );
+    const n = cast ? 5 : 8;
+    for (let k = 0; k < n; k++)
+      mk(
+        bx(2 * (R - 0.09), cast ? 0.034 : 0.008, cast ? 0.03 : 0.012),
+        cast ? MT.alloy : MT.chrome,
+        g,
+        0,
+        0,
+        0,
+        0,
+        0,
+        (k * PI) / n,
+      );
+    mk(
+      G("hub", () => new THREE.CylinderGeometry(0.04, 0.04, 0.11, 12)),
+      MT.alloy,
+      g,
+      0,
+      0,
+      0,
+      PI / 2,
+    );
+    if (disc) {
+      mk(
+        G("disc", () => new THREE.CylinderGeometry(0.095, 0.095, 0.006, 16)),
+        MT.disc,
+        g,
+        0,
+        0,
+        0.045,
+        PI / 2,
+      );
+      mk(bx(0.06, 0.04, 0.035), MT.black, g, -0.09, 0, 0.05);
+    }
+  }
+  /* chắn bùn dạng cung tròn quanh bánh */
+  function fender(p, y, z, rad, arc, ang, sz, mat) {
+    const g = new THREE.Group();
+    g.position.set(0, y, z);
+    g.rotation.y = PI / 2;
+    p.add(g);
+    const m = mk(
+      G(
+        "fd" + rad + "|" + arc,
+        () => new THREE.TorusGeometry(rad, 0.018, 6, 14, arc),
+      ),
+      mat,
+      g,
+      0,
+      0,
+      0,
+    );
+    m.rotation.z = ang - arc / 2;
+    m.scale.z = sz;
+  }
+  function fork(p, topY, topZ, R, axZ) {
+    [-1, 1].forEach((s) => {
+      const lx = (t) => s * (0.075 - 0.015 * t),
+        ly = (t) => topY + (R - topY) * t,
+        lz = (t) => topZ + (axZ - topZ) * t;
+      strut(p, lx(0), ly(0), lz(0), lx(1), ly(1), lz(1), 0.017, MT.black);
+      strut(
+        p,
+        lx(0.5),
+        ly(0.5),
+        lz(0.5),
+        lx(1),
+        ly(1),
+        lz(1),
+        0.021,
+        MT.chrome,
+      );
+    });
+  }
+  function bars(p, y, z) {
+    strut(p, -0.31, y, z, 0.31, y, z, 0.011, MT.chrome);
+    [-1, 1].forEach((s) => {
+      strut(p, s * 0.22, y, z, s * 0.37, y, z, 0.02, MT.rubber);
+      const l = rb(
+        0.012,
+        0.014,
+        0.13,
+        MT.black,
+        s * 0.24,
+        y - 0.015,
+        z + 0.07,
+        p,
+        0.004,
+      );
+      l.rotation.y = -s * 0.15;
+    });
+  }
+  function mirror(p, s, y0, z0) {
+    strut(p, s * 0.24, y0, z0, s * 0.3, y0 + 0.2, z0 - 0.03, 0.005, MT.black);
+    [
+      [MT.black, 0.09, 0.06, 0.014, 0],
+      [MT.chrome, 0.075, 0.048, 0.004, -0.009],
+    ].forEach((a) => {
+      const m = rb(
+        a[1],
+        a[2],
+        a[3],
+        a[0],
+        s * 0.31,
+        y0 + 0.19,
+        z0 - 0.035 + a[4],
+        p,
+        0.004,
+      );
+      m.rotation.z = -s * 0.35;
+      m.rotation.x = -0.25;
+    });
+  }
+  function shock(p, x, top, bot, col) {
+    const L = (a, b, t) => a + (b - a) * t;
+    strut(p, x, top[0], top[1], x * 0.9, bot[0], bot[1], 0.013, MT.black);
+    strut(
+      p,
+      x,
+      L(top[0], bot[0], 0.1),
+      L(top[1], bot[1], 0.1),
+      x * 0.95,
+      L(top[0], bot[0], 0.7),
+      L(top[1], bot[1], 0.7),
+      0.021,
+      col,
+    );
+  }
+  function stand(B, s) {
+    strut(B, -s * 0.06, 0.24, -0.12, -s * 0.23, 0.025, -0.14, 0.01, MT.black);
+    rb(0.07, 0.012, 0.04, MT.black, -s * 0.23, 0.018, -0.14, B, 0.004);
+  }
+  function helmet(p, x, y, z, col, ry) {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.rotation.y = ry || 0;
+    p.add(g);
+    mk(
+      G("hs", () => new THREE.SphereGeometry(0.11, 14, 10)),
+      M(col, 0.35, 0.1),
+      g,
+      0,
+      0,
+      0,
+    ).scale.set(1, 0.88, 1.12);
+    rb(0.15, 0.05, 0.04, MT.visor, 0, -0.03, 0.095, g, 0.01);
+    rb(0.2, 0.014, 0.2, MT.black, 0, -0.1, 0, g, 0.004);
+  }
+  function basket(fr, col) {
+    const ch = MT.chrome,
+      t = 0.008;
+    for (let i = -2; i <= 2; i++)
+      rb(t, t, 0.3, ch, i * 0.07, 0.56, 0.26, fr, 0.002);
+    for (let j = 0; j < 4; j++)
+      rb(0.3, t, t, ch, 0, 0.56, 0.11 + j * 0.1, fr, 0.002);
+    [-1, 1].forEach((a) =>
+      [-1, 1].forEach((b) =>
+        rb(t, 0.22, t, ch, a * 0.15, 0.56, 0.26 + b * 0.15, fr, 0.002),
+      ),
+    );
+    [0.67, 0.77].forEach((y) => {
+      [-1, 1].forEach((s) => {
+        rb(0.3, t, t, ch, 0, y, 0.26 + s * 0.15, fr, 0.002);
+        rb(t, t, 0.3, ch, s * 0.15, y, 0.26, fr, 0.002);
+      });
+    });
+    rb(0.22, 0.2, 0.2, M(col, 0.7), 0, 0.57, 0.26, fr, 0.05);
+    rb(0.14, 0.012, 0.012, MT.black, 0, 0.78, 0.26, fr, 0.003);
+  }
+  /* thùng sau / túi giao hàng */
+  function cargo(B, sp, y0, z0) {
+    if (sp.top) {
+      rb(0.34, 0.025, 0.4, MT.black, 0, y0, z0, B, 0.01);
+      rb(0.36, 0.28, 0.4, bodyM(sp.top), 0, y0 + 0.025, z0, B, 0.05);
+      rb(0.364, 0.006, 0.404, MT.black, 0, y0 + 0.15, z0, B, 0.002);
+      rb(0.05, 0.035, 0.012, MT.chrome, 0, y0 + 0.12, z0 + 0.204, B, 0.004);
+      rb(0.12, 0.04, 0.012, MT.tail, 0, y0 + 0.2, z0 - 0.206, B, 0.004);
+    } else if (sp.bag) {
+      rb(0.46, 0.42, 0.46, bodyM(sp.bag), 0, y0, z0, B, 0.04);
+      rb(0.468, 0.045, 0.468, M(0xf2f2f2, 0.6), 0, y0 + 0.2, z0, B, 0.01);
+      rb(0.05, 0.04, 0.012, MT.chrome, 0, y0 + 0.3, z0 + 0.236, B, 0.004);
+    }
+  }
+
+  /* ============ XE GA (kiểu Vision / Lead) ============ */
+  function scooter(B, sp, n) {
+    const R = 0.27,
+      c = bodyM(sp.c),
+      c2 = bodyM(sp.c2 || 0x2a2b30);
+    wheel(B, -0.6, R, true, false);
+    /* gầm + hộp số CVT + sàn để chân */
+    rb(0.2, 0.16, 0.5, MT.black, 0, 0.12, -0.12, B, 0.03);
+    rb(0.06, 0.18, 0.42, MT.dark, -0.15, 0.1, -0.38, B, 0.02);
+    rb(0.44, 0.04, 0.5, c, 0, 0.26, 0.12, B, 0.02);
+    rb(0.36, 0.012, 0.44, MT.rubber, 0, 0.3, 0.12, B, 0.004);
+    [-1, 1].forEach((s) =>
+      rb(0.03, 0.09, 0.5, c, s * 0.225, 0.22, 0.12, B, 0.012),
+    );
+    /* thân sau + yên */
+    rb(0.28, 0.2, 0.2, c, 0, 0.3, -0.02, B, 0.05);
+    rb(0.34, 0.4, 0.64, c, 0, 0.3, -0.4, B, 0.07);
+    rb(0.3, 0.1, 0.18, c, 0, 0.4, -0.8, B, 0.05);
+    rb(0.32, 0.07, 0.66, MT.seat, 0, 0.7, -0.44, B, 0.035);
+    rb(0.3, 0.03, 0.3, MT.seat, 0, 0.77, -0.62, B, 0.015);
+    /* đèn hậu, biển số, tay dắt sau */
+    rb(0.2, 0.05, 0.025, MT.tail, 0, 0.5, -0.895, B, 0.01);
+    rb(0.2, 0.15, 0.012, MT.black, 0, 0.27, -0.905, B, 0.004);
+    plate(B, 0.345, -0.9135, n);
+    [-1, 1].forEach((s) =>
+      rb(0.03, 0.03, 0.2, MT.black, s * 0.14, 0.68, -0.8, B, 0.008),
+    );
+    rb(0.31, 0.03, 0.04, MT.black, 0, 0.68, -0.9, B, 0.008);
+    /* yếm (tấm chắn chân) */
+    rb(0.3, 0.66, 0.07, c, 0, 0.3, 0.27, B, 0.035).rotation.x = -0.12;
+    /* giảm xóc sau + pô + chân chống */
+    [-1, 1].forEach((s) =>
+      shock(B, s * 0.19, [0.62, -0.76], [0.27, -0.62], M(0xd32f2f, 0.5)),
+    );
+    strut(B, 0.12, 0.12, -0.1, 0.2, 0.18, -0.3, 0.02, MT.chrome);
+    strut(B, 0.2, 0.2, -0.3, 0.2, 0.22, -0.84, 0.05, MT.exh);
+    strut(B, 0.2, 0.215, -0.32, 0.2, 0.225, -0.62, 0.057, MT.exh2);
+    strut(B, 0.2, 0.22, -0.84, 0.2, 0.22, -0.87, 0.032, MT.chrome);
+    stand(B, sp.s);
+    cargo(B, sp, 0.8, -0.7);
+    if (sp.seatHelm) helmet(B, 0, 0.88, -0.3, sp.seatHelm, PI);
+    /* cụm tay lái – quay theo góc đánh lái */
+    const fr = new THREE.Group();
+    fr.position.set(0, 0, 0.4);
+    fr.rotation.y = sp.steer || 0;
+    B.add(fr);
+    rb(0.28, 0.3, 0.2, c, 0, 0.6, -0.1, fr, 0.06);
+    rb(0.17, 0.08, 0.02, MT.head, 0, 0.78, 0.1, fr, 0.01);
+    [-1, 1].forEach((s) =>
+      rb(0.07, 0.035, 0.035, MT.amber, s * 0.14, 0.68, 0.06, fr, 0.01),
+    );
+    rb(0.52, 0.1, 0.24, c2, 0, 0.92, -0.24, fr, 0.05);
+    rb(0.12, 0.008, 0.08, MT.disp, 0, 1.02, -0.24, fr, 0.002);
+    bars(fr, 0.98, -0.18);
+    [-1, 1].forEach((s) => mirror(fr, s, 0.98, -0.18));
+    fork(fr, 0.75, -0.02, R, 0.22);
+    wheel(fr, 0.22, R, true, true);
+    fender(fr, R, 0.22, R + 0.035, 1.4, PI / 2 + 0.5, 4.5, c);
+    if (sp.basket) basket(fr, sp.basket);
+    if (sp.hang) helmet(fr, -0.34, 0.88, -0.18, sp.hang, 0.3);
+  }
+
+  /* ============ XE SỐ / XE THỂ THAO (kiểu Wave / Exciter) ============ */
+  function cub(B, sp, n) {
+    const sport = !!sp.sport,
+      R = sport ? 0.29 : 0.28,
+      c = bodyM(sp.c);
+    wheel(B, -0.6, R, sport, false);
+    [-1, 1].forEach((s) =>
+      strut(B, s * 0.075, R, -0.6, s * 0.075, 0.26, -0.1, 0.017, MT.dark),
+    );
+    /* động cơ, nắp lốc máy, đầu xy-lanh, hộp lọc gió */
+    rb(0.2, 0.22, 0.32, MT.eng, 0, 0.12, 0, B, 0.04);
+    [-1, 1].forEach((s) =>
+      mk(
+        G("cc", () => new THREE.CylinderGeometry(0.075, 0.075, 0.03, 14)),
+        MT.alloy,
+        B,
+        s * 0.115,
+        0.2,
+        0.04,
+        0,
+        0,
+        PI / 2,
+      ),
+    );
+    mk(
+      G("hd", () => new THREE.CylinderGeometry(0.07, 0.07, 0.2, 12)),
+      MT.eng,
+      B,
+      0,
+      0.42,
+      0.14,
+      1.0,
+    );
+    rb(0.2, 0.2, 0.3, MT.black, 0, 0.3, -0.28, B, 0.03);
+    /* sườn, yên, đuôi */
+    rb(0.25, 0.2, 0.46, c, 0, 0.5, -0.36, B, 0.05);
+    rb(
+      0.27,
+      0.09,
+      sport ? 0.6 : 0.82,
+      MT.seat,
+      0,
+      0.67,
+      sport ? -0.42 : -0.3,
+      B,
+      0.04,
+    );
+    if (sport) rb(0.24, 0.2, 0.36, c, 0, 0.58, 0, B, 0.07);
+    else rb(0.16, 0.22, 0.26, c, 0, 0.44, 0.06, B, 0.04);
+    rb(0.2, 0.07, 0.26, c, 0, 0.58, -0.77, B, 0.04);
+    fender(B, R, -0.6, R + 0.03, 1.5, PI / 2 - 0.5, 4.5, c);
+    rb(0.18, 0.05, 0.025, MT.tail, 0, 0.6, -0.905, B, 0.01);
+    rb(0.06, 0.16, 0.02, MT.black, 0, 0.44, -0.865, B, 0.005);
+    rb(0.2, 0.15, 0.012, MT.black, 0, 0.285, -0.87, B, 0.004);
+    plate(B, 0.36, -0.8765, n);
+    /* tay dắt chrome */
+    [-1, 1].forEach((s) => {
+      rb(0.025, 0.03, 0.46, MT.chrome, s * 0.12, 0.78, -0.62, B, 0.006);
+      rb(0.02, 0.1, 0.025, MT.chrome, s * 0.12, 0.7, -0.84, B, 0.005);
+    });
+    rb(0.26, 0.03, 0.03, MT.chrome, 0, 0.78, -0.84, B, 0.006);
+    /* yếm, gác chân, cần số, nhông xích */
+    rb(0.25, 0.46, 0.07, c, 0, 0.36, 0.3, B, 0.035).rotation.x = -0.1;
+    [-1, 1].forEach((s) => {
+      rb(0.07, 0.025, 0.15, MT.black, s * 0.2, 0.28, -0.02, B, 0.01);
+      rb(0.05, 0.02, 0.1, MT.black, s * 0.2, 0.32, -0.42, B, 0.01);
+      shock(
+        B,
+        s * 0.15,
+        [0.67, -0.74],
+        [0.3, -0.62],
+        M(sport ? 0xf2b705 : 0xd32f2f, 0.5),
+      );
+    });
+    strut(B, -0.14, 0.22, 0.1, -0.2, 0.2, 0.28, 0.007, MT.chrome);
+    rb(0.016, 0.06, 0.5, MT.chrome, -0.085, 0.27, -0.38, B, 0.005);
+    /* ống pô */
+    strut(B, 0.09, 0.17, 0.14, 0.15, 0.17, -0.2, 0.016, MT.chrome);
+    strut(B, 0.15, 0.2, -0.22, 0.15, 0.24, -0.86, 0.047, MT.exh);
+    strut(B, 0.15, 0.215, -0.24, 0.15, 0.245, -0.5, 0.055, MT.exh2);
+    strut(B, 0.15, 0.24, -0.86, 0.15, 0.24, -0.89, 0.036, MT.black);
+    stand(B, sp.s);
+    cargo(B, sp, 0.82, -0.7);
+    if (sp.seatHelm) helmet(B, 0, 0.86, -0.38, sp.seatHelm, PI);
+    /* cụm tay lái */
+    const fr = new THREE.Group();
+    fr.position.set(0, 0, 0.4);
+    fr.rotation.y = sp.steer || 0;
+    B.add(fr);
+    strut(fr, 0, 0.78, 0, 0, 1.0, -0.1, 0.02, MT.black);
+    fork(fr, 0.8, 0, R, 0.22);
+    wheel(fr, 0.22, R, sport, sport);
+    fender(fr, R, 0.22, R + 0.035, 1.4, PI / 2 + 0.5, 4.5, c);
+    bars(fr, 1.03, -0.12);
+    rb(0.18, 0.06, 0.14, MT.black, 0, 1.0, -0.17, fr, 0.03);
+    mk(
+      G("sp", () => new THREE.CylinderGeometry(0.055, 0.055, 0.05, 14)),
+      MT.black,
+      fr,
+      0,
+      1.075,
+      -0.17,
+    );
+    mk(
+      G("sg", () => new THREE.CylinderGeometry(0.045, 0.045, 0.004, 14)),
+      MT.disp,
+      fr,
+      0,
+      1.102,
+      -0.17,
+    );
+    [-1, 1].forEach((s) => mirror(fr, s, 1.03, -0.12));
+    if (sport) {
+      rb(0.28, 0.16, 0.2, c, 0, 0.78, -0.04, fr, 0.06);
+      [-1, 1].forEach((s) => {
+        rb(0.1, 0.025, 0.02, MT.head, s * 0.07, 0.86, 0.065, fr, 0.006);
+        rb(0.05, 0.03, 0.03, MT.amber, s * 0.15, 0.8, 0.03, fr, 0.008);
+      });
+      rb(
+        0.2,
+        0.12,
+        0.012,
+        M(0x7fa6c9, 0.1, 0.3),
+        0,
+        0.94,
+        -0.02,
+        fr,
+        0.003,
+      ).rotation.x = -0.5;
+    } else {
+      rb(0.16, 0.1, 0.08, MT.black, 0, 0.78, -0.02, fr, 0.02);
+      mk(
+        G("hr", () => new THREE.CylinderGeometry(0.09, 0.09, 0.08, 18)),
+        MT.chrome,
+        fr,
+        0,
+        0.88,
+        0.04,
+        PI / 2,
+      );
+      mk(
+        G("hl", () => new THREE.CylinderGeometry(0.075, 0.075, 0.02, 18)),
+        MT.head,
+        fr,
+        0,
+        0.88,
+        0.085,
+        PI / 2,
+      );
+      [-1, 1].forEach((s) =>
+        rb(0.05, 0.035, 0.035, MT.amber, s * 0.16, 0.82, 0.02, fr, 0.01),
+      );
+    }
+    if (sp.hang) helmet(fr, -0.34, 0.93, -0.16, sp.hang, 0.3);
+  }
+
+  /* ============ SÂN ============ */
+  /* nền + gạch lát */
+  rb(SW, 0.08, SD, 0xb9bcc3, 0, -0.08, ZC, Y, 0.02);
+  const pc = document.createElement("canvas");
+  pc.width = pc.height = 128;
+  const px = pc.getContext("2d");
+  px.fillStyle = "#cfd1d7";
+  px.fillRect(0, 0, 128, 128);
+  px.strokeStyle = "#b3b6bd";
+  px.lineWidth = 3;
+  px.strokeRect(0, 0, 128, 128);
+  const ptx = new THREE.CanvasTexture(pc);
+  ptx.wrapS = ptx.wrapT = THREE.RepeatWrapping;
+  ptx.repeat.set(SW / 0.8, SD / 0.8);
+  ptx.anisotropy = 4;
+  const top = new THREE.Mesh(
+    new THREE.PlaneGeometry(SW, SD),
+    new THREE.MeshStandardMaterial({ map: ptx, roughness: 0.85 }),
+  );
+  top.rotation.x = -PI / 2;
+  top.position.set(0, 0.003, ZC);
+  top.receiveShadow = true;
+  Y.add(top);
+  /* lối đi vào cửa: gạch sáng + 2 vạch vàng */
+  rb(6.4, 0.008, SD, 0xe3e5ea, 3.5, 0.003, ZC, Y, 0.002);
+  [0.3, 6.7].forEach((x) =>
+    rb(0.07, 0.012, SD, 0xf2c200, x, 0.003, ZC, Y, 0.002),
+  );
+  /* vạch kẻ ô xe */
+  const lines = (xs) =>
+    xs.forEach((x) => rb(0.05, 0.006, 2.2, 0xf5f5f5, x, 0.004, 17.2, Y, 0.002));
+  lines([-5.7, -5.0, -4.3, -3.6, -2.9, -2.2, -1.5]);
+  lines([7.4, 8.1, 8.8, 9.5, 10.15]);
+  /* lề vỉa hè phía trước, chừa lối xe ra vào đúng chỗ cửa */
+  rb(10, 0.16, 0.2, 0xb7bbc3, -5.2, -0.08, Z1 - 0.1, Y, 0.02);
+  rb(3, 0.16, 0.2, 0xb7bbc3, 8.7, -0.08, Z1 - 0.1, Y, 0.02);
+  /* chậu cây ở 2 góc (thay hai cây cũ nằm trong sân) */
+  [-9.8, 9.8].forEach((x) => {
+    rb(0.7, 0.35, 0.7, 0x8a8d94, x, 0, 15.7, Y, 0.05);
+    rb(0.6, 0.02, 0.6, 0x4e342e, x, 0.35, 15.7, Y, 0.005);
+    [
+      [0, 0.62, 0, 0.27],
+      [0.15, 0.55, 0.1, 0.18],
+      [-0.15, 0.55, -0.1, 0.18],
+    ].forEach((q) =>
+      mk(
+        G("bush" + q[3], () => new THREE.SphereGeometry(q[3], 12, 9)),
+        M(0x4f9d5b, 0.9),
+        Y,
+        x + q[0],
+        q[1],
+        15.7 + q[2],
+      ),
+    );
+  });
+  /* thùng rác cạnh cửa */
+  mk(
+    G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)),
+    M(0x3f7d4e, 0.7),
+    Y,
+    7.1,
+    0.35,
+    15.55,
+  );
+  mk(
+    G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)),
+    M(0x2e5d3a, 0.7),
+    Y,
+    7.1,
+    0.72,
+    15.55,
+  );
+
+  /* ============ XE MÁY ============
+     x: vị trí dọc mép sân · k: sc = xe ga, cub = xe số · sport: kiểu Exciter · c/c2: màu thân/phụ
+     steer: góc đánh lái · s: ±1 = bên đặt chân chống (nghiêng xe) · yaw: lệch hướng nhẹ
+     back: true = đậu quay đầu vào cửa hàng · top/bag: thùng sau/túi giao hàng · basket: giỏ trước
+     seatHelm/hang: mũ bảo hiểm đặt trên yên / móc tay lái */
+  const SPEC = [
+    /* bên trái (6 xe) */
+    {
+      x: -5.35,
+      k: "sc",
+      c: 0xc62828,
+      steer: 0.22,
+      s: 1,
+      yaw: 0.03,
+      seatHelm: 0xf2f2f2,
+    },
+    {
+      x: -4.65,
+      k: "cub",
+      c: 0x1e5aa8,
+      steer: -0.15,
+      s: -1,
+      yaw: -0.04,
+      hang: 0xf2b705,
+    },
+    {
+      x: -3.95,
+      k: "sc",
+      c: 0xf0f0f0,
+      c2: 0x30343a,
+      steer: 0.1,
+      s: 1,
+      yaw: 0,
+      top: 0x2b2d33,
+      back: true,
+    },
+    {
+      x: -3.25,
+      k: "cub",
+      sport: true,
+      c: 0xf2b705,
+      steer: 0.3,
+      s: -1,
+      yaw: 0.05,
+    },
+    {
+      x: -2.55,
+      k: "sc",
+      c: 0xe58aa5,
+      steer: -0.2,
+      s: 1,
+      yaw: -0.03,
+      basket: 0x43a047,
+      hang: 0xe53935,
+    },
+    {
+      x: -1.85,
+      k: "sc",
+      c: 0x2a2b30,
+      steer: 0.18,
+      s: -1,
+      yaw: 0.04,
+      bag: 0x2e7d32,
+      back: true,
+    },
+    /* bên phải (4 xe) */
+    { x: 7.75, k: "cub", c: 0xaab0b8, steer: 0.12, s: 1, yaw: 0.02 },
+    {
+      x: 8.45,
+      k: "sc",
+      c: 0x1e5aa8,
+      steer: -0.22,
+      s: -1,
+      yaw: -0.05,
+      basket: 0xfdd835,
+    },
+    {
+      x: 9.15,
+      k: "sc",
+      c: 0x2e7d5b,
+      steer: 0.1,
+      s: 1,
+      yaw: 0.02,
+      top: 0xe8e8ea,
+      seatHelm: 0x1e5aa8,
+      back: true,
+    },
+    {
+      x: 9.85,
+      k: "cub",
+      sport: true,
+      c: 0xc62828,
+      c2: 0x2a2b30,
+      steer: -0.28,
+      s: -1,
+      yaw: -0.03,
+    },
+  ];
+  SPEC.forEach((sp, i) => {
+    const H = new THREE.Group();
+    H.position.set(sp.x, 0, 17.2 + (((i * 37) % 5) - 2) * 0.05);
+    H.rotation.y = (sp.back ? PI : 0) + sp.yaw;
+    const B = new THREE.Group();
+    B.rotation.z = sp.s * 0.1; /* nghiêng xe tựa chân chống */
+    H.add(B);
+    (sp.k === "cub" ? cub : scooter)(B, sp, i);
+    Y.add(H);
+  });
+
+  /* gỡ 2 cây cũ (±9.3, 16) vì nằm giữa sân, rồi gộp mesh và thêm vào cảnh */
+  scene.children.slice().forEach((o) => {
+    if (
+      o.isGroup &&
+      o.children.length === 4 &&
+      Math.abs(Math.abs(o.position.x) - 9.3) < 0.01 &&
+      Math.abs(o.position.z - 16) < 0.01
+    )
+      scene.remove(o);
+  });
+  mergeGroup(Y);
+  scene.add(Y);
+  tag("KHU ĐỂ XE", -3.6, 1.0, Z1 - 0.3, 2.2, 1);
+  tag("KHU ĐỂ XE", 8.8, 1.0, Z1 - 0.3, 2.2, 1);
 })();
