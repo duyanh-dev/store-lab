@@ -7,7 +7,12 @@
    mergeGroup, makeChar, pose, turn, disposeChar, tag, STORE, scene, ren, npcs, showStaff. */
 (() => {
   const { W, D } = STORE, hw = W / 2, hd = D / 2;
-  const SW = 20.4, Z0 = hd + 0.12, Z1 = hd + 7, SD = Z1 - Z0, ZC = (Z0 + Z1) / 2;
+    const DX = (STORE.door[0] + STORE.door[1]) / 2; /* tâm cửa, đọc từ script gốc */
+  const OFF = DX - 3.5;                           /* độ lệch so với bố cục gốc */
+  /* thềm: phủ cả mặt tiền cửa hàng lẫn 2 hàng xe (cụm xe dời theo cửa) */
+  const YL = Math.min(-hw - 1.5, OFF - 10.2), YR = Math.max(hw + 1.5, OFF + 10.2);
+  const SW = YR - YL, XC = (YL + YR) / 2;
+  const Z0 = hd + 0.12, Z1 = hd + 7, SD = Z1 - Z0, ZC = (Z0 + Z1) / 2;
   const Y = new THREE.Group();
 
   /* ---------- tiện ích ---------- */
@@ -302,9 +307,8 @@
   }
 
   /* ============ SÂN (thềm dài) ============ */
-  const DX = (STORE.door[0] + STORE.door[1]) / 2; /* tâm cửa = 3.5 */
 
-  rb(SW, 0.08, SD, 0xb9bcc3, 0, -0.08, ZC, Y, 0.02);
+  rb(SW, 0.08, SD, 0xb9bcc3, XC, -0.08, ZC, Y, 0.02);
   const pc = document.createElement("canvas");
   pc.width = pc.height = 128;
   const px = pc.getContext("2d");
@@ -316,23 +320,27 @@
   ptx.anisotropy = 4;
   const ptop = new THREE.Mesh(new THREE.PlaneGeometry(SW, SD), new THREE.MeshStandardMaterial({ map: ptx, roughness: 0.85 }));
   ptop.rotation.x = -PI / 2;
-  ptop.position.set(0, 0.003, ZC);
+  ptop.position.set(XC, 0.003, ZC);
   ptop.receiveShadow = true;
   Y.add(ptop);
   /* lối đi vào cửa: gạch sáng + 2 vạch vàng, kéo dài tới mép sân */
   rb(6.4, 0.008, SD, 0xe3e5ea, DX, 0.003, ZC, Y, 0.002);
-  [0.3, 6.7].forEach((x) => rb(0.07, 0.012, SD, 0xf2c200, x, 0.003, ZC, Y, 0.002));
+  [DX - 3.2, DX + 3.2].forEach((x) => rb(0.07, 0.012, SD, 0xf2c200, x, 0.003, ZC, Y, 0.002));
   /* lề vỉa hè, chừa đoạn lớn cho xe và người ra vào */
-  rb(7.7, 0.16, 0.2, 0xb7bbc3, -6.35, -0.08, Z1 - 0.1, Y, 0.02);
-  rb(2.2, 0.16, 0.2, 0xb7bbc3, 9.1, -0.08, Z1 - 0.1, Y, 0.02);
-  /* chậu cây + thùng rác */
-  [-9.8, 9.8].forEach((x) => {
+    /* lề vỉa hè: chừa đoạn lối vào cho xe (từ OFF-2.5 đến OFF+8) */
+  const curb = (a, b) => b - a > 0.2 && rb(b - a, 0.16, 0.2, 0xb7bbc3, (a + b) / 2, -0.08, Z1 - 0.1, Y, 0.02);
+  curb(YL, OFF - 2.5);
+  curb(OFF + 8, YR);
+  /* chậu cây ở hai đầu thềm */
+  [YL + 0.6, YR - 0.6].forEach((x) => {
     rb(0.7, 0.35, 0.7, 0x8a8d94, x, 0, 15.55, Y, 0.05);
     rb(0.6, 0.02, 0.6, 0x4e342e, x, 0.35, 15.55, Y, 0.005);
     [[0, 0.62, 0, 0.27], [0.15, 0.55, 0.1, 0.18], [-0.15, 0.55, -0.1, 0.18]].forEach((q) =>
       mk(G("bush" + q[3], () => new THREE.SphereGeometry(q[3], 12, 9)), M(0x4f9d5b, 0.9), Y, x + q[0], q[1], 15.55 + q[2]),
     );
   });
+  mk(G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)), M(0x3f7d4e, 0.7), Y, DX + 3.6, 0.35, 15.55);
+  mk(G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)), M(0x2e5d3a, 0.7), Y, DX + 3.6, 0.72, 15.55);
   mk(G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)), M(0x3f7d4e, 0.7), Y, 7.1, 0.35, 15.55);
   mk(G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)), M(0x2e5d3a, 0.7), Y, 7.1, 0.72, 15.55);
 
@@ -342,16 +350,14 @@
      Xe ra : chạy thẳng ra miệng ô -> quẹo phải vào làn xout -> ra đường -> quẹo phải vào làn gần. */
   const ZB = (i) => 16.3 + 0.85 * i;
   const COLS = [
-    { x: -1.3, yaw: PI / 2, ex: 0.0, sx: 1, xin: 1.9, xm: 0.9, xout: 2.9, list: [
-      { k: "sc", c: 0xc62828, steer: 0.2, s: 1, seatHelm: 0xf2f2f2 },
+    { x: -1.3 + OFF, yaw: PI / 2, ex: 0.0 + OFF, sx: 1, xin: 1.9 + OFF, xm: 0.9 + OFF, xout: 2.9 + OFF, list: [      { k: "sc", c: 0xc62828, steer: 0.2, s: 1, seatHelm: 0xf2f2f2 },
       { k: "cub", c: 0x1e5aa8, steer: -0.15, s: -1, hang: 0xf2b705 },
       { k: "sc", c: 0xf0f0f0, c2: 0x30343a, steer: 0.1, s: 1, top: 0x2b2d33 },
       { k: "cub", sport: true, c: 0xf2b705, steer: 0.3, s: -1 },
       { k: "sc", c: 0xe58aa5, steer: -0.2, s: 1, basket: 0x43a047, hang: 0xe53935 },
       { k: "sc", c: 0x2a2b30, steer: 0.18, s: -1, bag: 0x2e7d32 },
     ] },
-    { x: 8.5, yaw: -PI / 2, ex: 7.4, sx: -1, xin: 5.1, xm: 6.1, xout: 4.1, list: [
-      { k: "cub", c: 0xaab0b8, steer: 0.12, s: 1 },
+    { x: 8.5 + OFF, yaw: -PI / 2, ex: 7.4 + OFF, sx: -1, xin: 5.1 + OFF, xm: 6.1 + OFF, xout: 4.1 + OFF, list: [      { k: "cub", c: 0xaab0b8, steer: 0.12, s: 1 },
       { k: "sc", c: 0x1e5aa8, steer: -0.22, s: -1, basket: 0xfdd835 },
       { k: "sc", c: 0x2e7d5b, steer: 0.1, s: 1, top: 0xe8e8ea, seatHelm: 0x1e5aa8 },
       { k: "cub", sport: true, c: 0xc62828, c2: 0x2a2b30, steer: -0.28, s: -1 },
@@ -371,9 +377,8 @@
       });
     });
   });
-  tag("KHU ĐỂ XE", -1.3, 1.1, Z1 - 0.3, 2.2, 1);
-  tag("KHU ĐỂ XE", 8.5, 1.1, Z1 - 0.3, 2.2, 1);
-
+  tag("KHU ĐỂ XE", -1.3 + OFF, 1.1, Z1 - 0.3, 2.2, 1);
+  tag("KHU ĐỂ XE", 8.5 + OFF, 1.1, Z1 - 0.3, 2.2, 1);
   /* ---------- đường lớn trải dài trước bãi xe ---------- */
   const ZR = Z1 + 3.8, ZS = ZR + 3.6 + 1.3;
   const ZL = ZR - 1.7; /* tâm làn gần sân (xe chạy theo chiều -x) */
@@ -563,6 +568,7 @@
     c.g.position.set(sx, 0, sz);
     c.g.rotation.y = Math.atan2(DX - sx, 17 - sz);
     q.push({ x: DX + J() * 2, z: 17.2 }, { x: DX + J(), z: 15.3 });
+        if (Math.abs(DX - NODE.E[0]) > 1) q.push({ x: NODE.E[0] + J(), z: 14.8 }); /* đi dọc thềm trong cửa tới lối kệ */
     let cur = "E";
     const picks = BR.slice().sort(() => RN() - 0.5).slice(0, 1 + Math.floor(RN() * 2));
     picks.forEach((k) => { cur = go(q, cur, k, { act: "stock", dur: 1 + RN() * 1.2, face: faceOf(k) }); });

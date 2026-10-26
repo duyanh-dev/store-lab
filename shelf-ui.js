@@ -49,8 +49,233 @@
   };
   const tcs = () => "";
 
+  /* ---------- PHÒNG QUẢN LÝ: loại quầy mgroom ----------
+     size = [rộng theo x, dài theo z]. Mặt trước (+x) là vách kính phản chiếu; cửa ở vách phía -z. */
+  let MG = null;
+  function mgMats() {
+    if (MG) return MG;
+    const mk = (o) =>
+      new THREE.MeshStandardMaterial({
+        roughness: 0.7,
+        transparent: true,
+        ...o,
+      });
+    const im = [];
+    for (let i = 0; i < 6; i++) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const x = c.getContext("2d"),
+        g = x.createLinearGradient(0, 0, 0, 64);
+      if (i === 2) {
+        g.addColorStop(0, "#ffffff");
+        g.addColorStop(1, "#e8eef5");
+      } else if (i === 3) {
+        g.addColorStop(0, "#555a63");
+        g.addColorStop(1, "#33363d");
+      } else {
+        g.addColorStop(0, "#e4edf8");
+        g.addColorStop(0.5, "#b9c6d6");
+        g.addColorStop(1, "#6f7885");
+      }
+      x.fillStyle = g;
+      x.fillRect(0, 0, 64, 64);
+      if (i !== 2 && i !== 3) {
+        x.fillStyle = "rgba(255,255,255,.6)";
+        x.fillRect(8, 8, 18, 30);
+        x.fillRect(38, 8, 16, 30);
+      }
+      im.push(c);
+    }
+    const env = new THREE.CubeTexture(im);
+    env.needsUpdate = true;
+    if (THREE.SRGBColorSpace) env.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding) env.encoding = THREE.sRGBEncoding;
+    return (MG = {
+      wall: mk({ color: 0xfafafc }),
+      cap: mk({ color: 0xb4bac6, roughness: 0.6 }),
+      door: mk({ color: 0x8a6b45, roughness: 0.55 }),
+      frame: new THREE.MeshStandardMaterial({
+        color: 0x2b2d33,
+        roughness: 0.4,
+        metalness: 0.6,
+      }),
+      mirror: new THREE.MeshStandardMaterial({
+        color: 0xc4d6e4,
+        metalness: 1,
+        roughness: 0.04,
+        envMap: env,
+        envMapIntensity: 1.15,
+        transparent: true,
+        opacity: 0.82,
+      }),
+    });
+  }
+  BUILD.mgroom = function (it, g) {
+    const m = mgMats(),
+      [w, d] = it.size,
+      HH = 2.6,
+      xw = -w / 2,
+      xe = w / 2,
+      z0 = -d / 2,
+      z1 = d / 2,
+      DW = 0.95,
+      DL = -DW / 2,
+      DR = DW / 2;
+    /* sàn + thảm */
+    rb(w, 0.02, d, 0xc8a77a, 0, 0.002, 0, g, 0.004);
+    rb(1.7, 0.012, 2.2, 0x6b7a8f, 0.14, 0.022, 0, g, 0.004);
+    /* vách tây + vách bắc (thân phòng) */
+    rb(0.1, HH, d, m.wall, xw + 0.05, 0, 0, g, 0.02);
+    rb(w, HH, 0.1, m.wall, 0, 0, z1 - 0.05, g, 0.02);
+    /* vách kính phản chiếu phía +x */
+    const zm = 0;
+    [z0 + 0.05, zm, z1 - 0.1].forEach((z) =>
+      rb(0.1, HH, 0.1, m.frame, xe, 0, z, g, 0.01),
+    );
+    rb(0.1, 0.12, d, m.frame, xe, 0, 0, g, 0.01);
+    rb(0.1, 0.1, d, m.frame, xe, HH - 0.1, 0, g, 0.01);
+    [
+      [z0 + 0.1, zm - 0.05],
+      [zm + 0.05, z1 - 0.15],
+    ].forEach(([a, b]) => {
+      const gl = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, HH - 0.22, b - a),
+        m.mirror,
+      );
+      gl.position.set(xe, 0.12 + (HH - 0.22) / 2, (a + b) / 2);
+      g.add(gl);
+    });
+    sign(
+      g,
+      "PHÒNG QUẢN LÝ",
+      "#1d1f24",
+      "#ffffff",
+      1.1,
+      0.16,
+      xe + 0.03,
+      1.1,
+      (z0 + zm) / 2,
+      PI / 2,
+      0.25,
+    );
+    /* vách có cửa (phía -z, hướng vào cửa hàng) */
+    const seg = (a, b) => {
+      rb(b - a, HH, 0.1, m.wall, (a + b) / 2, 0, z0, g, 0.02);
+      rb(b - a + 0.02, 0.06, 0.14, m.cap, (a + b) / 2, HH - 0.06, z0, g, 0.01);
+    };
+    seg(xw, DL);
+    seg(DR, xe - 0.05);
+    rb(DW, HH - 2.1, 0.1, m.wall, 0, 2.1, z0, g, 0.02);
+    rb(DW + 0.02, 0.06, 0.14, m.cap, 0, HH - 0.06, z0, g, 0.01);
+    sign(
+      g,
+      "QUẢN LÝ",
+      "#a81f7f",
+      "#ffffff",
+      0.9,
+      0.22,
+      0,
+      2.35,
+      z0 - 0.055,
+      PI,
+      0.35,
+    );
+    const leaf = new THREE.Group();
+    leaf.position.set(DL, 0, z0);
+    leaf.rotation.y = 0.8;
+    g.add(leaf);
+    rb(DW, 2.05, 0.04, m.door, DW / 2, 0.02, 0, leaf, 0.01);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.02), GLASS);
+    win.position.set(DW / 2, 1.3, 0);
+    leaf.add(win);
+    cylX(0.015, 0.1, 0xc9ccd2, DW - 0.1, 1.0, -0.05, leaf, 8);
+    /* nội thất (toạ độ tương đối tâm phòng) */
+    const wood = 0xb98a5a,
+      dk = 0x9a7149;
+    rb(0.8, 0.05, 1.7, wood, 0.39, 0.72, 0.16, g, 0.01);
+    [-1, 1].forEach((s) =>
+      rb(0.74, 0.72, 0.04, dk, 0.39, 0, 0.16 + s * 0.8, g, 0.01),
+    );
+    rb(0.03, 0.45, 1.6, dk, 0.75, 0.25, 0.16, g, 0.005);
+    rb(0.45, 0.08, 0.45, 0x2b2d33, -0.41, 0.45, 0.16, g, 0.02);
+    rb(0.08, 0.55, 0.42, 0x2b2d33, -0.63, 0.5, 0.16, g, 0.02);
+    cyl(0.03, 0.03, 0.4, 0x777b82, -0.41, 0.05, 0.16, g, 8);
+    cyl(0.22, 0.22, 0.03, 0x2b2d33, -0.41, 0.02, 0.16, g, 12);
+    cyl(0.015, 0.015, 0.14, 0x333338, 0.49, 0.77, 0.16, g, 8);
+    rb(0.03, 0.3, 0.5, 0x1d1d1f, 0.49, 0.86, 0.16, g, 0.01);
+    rb(
+      0.006,
+      0.26,
+      0.46,
+      glowMat(0x0a2a4a, 0x2a8cff, 0.7),
+      0.473,
+      0.88,
+      0.16,
+      g,
+      0.002,
+    );
+    rb(0.14, 0.015, 0.34, 0x222226, 0.14, 0.77, 0.16, g, 0.005);
+    rb(0.2, 0.01, 0.28, 0xffffff, 0.24, 0.77, -0.49, g, 0.002);
+    cyl(0.05, 0.05, 0.02, 0x333338, 0.29, 0.77, 0.81, g, 10);
+    cyl(0.012, 0.012, 0.3, 0x333338, 0.29, 0.79, 0.81, g, 6);
+    rb(
+      0.16,
+      0.05,
+      0.12,
+      glowMat(0xfff3c8, 0xffe3a0, 0.9),
+      0.29,
+      1.08,
+      0.81,
+      g,
+      0.01,
+    );
+    cyl(0.03, 0.03, 0.08, 0xe53935, 0.59, 0.77, -0.44, g, 10);
+    rb(0.5, 1.3, 0.5, 0xcfd3d8, -0.89, 0, 1.46, g, 0.02);
+    [0.3, 0.7, 1.1].forEach((y) =>
+      rb(0.01, 0.03, 0.4, 0x8a8d94, -0.635, y, 1.46, g, 0.003),
+    );
+    rb(0.35, 1.5, 1.2, 0x8a6b45, -0.99, 0, -0.69, g, 0.015);
+    [0.45, 0.85, 1.25].forEach((y, r) => {
+      rb(0.33, 0.025, 1.16, 0x6b5033, -0.99, y, -0.69, g, 0.005);
+      for (let k = 0; k < 7; k++)
+        rb(
+          0.22,
+          0.26 - (k % 3) * 0.03,
+          0.1,
+          [0xe53935, 0x1e88e5, 0xfdd835, 0x43a047, 0x8e24aa][(k + r) % 5],
+          -0.97,
+          y + 0.025,
+          -1.16 + k * 0.145,
+          g,
+          0.004,
+        );
+    });
+    cyl(0.17, 0.13, 0.3, 0x8a8d94, 0.84, 0, 1.46, g, 12);
+    sph(0.2, 0x4f9d5b, 0.84, 0.62, 1.46, g, 1, 1.2, 1);
+    sph(0.14, 0x66bb6a, 0.94, 0.82, 1.41, g, 1, 1, 1);
+  };
+  /* vách cửa + vách thân phòng mờ nhẹ khi camera ở phía trong cửa hàng */
+  {
+    let mf = 1;
+    const _rr = ren.render.bind(ren);
+    ren.render = (s, c) => {
+      if (MG) {
+        const it = ShelfRegistry.all().find((x) => x.type === "mgroom"),
+          goal = it && camera.position.z < it.pos[1] - it.size[1] / 2 ? 0.3 : 1;
+        mf += (goal - mf) * 0.15;
+        if (Math.abs(goal - mf) < 0.004) mf = goal;
+        [MG.wall, MG.cap].forEach((x) => {
+          x.opacity = mf;
+          x.depthWrite = mf > 0.98;
+        });
+      }
+      _rr(s, c);
+    };
+  }
+
   /* ---------- Loại quầy mới (v2): icon, màu, đăng ký TYPES / PRESETS / DESC ---------- */
   Object.assign(ICONS, {
+    t_mgroom: '<path d="M4 20V6l8-3 8 3v14M9 20v-6h6v6M4 20h16"/>',
     t_noodle:
       '<path d="M4 11h16a8 8 0 01-16 0zM9 20.5h6M8 3.5c1 1 1 2.2 0 3.2M12 3c1 1 1 2.2 0 3.2M16 3.5c1 1 1 2.2 0 3.2"/>',
     t_snack: '<path d="M6 4h12l-1 16H7zM6 7.5h12M10 12h4M10 15h4"/>',
@@ -66,9 +291,9 @@
     t_eggs: '<path d="M12 3c3.5 0 6 5 6 9a6 6 0 01-12 0c0-4 2.5-9 6-9z"/>',
     t_bakery:
       '<path d="M5 12a4 4 0 014-4h6a4 4 0 014 4v7H5zM9 8V6M12 8V5M15 8V6"/>',
-    t_meat:
-      '<path d="M7 7.5c3-3 10-2 11 3s-5 9-9 9-6-4-2-12zM14 11.5v.01"/>',
-    t_seafood: '<path d="M3 12c3-4 7-5 11-3l5-3v12l-5-3c-4 2-8 1-11-3zM15 11v.01"/>',
+    t_meat: '<path d="M7 7.5c3-3 10-2 11 3s-5 9-9 9-6-4-2-12zM14 11.5v.01"/>',
+    t_seafood:
+      '<path d="M3 12c3-4 7-5 11-3l5-3v12l-5-3c-4 2-8 1-11-3zM15 11v.01"/>',
     t_cart: '<path d="M3 4h2.5l2 10h10l2-7H7M9 19v.01M17 19v.01"/>',
     t_candy: '<path d="M9 9h6v6H9zM9 12l-4-3v6zM15 12l4-3v6z"/>',
     spin: '<path d="M20 12a8 8 0 11-2.4-5.7M20 4v4.5h-4.5"/>',
@@ -83,6 +308,7 @@
       '<path d="M4 4v16M20 4v16M4 9.5h16M4 15.5h16M7 9.5a2.5 2.5 0 015 0M13 15.5a2.5 2.5 0 015 0"/>',
   });
   Object.assign(TC, {
+    mgroom: "#a81f7f",
     noodle: "#ff453a",
     snack: "#bf5af2",
     sauce: "#ff9500",
@@ -106,6 +332,7 @@
   TYPES.cold[0] = "Tủ mát đứng";
   TYPES.freezer[0] = "Tủ đông nằm";
   Object.assign(TYPES, {
+    mgroom: ["Phòng quản lý", "MANAGER_ROOM"],
     noodle: ["Kệ mì – phở", "NOODLE"],
     snack: ["Kệ bánh kẹo", "SNACK"],
     sauce: ["Kệ gia vị – dầu ăn", "SAUCE"],
@@ -127,24 +354,97 @@
   });
   /* PRESETS và DESC phải cùng thứ tự (DESC[i] mô tả PRESETS[i]) */
   [
-    ["Kệ mì – phở", "noodle", 2, [0.9, 2.4], "Kệ 2 mặt: mì gói, ly mì, phở, cháo"],
+    [
+      "Kệ mì – phở",
+      "noodle",
+      2,
+      [0.9, 2.4],
+      "Kệ 2 mặt: mì gói, ly mì, phở, cháo",
+    ],
     ["Kệ bánh kẹo", "snack", 2, [0.9, 2.4], "Kệ 2 mặt: snack, bánh, kẹo, hộp"],
-    ["Kệ gia vị", "sauce", 2, [0.9, 2.4], "Kệ 2 mặt: nước mắm, dầu ăn, hũ gia vị"],
-    ["Kệ hóa mỹ phẩm", "household", 2, [0.9, 2.4], "Kệ 2 mặt: nước giặt, nước rửa, hộp"],
-    ["Tủ đông đứng", "ufreezer", 1, [0.8, 2.2], "Tủ đông đứng cửa kính, 5 tầng"],
+    [
+      "Kệ gia vị",
+      "sauce",
+      2,
+      [0.9, 2.4],
+      "Kệ 2 mặt: nước mắm, dầu ăn, hũ gia vị",
+    ],
+    [
+      "Kệ hóa mỹ phẩm",
+      "household",
+      2,
+      [0.9, 2.4],
+      "Kệ 2 mặt: nước giặt, nước rửa, hộp",
+    ],
+    [
+      "Tủ đông đứng",
+      "ufreezer",
+      1,
+      [0.8, 2.2],
+      "Tủ đông đứng cửa kính, 5 tầng",
+    ],
     ["Tủ kem", "icecream", 1, [0.9, 1.6], "Tủ kem nằm, nắp kính trượt"],
     ["Pallet nước", "drinks", 1, [1.2, 1.2], "Pallet thùng nước và lốc chai"],
     ["Bàn trứng", "eggs", 1, [1.1, 1.3], "Bàn bày khay trứng"],
-    ["Quầy bánh mì", "bakery", 1, [0.8, 1.8], "Tủ kính bánh mì, bánh ngọt hai tầng"],
-    ["Quầy thịt", "meat", 1, [1.0, 2.4], "Quầy thịt tươi, khay bọc màng, đèn hồng"],
-    ["Quầy hải sản", "seafood", 1, [1.0, 3.0], "Khay đá hải sản, bể nuôi cá (dài trên 2 m)"],
+    [
+      "Quầy bánh mì",
+      "bakery",
+      1,
+      [0.8, 1.8],
+      "Tủ kính bánh mì, bánh ngọt hai tầng",
+    ],
+    [
+      "Quầy thịt",
+      "meat",
+      1,
+      [1.0, 2.4],
+      "Quầy thịt tươi, khay bọc màng, đèn hồng",
+    ],
+    [
+      "Quầy hải sản",
+      "seafood",
+      1,
+      [1.0, 3.0],
+      "Khay đá hải sản, bể nuôi cá (dài trên 2 m)",
+    ],
     ["Xe đẩy", "cart", 1, [0.7, 1.4], "Dãy xe đẩy hàng lồng nhau"],
     ["Giá kẹo", "candy", 1, [0.6, 1.0], "Giá kẹo sô cô la cạnh thu ngân"],
-    ["Tủ mát hở", "chiller", 1, [0.9, 2.5], "Tủ mát hở 4 tầng: thịt bọc màng, xúc xích, hàng đông mát, thẻ giá"],
+    [
+      "Tủ mát hở",
+      "chiller",
+      1,
+      [0.9, 2.5],
+      "Tủ mát hở 4 tầng: thịt bọc màng, xúc xích, hàng đông mát, thẻ giá",
+    ],
     /* === quầy thêm mới === */
-    ["Quầy rau 3 tầng", "produce3", 1, [1.6, 2.7], "Quầy rau củ quả 3 tầng, rổ nghiêng, phun sương"],
-    ["Tủ mát sữa chua", "dairy", 1, [0.9, 2.5], "Tủ mát hở 4 tầng: Yakult, sữa chua, trà sữa chai, banner dưới"],
-    ["Kệ bánh nướng", "bakeshelf", 1, [0.9, 2.4], "Kệ bánh nướng mỗi ngày: 3 tầng, banner, thẻ giá"],
+    [
+      "Quầy rau 3 tầng",
+      "produce3",
+      1,
+      [1.6, 2.7],
+      "Quầy rau củ quả 3 tầng, rổ nghiêng, phun sương",
+    ],
+    [
+      "Tủ mát sữa chua",
+      "dairy",
+      1,
+      [0.9, 2.5],
+      "Tủ mát hở 4 tầng: Yakult, sữa chua, trà sữa chai, banner dưới",
+    ],
+    [
+      "Kệ bánh nướng",
+      "bakeshelf",
+      1,
+      [0.9, 2.4],
+      "Kệ bánh nướng mỗi ngày: 3 tầng, banner, thẻ giá",
+    ],
+    [
+      "Phòng quản lý",
+      "mgroom",
+      1,
+      [2.4, 3.7],
+      "Phòng kín: vách kính phản chiếu, cửa, bàn làm việc, tủ hồ sơ",
+    ],
   ].forEach((p) => {
     if (PRESETS.some((q) => q[1] === p[1])) return; /* tránh thêm trùng */
     PRESETS.push(p.slice(0, 4));
@@ -157,7 +457,16 @@
     if (!ICONS["t_" + p[1]]) ICONS["t_" + p[1]] = ICONS.t_shelf;
   });
   /* loại quầy cho phép chọn 1 mặt / 2 mặt */
-  const SIDED = ["shelf", "produce", "produce3", "noodle", "snack", "sauce", "household", "bakeshelf"];
+  const SIDED = [
+    "shelf",
+    "produce",
+    "produce3",
+    "noodle",
+    "snack",
+    "sauce",
+    "household",
+    "bakeshelf",
+  ];
   const fnum = (x) => String(+(+x).toFixed(2));
 
   /* ---------- CSS ---------- */
@@ -1016,7 +1325,9 @@ ${canSides ? `<div class="sx-n sx-mt"><div class="sx-nl"><span>${IC("layers", 14
     const on = window.aSpin !== false;
     aSpinBtn.classList.toggle("on", on);
     aSpinBtn.innerHTML = IC("spin", 15) + "<span>Tự xoay</span>";
-    aSpinBtn.title = on ? "Đang tự xoay 360° – chạm để dừng (vẫn kéo tay để xoay)" : "Đã dừng – chạm để tự xoay";
+    aSpinBtn.title = on
+      ? "Đang tự xoay 360° – chạm để dừng (vẫn kéo tay để xoay)"
+      : "Đã dừng – chạm để tự xoay";
   }
   /* lưới sàn ô 0,5 m: thấy được tủ lớn / nhỏ thế nào so với nhau */
   function sxGrid(k) {
@@ -1050,7 +1361,8 @@ ${canSides ? `<div class="sx-n sx-mt"><div class="sx-nl"><span>${IC("layers", 14
       },
       g,
     );
-    if (typeof mergeGroup === "function") mergeGroup(g); /* gộp mesh cho bản xem trước mượt */
+    if (typeof mergeGroup === "function")
+      mergeGroup(g); /* gộp mesh cho bản xem trước mượt */
     const sz = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
     aSz = sz;
     /* tỉ lệ cố định cho mọi tủ ≤ 3,2 m (tủ nhỏ hiện nhỏ, tủ lớn hiện lớn); chỉ thu nhỏ khi vượt 3,2 m */
@@ -1133,6 +1445,10 @@ ${canSides ? `<div class="sx-n sx-mt"><div class="sx-nl"><span>${IC("layers", 14
     $("#amodal").classList.remove("on");
     toast("Đã thêm quầy – kéo để đặt đúng chỗ");
   };
+
+  ShelfRegistry.all()
+    .filter((it) => BUILD[it.type] && !groups[it.code])
+    .forEach(build);
 
   /* ---------- khởi động ---------- */
   legend();

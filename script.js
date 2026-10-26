@@ -23,6 +23,19 @@ const $ = (s) => document.querySelector(s),
    Mã: Z<khu>-<loại><số>. pos=[x,z] · size=[độ dày, chiều dài] · rot=góc xoay (rad), mặt trước = +x cục bộ
    Quầy thêm mới có mã dạng X-<loại><số>. details: chỗ bổ sung chi tiết sau này. */
 const STORE = { W: 14, D: 30, door: [0.5, 6.5], kho: [4.8, 6.6] };
+
+/* ====== VỊ TRÍ CỬA: "left" | "center" | "right" | hoặc số x bất kỳ ====== */
+const DOOR_POS = "left"; /* "right" = đúng như bản cũ */
+const DOOR_W = 6; /* bề rộng lỗ cửa (2 cánh kính × 3m) */
+{
+  const lim = STORE.W / 2 - DOOR_W / 2 - 0.5; /* = 3.5, chừa 0.5m mép tường */
+  const dx =
+    DOOR_POS === "left" ? -lim :
+    DOOR_POS === "right" ? lim :
+    DOOR_POS === "center" ? 0 :
+    Math.max(-lim, Math.min(lim, +DOOR_POS || 0));
+  STORE.door = [dx - DOOR_W / 2, dx + DOOR_W / 2];
+}
 const R = ShelfRegistry.register;
 R({
   code: "CASHIER_001",
@@ -4458,7 +4471,9 @@ function disposeGroup(g) {
 
 /* ---------- BƯỚC 3: thay build() và unbuild() cũ (khoảng dòng 1184–1202) ---------- */
 function build(it) {
+  if (typeof BUILD[it.type] !== "function") return;
   const old = groups[it.code];
+
   if (old) {
     scene.remove(old);
     disposeGroup(old);
@@ -7541,6 +7556,69 @@ let FR = 0,
       } /* ẩn bảng → lần sau vào lại sẽ thu gọn */
     }
     _render(s, c);
+  };
+})();
+
+
+/* ============ PATCH: BẤM "Sửa bảng hiệu" → CAMERA BAY TỚI BẢNG HIỆU (IIFE, chỉ thêm mới) ============
+   - Mở panel  → đặt cam.T tới mặt tiền (bảng chính + bảng phụ), dùng stepCam có sẵn để bay mượt.
+   - Thu gọn / ẩn panel → bay về góc nhìn trước đó (nếu bạn chưa tự kéo/zoom/chọn quầy khác).
+   - Kéo, cuộn, WASD, nhấp đúp... đều đã tự hủy cam.T trong code gốc nên không bị giành quyền. */
+(() => {
+  const pnl = document.querySelector("#signp");
+  if (!pnl) return;
+  const hd = STORE.D / 2;
+
+  /* điểm nhìn & độ gần: chỉnh ở đây nếu muốn */
+  const FOCUS = { x: -2.5, y: 2.8, z: hd + 1.2 }; /* giữa bảng chính và bảng phụ */
+  const EXT = 7; /* bề ngang cần thấy (m); nhỏ hơn = zoom gần hơn */
+  const PH = 1.2; /* góc nhìn: lớn = nhìn ngang hơn, nhỏ = nhìn từ trên xuống */
+
+  let ours = null, /* cam.T do patch này đặt */
+    saved = null, /* góc nhìn trước khi bay tới bảng */
+    active = false;
+
+  const near = (a, b) =>
+    Math.abs(cam.r - b.r) < 0.6 &&
+    Math.abs(cam.tx - b.tx) < 0.3 &&
+    Math.abs(cam.tz - b.tz) < 0.3 &&
+    Math.abs(wrap(cam.th - b.th)) < 0.1;
+
+  function flyIn() {
+    saved = { th: cam.th, ph: cam.ph, r: cam.r, tx: cam.tx, ty: cam.ty, tz: cam.tz };
+    const t = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
+      a = Math.min(1, camera.aspect || 1),
+      r = THREE.MathUtils.clamp(EXT / (t * a), 6, cam.fit);
+    cam.vth = 0;
+    ours = {
+      th: cam.th + wrap(0 - cam.th) /* th = 0: nhìn thẳng vào mặt tiền */,
+      ph: PH,
+      r,
+      tx: FOCUS.x,
+      ty: FOCUS.y,
+      tz: FOCUS.z,
+    };
+    cam.T = ours;
+  }
+
+  function flyBack() {
+    /* chỉ trả về nếu camera vẫn đang bay tới bảng, hoặc đã tới nơi mà chưa bị ai đụng vào */
+    const mine = cam.T === ours || (!cam.T && ours && near(cam, ours));
+    if (saved && mine) {
+      cam.vth = 0;
+      cam.T = { ...saved, th: cam.th + wrap(saved.th - cam.th) };
+    }
+    saved = ours = null;
+  }
+
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => {
+    const now = pnl.style.display === "block" && !pnl.classList.contains("min");
+    if (now !== active) {
+      active = now;
+      active ? flyIn() : flyBack();
+    }
+    _r(s, c);
   };
 })();
 
