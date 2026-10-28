@@ -24,9 +24,19 @@ const $ = (s) => document.querySelector(s),
    Quầy thêm mới có mã dạng X-<loại><số>. details: chỗ bổ sung chi tiết sau này. */
 const STORE = { W: 14, D: 30, door: [0.5, 6.5], kho: [4.8, 6.6] };
 
+/* ====== VỊ TRÍ CỬA (đổi được trong Chỉnh sửa → "Sửa vị trí cửa") ====== */
+const DOOR_W = 6,                                   /* bề rộng lỗ cửa */
+  DOOR_LIM = STORE.W / 2 - DOOR_W / 2 - 0.5,        /* = 3.5 */
+  DOOR_KEY = "store-door-v1";
+const clampDoor = (x) => Math.round(Math.max(-DOOR_LIM, Math.min(DOOR_LIM, +x || 0)) * 2) / 2;
+let doorDX = 3.5; /* mặc định giống bản cũ (cửa bên phải) */
+try {
+  const s = JSON.parse(localStorage.getItem(DOOR_KEY));
+  if (s && isFinite(s.dx)) doorDX = clampDoor(s.dx);
+} catch (e) {}
+STORE.door = [doorDX - DOOR_W / 2, doorDX + DOOR_W / 2];
 /* ====== VỊ TRÍ CỬA: "left" | "center" | "right" | hoặc số x bất kỳ ====== */
 const DOOR_POS = "left"; /* "right" = đúng như bản cũ */
-const DOOR_W = 6; /* bề rộng lỗ cửa (2 cánh kính × 3m) */
 {
   const lim = STORE.W / 2 - DOOR_W / 2 - 0.5; /* = 3.5, chừa 0.5m mép tường */
   const dx =
@@ -4231,10 +4241,23 @@ const wallSet = (key) =>
     rb(t + 0.04, 0.12, len, S.m.b, px, 0, (a + b) / 2, scene, 0.02);
   };
 
-  /* mặt tiền: chân tường + kính, chừa cửa vào */
-  hwall(-hw - t / 2, STORE.door[0], hd, "f", true);
-  hwall(STORE.door[1], hw + t / 2, hd, "f", true);
-  lintel(STORE.door[0], STORE.door[1], hd, "f");
+   /* mặt tiền dựng bằng hàm để dựng lại được khi dời cửa */
+  let front = [];
+  function buildFront() {
+    front.forEach((o) => scene.remove(o));
+    const n0 = scene.children.length,
+      [d0, d1] = STORE.door,
+      dm = (d0 + d1) / 2;
+    hwall(-hw - t / 2, d0, hd, "f", true);
+    hwall(d1, hw + t / 2, hd, "f", true);
+    lintel(d0, d1, hd, "f");
+    rb(d1 - d0, 0.03, 1.5, 0x3a3a40, dm, 0, hd - 0.8, scene, 0.01); /* thảm cửa */
+    tag("CỬA VÀO", dm, 0.9, hd + 0.9, 3, 1);
+    front = scene.children.slice(n0);
+  }
+  buildFront();
+  window.rebuildFront = buildFront;
+
   /* tường sau: chừa cửa kho; kéo dài ra hai bên cho khít phòng kho */
   hwall(-hw - 0.5 - t / 2, STORE.kho[0], -hd, "b");
   hwall(STORE.kho[1], hw + 0.5 + t / 2, -hd, "b");
@@ -4247,21 +4270,10 @@ const wallSet = (key) =>
   vwall(hw + 0.5, -hd - 5, -hd, "rr");
   hwall(-hw - 0.5 - t / 2, hw + 0.5 + t / 2, -hd - 5, "bb");
 
-  rb(
-    STORE.door[1] - STORE.door[0],
-    0.03,
-    1.5,
-    0x3a3a40,
-    (STORE.door[0] + STORE.door[1]) / 2,
-    0,
-    hd - 0.8,
-    scene,
-    0.01,
-  );
+  
   for (let i = 0; i < 5; i++)
     rb(0.9, 0.6, 0.7, 0xc9a678, -5 + i * 1.6, 0, -hd - 2, scene, 0.04);
   tag("CỬA VÀO", (STORE.door[0] + STORE.door[1]) / 2, 0.9, hd + 0.9, 3, 1);
-  tag("KHO", (STORE.kho[0] + STORE.kho[1]) / 2, 0.9, -hd - 1.2, 2, 1);
 })();
 
 const gmat = new THREE.MeshStandardMaterial({ color: 0xdadee5, roughness: 1 });
@@ -7272,6 +7284,464 @@ let FR = 0,
     () => toast("2 ngón / chuột phải / WASD để trượt quanh cửa hàng"),
     1200,
   );
+})();
+
+/* ============ PATCH v5: hành động mới theo chức vụ (IIFE) ============
+   - Nhân viên (staff)            : LAU NHÀ (cầm cây lau, đi chậm và quét qua lại)
+   - Quản lý / Cửa hàng phó (gray): CẦM SỔ + CHECK LIST KIỂM KHO (ghi chép, thỉnh thoảng nhìn kệ)
+   CÁCH DÙNG: dán toàn bộ khối này xuống CUỐI script.js, SAU PATCH v4.
+   Không sửa logic cũ: chỉ bọc makeChar / pose / goal / stepNpc / showChar / rebuildPv. */
+(() => {
+  /* ---------- Cấu hình ---------- */
+  const CFG = {
+    /* nhân viên có routine kiểu "station" nhưng vẫn muốn cho đi lau nhà (không đổi dữ liệu đã lưu) */
+    mopStaff: ["EMP_0005"],
+    /* tốc độ khi lau so với đi bình thường (1 = bằng) */
+    mopSpeed: 0.6,
+    /* lộ trình lau mặc định (đi tới rồi đi lùi lại, chỉ chạy dọc các lối đi trống) */
+    mopRoute: [
+      [-3.4, 11.4],
+      [3.4, 11.4],
+      [3.4, 4],
+      [-3.4, 4],
+      [-3.4, -3.2],
+      [3.4, -3.2],
+    ],
+  };
+
+  /* ---------- Tiện ích vai trò ---------- */
+
+  /* chức vụ "xám" = quản lý / cửa hàng phó (theo bảng ROLES có sẵn) */
+  const isGray = (role) => (ROLES[role] || ROLES.staff)[1] === "gray";
+
+  /* hành động riêng của từng chức vụ: [nhãn nút, mã mode] */
+  const roleAct = (role) => (isGray(role) ? ["Kiểm kho", "check"] : ["Lau nhà", "mop"]);
+
+  /* công việc tự động của NPC trong cửa hàng: 'mop' | 'check' | null */
+  function jobOf(n) {
+    const s = n.s,
+      r = s.routine || {};
+    if (isGray(s.role)) return r.type === "patrol" ? "check" : null; /* quản lý đi tuần = cầm sổ kiểm kho */
+    if (CFG.mopStaff.includes(s.code) || r.type === "mop" || r.type === "patrol")
+      return "mop"; /* nhân viên đi tuần = lau nhà */
+    return null; /* thu ngân / xếp hàng giữ nguyên */
+  }
+
+  /* ---------- Vật liệu tờ check list (tạo 1 lần, dùng chung) ---------- */
+  let _paper = null;
+
+  /* vẽ tờ "KIỂM KHO": tiêu đề xanh + 6 dòng có ô tích (4 dòng đã tích) */
+  function paperMat() {
+    if (_paper) return _paper;
+    const cv = document.createElement("canvas");
+    cv.width = 128;
+    cv.height = 160;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fffdf6";
+    g.fillRect(0, 0, 128, 160);
+    g.fillStyle = "#1e5eff";
+    g.fillRect(0, 0, 128, 26);
+    g.fillStyle = "#fff";
+    g.font = "700 15px Arial,sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText("KIỂM KHO", 64, 14);
+    for (let i = 0; i < 6; i++) {
+      const y = 40 + i * 20;
+      g.strokeStyle = "#6b6f78";
+      g.lineWidth = 2;
+      g.strokeRect(10, y, 12, 12);
+      if (i < 4) {
+        g.strokeStyle = "#1f9d4c";
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(12, y + 6);
+        g.lineTo(16, y + 10);
+        g.lineTo(24, y - 2);
+        g.stroke();
+      }
+      g.fillStyle = "#c9ccd3";
+      g.fillRect(32, y + 3, i % 2 ? 70 : 86, 5);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 4;
+    _paper = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
+    return _paper;
+  }
+
+  /* ---------- Dựng đạo cụ (cây lau / sổ + bút) ---------- */
+
+  /* thêm mesh vào parent; không gắn "part" nên không chặn việc chọn bộ phận */
+  const put = (parent, geo, color, x, y, z, rough = 0.75) => {
+    const m = new THREE.Mesh(geo, M(color, rough));
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  };
+
+  /* tạo đạo cụ theo chức vụ và tính sẵn góc tay để bàn tay chạm đúng vật cầm */
+  function addProps(c, s) {
+    const k = { ...LOOK0, ...s.look },
+      W = 0.8 + k.build * 0.6,
+      LEG = 0.82 * k.legRatio,
+      ARM = 0.55 * k.armRatio,
+      by = LEG + 0.1,
+      L = ARM + 0.01 /* từ vai tới tâm bàn tay */,
+      ax = 0.2 * W + 0.05 /* vị trí vai theo trục x */,
+      PITCH = 0.8 /* góc đưa tay ra trước */,
+      /* góc khép tay vào trong để bàn tay nằm cách tâm hx */
+      rzFor = (hx) => Math.asin(THREE.MathUtils.clamp((ax - hx) / L, 0, 0.95)),
+      /* toạ độ bàn tay (trong hệ của thân b) khi khép góc rz và đưa ra trước PITCH */
+      hand = (rz) => ({
+        y: 0.52 - L * Math.cos(rz) * Math.cos(PITCH),
+        z: L * Math.cos(rz) * Math.sin(PITCH),
+      });
+    c.pr = { by };
+
+    if (isGray(s.role)) {
+      /* --- Sổ kiểm kho + bút --- */
+      const rz = rzFor(0.1),
+        h = hand(rz),
+        book = new THREE.Group();
+      book.position.set(0, h.y + 0.07, h.z + 0.02);
+      book.rotation.x = 0.55; /* nghiêng mặt giấy hướng lên và về phía mắt */
+      book.visible = false;
+      c.b.add(book);
+      put(book, new THREE.BoxGeometry(0.2, 0.27, 0.012), 0x2f5d50, 0, 0, 0, 0.6); /* bìa sổ */
+      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.22), paperMat());
+      paper.position.set(0, -0.005, -0.0075);
+      paper.rotation.y = PI; /* mặt giấy quay về phía người cầm */
+      book.add(paper);
+      put(book, new THREE.BoxGeometry(0.08, 0.03, 0.02), 0xc9ced6, 0, 0.125, -0.012, 0.3); /* kẹp sổ */
+      const pen = put(
+        c.aR,
+        new THREE.CylinderGeometry(0.007, 0.007, 0.13, 6),
+        0x1e5eff,
+        0,
+        -(ARM + 0.01) + 0.05 * Math.cos(PITCH),
+        0.05 * Math.sin(PITCH),
+        0.4,
+      );
+      pen.rotation.x = PITCH; /* ngòi bút hướng lên về phía tờ giấy */
+      pen.visible = false;
+      c.pr.check = [book, pen];
+      c.pr.rzC = rz;
+    } else {
+      /* --- Cây lau nhà: cán nối từ hai bàn tay xuống sàn, đầu lau nằm phẳng --- */
+      const rz = rzFor(0.03),
+        h = hand(rz),
+        yt = -by + 0.03 /* tâm đầu lau sát sàn */,
+        dz = 0.3 /* đầu lau nằm trước tay 30 cm */,
+        dy = h.y - yt,
+        Ls = Math.hypot(dy, dz),
+        al = Math.atan2(dz, dy),
+        piv = new THREE.Group();
+      piv.position.set(0, h.y, h.z);
+      piv.rotation.x = -al;
+      piv.visible = false;
+      c.b.add(piv);
+      put(piv, new THREE.CylinderGeometry(0.013, 0.013, Ls, 8), 0xb08a5a, 0, -Ls / 2, 0, 0.6); /* cán */
+      const hd = new THREE.Group();
+      hd.position.y = -Ls;
+      hd.rotation.x = al; /* bù góc để đầu lau nằm ngang */
+      piv.add(hd);
+      put(hd, new THREE.BoxGeometry(0.3, 0.015, 0.1), 0x6f737b, 0, 0.03, 0, 0.5); /* khung kẹp */
+      for (let i = 0; i < 7; i++) /* các sợi bông */
+        put(hd, new THREE.BoxGeometry(0.044, 0.045, 0.13), i % 2 ? 0xf4efe0 : 0xe2dcc8, -0.15 + i * 0.05, 0, 0, 0.95);
+      c.pr.mop = [piv];
+      c.pr.piv = piv;
+      c.pr.hy = h.y;
+      c.pr.rzM = rz;
+    }
+  }
+
+  /* ---------- Tư thế: lớp phủ lên pose() gốc, có làm mượt ---------- */
+
+  /* góc đích của từng kiểu hành động (chỉ khai báo những khớp cần đổi) */
+  function targetsFor(kind, c, walking, t) {
+    const P = c.pr;
+    if (kind === "mop") {
+      const s = Math.sin(t * 3.4),
+        push = Math.sin(t * 6.8) * 0.05;
+      const T = {
+        ar: -0.8 + push,
+        al: -0.8 + push,
+        arz: -P.rzM + 0.09 * s /* hai tay cùng đưa qua lại */,
+        alz: P.rzM + 0.09 * s,
+        lean: 0 /* không cúi để đầu lau không lún sàn */,
+        hx: 0.25,
+      };
+      if (walking) {
+        const w = Math.sin(t * 4.6) * 0.42; /* bước chậm theo tốc độ lau */
+        T.ll = w;
+        T.lr = -w;
+      }
+      return T;
+    }
+    const still = !walking; /* đang đứng thì mới ghi chép + nhìn kệ */
+    return {
+      al: -0.8 /* tay giữ sổ */,
+      ar: -0.8 + (still ? 0.06 * Math.sin(t * 10) : 0) /* tay cầm bút */,
+      alz: P.rzC,
+      arz: -P.rzC + (still ? 0.04 * Math.sin(t * 7.3) : 0),
+      lean: 0.05,
+      hx: 0.3,
+      hy: still ? 0.8 * Math.sin(t * 0.8) : 0 /* quay đầu nhìn dọc kệ */,
+    };
+  }
+
+  /* áp lớp phủ: ov = mức hoà trộn 0..1, ox = góc đã làm mượt */
+  function overlay(c, kind, walking, dt, t) {
+    const P = c.pr;
+    if (!P) return;
+    c.ov = (c.ov || 0) + ((kind ? 1 : 0) - (c.ov || 0)) * (1 - Math.exp(-dt * 9));
+    if (kind) c.lk = kind;
+    const cur = {
+      ar: c.aR.rotation.x,
+      al: c.aL.rotation.x,
+      arz: c.aR.rotation.z,
+      alz: c.aL.rotation.z,
+      lean: c.b.rotation.x,
+      hx: c.head.rotation.x,
+      hy: c.head.rotation.y,
+      ll: c.lL.rotation.x,
+      lr: c.lR.rotation.x,
+    };
+    if (!c.ox || (!kind && c.ov < 0.002)) c.ox = { ...cur }; /* nghỉ: bám theo pose gốc */
+    if (kind) {
+      const T = targetsFor(kind, c, walking, t),
+        k = 1 - Math.exp(-dt * 10);
+      for (const n in cur) c.ox[n] += ((T[n] !== undefined ? T[n] : cur[n]) - c.ox[n]) * k;
+    }
+    c.aR.rotation.x = cur.ar + (c.ox.ar - cur.ar) * c.ov;
+    c.aL.rotation.x = cur.al + (c.ox.al - cur.al) * c.ov;
+    c.aR.rotation.z = cur.arz + (c.ox.arz - cur.arz) * c.ov;
+    c.aL.rotation.z = cur.alz + (c.ox.alz - cur.alz) * c.ov;
+    c.b.rotation.x = cur.lean + (c.ox.lean - cur.lean) * c.ov;
+    c.head.rotation.x = cur.hx + (c.ox.hx - cur.hx) * c.ov;
+    c.head.rotation.y = cur.hy + (c.ox.hy - cur.hy) * c.ov;
+    c.lL.rotation.x = cur.ll + (c.ox.ll - cur.ll) * c.ov;
+    c.lR.rotation.x = cur.lr + (c.ox.lr - cur.lr) * c.ov;
+    /* hiện đạo cụ theo hành động gần nhất; ẩn khi đã thả xong */
+    const show = c.ov > 0.02;
+    (P.mop || []).forEach((o) => (o.visible = show && c.lk === "mop"));
+    (P.check || []).forEach((o) => (o.visible = show && c.lk === "check"));
+    if (P.piv) {
+      P.piv.rotation.z = 0.2 * Math.sin(t * 3.4) * c.ov; /* quét cây lau qua lại */
+      P.piv.position.y = P.hy - (c.b.position.y - c.by); /* bù nhịp nhún để đầu lau luôn sát sàn */
+    }
+  }
+
+  /* ---------- Bọc các hàm gốc ---------- */
+
+  /* makeChar: thêm đạo cụ theo chức vụ (NPC, sân khấu, xem trước đều dùng) */
+  const _mk5 = makeChar;
+  makeChar = function (s) {
+    const c = _mk5(s);
+    addProps(c, s);
+    return c;
+  };
+
+  /* pose: chạy pose gốc rồi phủ hành động mới; chức vụ không hợp thì bỏ qua (staff không "check", quản lý không "mop") */
+  const _pose5 = pose;
+  pose = function (c, dt, t) {
+    _pose5(c, dt, t);
+    const m = c.mode;
+    let kind = m === "mop" || m === "check" ? m : m === "walk" ? c.job || null : null;
+    if (kind && !(c.pr && c.pr[kind])) kind = null;
+    overlay(c, kind, m === "walk", dt, t);
+  };
+
+  /* goal: nhân viên đi tuần → đích là điểm trên lộ trình lau; quản lý dừng ở mỗi điểm thì "check" */
+  const _goal5 = goal;
+  goal = function (n) {
+    const job = jobOf(n);
+    if (job === "mop") {
+      const q = mopPoint(n);
+      return { x: q[0], z: q[1], act: "mop" };
+    }
+    const g = _goal5(n);
+    if (job === "check" && g.act === "idle") g.act = "check";
+    return g;
+  };
+
+  /* lộ trình lau của một nhân viên: dùng points riêng nếu có, không thì lộ trình mặc định */
+  const mopRoute = (n) => {
+    const r = n.s.routine || {};
+    return r.points && r.points.length > 1 ? r.points : CFG.mopRoute;
+  };
+
+  /* điểm lau hiện tại (đi tới rồi đi lùi lại để không cắt chéo qua kệ) */
+  function mopPoint(n) {
+    const R = mopRoute(n),
+      N = R.length,
+      per = 2 * (N - 1);
+    if (n.mi === undefined) {
+      /* bắt đầu từ điểm gần nhất để không đi xuyên kệ */
+      let best = 0,
+        bd = 1e9;
+      R.forEach((p, i) => {
+        const d = Math.hypot(p[0] - n.g.position.x, p[1] - n.g.position.z);
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      });
+      n.mi = best;
+    }
+    const m = n.mi % per;
+    return R[m < N ? m : per - m];
+  }
+
+  /* stepNpc: lau thì đi chậm và tự sang điểm kế; quản lý đứng ghi chép lâu hơn ở mỗi điểm */
+  const _step5 = stepNpc;
+  stepNpc = function (n, dt, t) {
+    const job = jobOf(n),
+      p = n.g.position,
+      x0 = p.x,
+      z0 = p.z;
+    n.job = job;
+    _step5(n, dt, t);
+    if (job === "mop") {
+      p.x = x0 + (p.x - x0) * CFG.mopSpeed;
+      p.z = z0 + (p.z - z0) * CFG.mopSpeed;
+      n.wait = 0; /* không dừng chờ như tuần tra */
+      const g = goal(n);
+      if (Math.hypot(g.x - p.x, g.z - p.z) < 0.12) n.mi++;
+    } else if (job === "check" && n.mode === "check") {
+      n.wait = Math.max(0, n.wait - dt * 0.5); /* kéo dài thời gian đứng ghi chép gấp đôi */
+    }
+  };
+
+  /* ---------- Giao diện: nút hành động theo chức vụ ---------- */
+
+  /* vẽ lại hàng nút hành động ở sân khấu: 5 nút cũ + nút riêng của chức vụ */
+  function refreshActs() {
+    const s = cur && StaffRegistry.get(cur.code);
+    if (!s) return;
+    const list = ACTS.concat([roleAct(s.role)]);
+    if (!list.some((a) => a[1] === act)) {
+      act = "idle";
+      cur.mode = "idle";
+    }
+    $("#acts").innerHTML = list
+      .map((a) => `<button class="${a[1] === act ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+      .join("");
+  }
+  const _sc5 = showChar;
+  showChar = function (c) {
+    _sc5(c);
+    refreshActs();
+  };
+
+  /* vẽ lại nút trong hộp xem trước hồ sơ: Đứng / Đi bộ / Vẫy tay + nút riêng theo chức vụ đang chọn */
+  function refreshPvb() {
+    if (!draft) return;
+    const ra = roleAct(draft.role),
+      key = ra[1] + "|" + pvMode,
+      el = $("#pvb");
+    if (pvMode === "mop" || pvMode === "check") if (pvMode !== ra[1]) pvMode = "idle";
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    el.innerHTML = [["Đứng", "idle"], ["Đi bộ", "walk"], ["Vẫy tay", "wave"], ra]
+      .map((a) => `<button class="${a[1] === pvMode ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+      .join("");
+  }
+  const _rb5 = rebuildPv;
+  rebuildPv = function () {
+    refreshPvb();
+    _rb5();
+  };
+
+  /* CSS: 6 nút hành động → lưới 3 cột trên điện thoại cho khỏi chật */
+  const css = document.createElement("style");
+  css.textContent =
+    "/* PATCH v5: hàng nút hành động nhiều hơn 5 nút */" +
+    "@media (max-width:720px){#acts{grid-template-columns:repeat(3,1fr)}}";
+  document.head.appendChild(css);
+
+  /* ---------- Dựng lại NPC và nhân vật đang hiển thị để có đạo cụ ---------- */
+
+  /* dựng lại toàn bộ NPC trong cửa hàng, giữ nguyên vị trí / hướng / tiến độ tuần tra */
+  function rebuildNpcs() {
+    const old = npcs.splice(0),
+      keep = old.map((o) => ({
+        code: o.s.code,
+        p: o.g.position.clone(),
+        r: o.g.rotation.y,
+        i: o.i,
+        wait: o.wait,
+      }));
+    old.forEach((o) => {
+      scene.remove(o.g);
+      disposeChar(o);
+    });
+    keep.forEach((q) => {
+      const s = StaffRegistry.get(q.code);
+      if (!s) return;
+      const n = addNpc(s);
+      n.g.position.copy(q.p);
+      n.g.rotation.y = q.r;
+      n.i = q.i;
+      n.wait = q.wait;
+    });
+  }
+  rebuildNpcs();
+  if (typeof cur !== "undefined" && cur) showChar(cur.code);
+})();
+
+/* ============ PATCH: CHẾ ĐỘ CHỈNH SỬA ẨN NHÂN VIÊN + KHÁCH, CHẾ ĐỘ XEM HIỆN LẠI (mượt) ============
+   Chỉ thêm mới, không đụng core. Cách làm: ngay trước mỗi lần render, thu nhỏ nhân vật theo hệ số f
+   (f giảm dần về 0 khi "edit", tăng dần về 1 khi "view"), render xong thì trả lại đúng như cũ.
+   Nên các logic đang chạy (đi lại, tạo khách, lên/xuống xe, cửa tự động...) không bị ảnh hưởng. */
+(() => {
+  const SPEED = 5;            /* tốc độ mờ/hiện: lớn = nhanh (≈ 0.4s) */
+  const CH = new WeakSet();   /* mọi nhân vật 3D: nhân viên + khách */
+
+  /* ghi nhận mọi nhân vật được tạo từ giờ về sau (khách mới, nhân viên mới/sửa) */
+  const _mk = makeChar;
+  makeChar = function (s) {
+    const c = _mk(s);
+    CH.add(c.g);
+    return c;
+  };
+  npcs.forEach((n) => CH.add(n.g)); /* nhân viên đã có sẵn */
+
+  let f = mode === "edit" ? 0 : 1, last = performance.now();
+  const saved = [];
+
+  const _before = scene.onBeforeRender, _after = scene.onAfterRender;
+
+  scene.onBeforeRender = function () {
+    if (_before) _before.apply(this, arguments);
+    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const goal = mode === "edit" ? 0 : 1;
+    f += (goal - f) * (1 - Math.exp(-dt * SPEED));
+    if (Math.abs(goal - f) < 0.003) f = goal;
+    saved.length = 0;
+    if (f >= 1) return; /* chế độ xem: để nguyên 100% */
+    const e = f * f * (3 - 2 * f); /* mượt đầu/cuối */
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const g = kids[i];
+      if (!CH.has(g)) continue;
+      saved.push([g, g.scale.x, g.scale.y, g.scale.z, g.visible]);
+      if (e < 0.02) g.visible = false;
+      else g.scale.multiplyScalar(e);
+    }
+  };
+
+  scene.onAfterRender = function () {
+    if (_after) _after.apply(this, arguments);
+    for (let i = 0; i < saved.length; i++) {
+      const s = saved[i];
+      s[0].scale.set(s[1], s[2], s[3]);
+      s[0].visible = s[4];
+    }
+    saved.length = 0;
+  };
 })();
 
 /* ============ PATCH: BẢNG HIỆU MAXIDI v2 (IIFE, chỉ thêm mới) ============

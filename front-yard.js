@@ -7,13 +7,11 @@
    mergeGroup, makeChar, pose, turn, disposeChar, tag, STORE, scene, ren, npcs, showStaff. */
 (() => {
   const { W, D } = STORE, hw = W / 2, hd = D / 2;
-    const DX = (STORE.door[0] + STORE.door[1]) / 2; /* tâm cửa, đọc từ script gốc */
-  const OFF = DX - 3.5;                           /* độ lệch so với bố cục gốc */
-  /* thềm: phủ cả mặt tiền cửa hàng lẫn 2 hàng xe (cụm xe dời theo cửa) */
-  const YL = Math.min(-hw - 1.5, OFF - 10.2), YR = Math.max(hw + 1.5, OFF + 10.2);
-  const SW = YR - YL, XC = (YL + YR) / 2;
-  const Z0 = hd + 0.12, Z1 = hd + 7, SD = Z1 - Z0, ZC = (Z0 + Z1) / 2;
-  const Y = new THREE.Group();
+      let DX = (STORE.door[0] + STORE.door[1]) / 2; /* tâm cửa hiện tại, đổi được lúc chạy */
+  const BASE = 3.5;                              /* bố cục gốc dựng ở cửa x=3.5 */
+  const SW = 20.4, Z0 = hd + 0.12, Z1 = hd + 7, SD = Z1 - Z0, ZC = (Z0 + Z1) / 2;
+  const Y = new THREE.Group();                   /* phần cố định */
+  const YD = new THREE.Group();                  /* phần dời theo cửa */
 
   /* ---------- tiện ích ---------- */
   const GC = {};
@@ -308,7 +306,7 @@
 
   /* ============ SÂN (thềm dài) ============ */
 
-  rb(SW, 0.08, SD, 0xb9bcc3, XC, -0.08, ZC, Y, 0.02);
+    rb(SW, 0.08, SD, 0xb9bcc3, 0, -0.08, ZC, Y, 0.02);
   const pc = document.createElement("canvas");
   pc.width = pc.height = 128;
   const px = pc.getContext("2d");
@@ -320,29 +318,29 @@
   ptx.anisotropy = 4;
   const ptop = new THREE.Mesh(new THREE.PlaneGeometry(SW, SD), new THREE.MeshStandardMaterial({ map: ptx, roughness: 0.85 }));
   ptop.rotation.x = -PI / 2;
-  ptop.position.set(XC, 0.003, ZC);
+  ptop.position.set(0, 0.003, ZC);
   ptop.receiveShadow = true;
   Y.add(ptop);
-  /* lối đi vào cửa: gạch sáng + 2 vạch vàng, kéo dài tới mép sân */
-  rb(6.4, 0.008, SD, 0xe3e5ea, DX, 0.003, ZC, Y, 0.002);
-  [DX - 3.2, DX + 3.2].forEach((x) => rb(0.07, 0.012, SD, 0xf2c200, x, 0.003, ZC, Y, 0.002));
-  /* lề vỉa hè, chừa đoạn lớn cho xe và người ra vào */
-    /* lề vỉa hè: chừa đoạn lối vào cho xe (từ OFF-2.5 đến OFF+8) */
-  const curb = (a, b) => b - a > 0.2 && rb(b - a, 0.16, 0.2, 0xb7bbc3, (a + b) / 2, -0.08, Z1 - 0.1, Y, 0.02);
-  curb(YL, OFF - 2.5);
-  curb(OFF + 8, YR);
-  /* chậu cây ở hai đầu thềm */
-  [YL + 0.6, YR - 0.6].forEach((x) => {
+  /* lối đi + 2 vạch vàng: dời theo cửa */
+  rb(6.4, 0.008, SD, 0xe3e5ea, BASE, 0.003, ZC, YD, 0.002);
+  [BASE - 3.2, BASE + 3.2].forEach((x) => rb(0.07, 0.012, SD, 0xf2c200, x, 0.003, ZC, YD, 0.002));
+  /* lề vỉa hè: 2 đoạn co giãn, chừa lối cho xe (cập nhật trong layout) */
+  const curbs = [0, 1].map(() => {
+    const m = rb(1, 0.16, 0.2, 0xb7bbc3, 0, -0.08, Z1 - 0.1, scene, 0.02);
+    m.castShadow = false;
+    return m;
+  });
+  /* chậu cây ở 2 đầu thềm (cố định) */
+  [-9.8, 9.8].forEach((x) => {
     rb(0.7, 0.35, 0.7, 0x8a8d94, x, 0, 15.55, Y, 0.05);
     rb(0.6, 0.02, 0.6, 0x4e342e, x, 0.35, 15.55, Y, 0.005);
     [[0, 0.62, 0, 0.27], [0.15, 0.55, 0.1, 0.18], [-0.15, 0.55, -0.1, 0.18]].forEach((q) =>
       mk(G("bush" + q[3], () => new THREE.SphereGeometry(q[3], 12, 9)), M(0x4f9d5b, 0.9), Y, x + q[0], q[1], 15.55 + q[2]),
     );
   });
-  mk(G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)), M(0x3f7d4e, 0.7), Y, DX + 3.6, 0.35, 15.55);
-  mk(G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)), M(0x2e5d3a, 0.7), Y, DX + 3.6, 0.72, 15.55);
-  mk(G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)), M(0x3f7d4e, 0.7), Y, 7.1, 0.35, 15.55);
-  mk(G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)), M(0x2e5d3a, 0.7), Y, 7.1, 0.72, 15.55);
+  /* thùng rác cạnh cửa: dời theo cửa */
+  mk(G("bin", () => new THREE.CylinderGeometry(0.2, 0.17, 0.7, 14)), M(0x3f7d4e, 0.7), YD, BASE + 3.6, 0.35, 15.55);
+  mk(G("binl", () => new THREE.CylinderGeometry(0.21, 0.21, 0.04, 14)), M(0x2e5d3a, 0.7), YD, BASE + 3.6, 0.72, 15.55);
 
   /* ---------- 2 hàng ô xe dọc: hàng trái x=-1.3 (đầu xe hướng vào lối đi), hàng phải x=8.5 ----------
      Mỗi cột có: sx = hướng đầu xe, xin = làn xe VÀO, xm = miệng ô, xout = làn xe RA.
@@ -350,15 +348,13 @@
      Xe ra : chạy thẳng ra miệng ô -> quẹo phải vào làn xout -> ra đường -> quẹo phải vào làn gần. */
   const ZB = (i) => 16.3 + 0.85 * i;
   const COLS = [
-    { x: -1.3 + OFF, yaw: PI / 2, ex: 0.0 + OFF, sx: 1, xin: 1.9 + OFF, xm: 0.9 + OFF, xout: 2.9 + OFF, list: [      { k: "sc", c: 0xc62828, steer: 0.2, s: 1, seatHelm: 0xf2f2f2 },
-      { k: "cub", c: 0x1e5aa8, steer: -0.15, s: -1, hang: 0xf2b705 },
+    { x: -1.3, yaw: PI / 2, ex: 0.0, sx: 1, xin: 1.9, xm: 0.9, xout: 2.9, list: [      { k: "cub", c: 0x1e5aa8, steer: -0.15, s: -1, hang: 0xf2b705 },
       { k: "sc", c: 0xf0f0f0, c2: 0x30343a, steer: 0.1, s: 1, top: 0x2b2d33 },
       { k: "cub", sport: true, c: 0xf2b705, steer: 0.3, s: -1 },
       { k: "sc", c: 0xe58aa5, steer: -0.2, s: 1, basket: 0x43a047, hang: 0xe53935 },
       { k: "sc", c: 0x2a2b30, steer: 0.18, s: -1, bag: 0x2e7d32 },
     ] },
-    { x: 8.5 + OFF, yaw: -PI / 2, ex: 7.4 + OFF, sx: -1, xin: 5.1 + OFF, xm: 6.1 + OFF, xout: 4.1 + OFF, list: [      { k: "cub", c: 0xaab0b8, steer: 0.12, s: 1 },
-      { k: "sc", c: 0x1e5aa8, steer: -0.22, s: -1, basket: 0xfdd835 },
+    { x: 8.5, yaw: -PI / 2, ex: 7.4, sx: -1, xin: 5.1, xm: 6.1, xout: 4.1, list: [      { k: "sc", c: 0x1e5aa8, steer: -0.22, s: -1, basket: 0xfdd835 },
       { k: "sc", c: 0x2e7d5b, steer: 0.1, s: 1, top: 0xe8e8ea, seatHelm: 0x1e5aa8 },
       { k: "cub", sport: true, c: 0xc62828, c2: 0x2a2b30, steer: -0.28, s: -1 },
       { k: "sc", c: 0x7b1fa2, steer: 0.15, s: 1, bag: 0xe65100 },
@@ -368,8 +364,7 @@
   /* SLOT: state = "parked" (có xe) | "reserved" (xe đang chạy tới) | "leaving" (xe vừa rời) | "empty" (trống) */
   const SLOTS = [];
   COLS.forEach((col, ci) => {
-    for (let i = 0; i <= 6; i++) rb(1.9, 0.006, 0.05, 0xf5f5f5, col.x, 0.004, 15.875 + 0.85 * i, Y, 0.002);
-    col.list.forEach((sp, i) => {
+    for (let i = 0; i <= 6; i++) rb(1.9, 0.006, 0.05, 0xf5f5f5, col.x, 0.004, 15.875 + 0.85 * i, YD, 0.002);    col.list.forEach((sp, i) => {
       SLOTS.push({
         col, ex: col.ex, z: ZB(i), sp, n: i + ci * 6,
         jit: (((i * 37 + ci * 11) % 5) - 2) * 0.02,
@@ -377,8 +372,8 @@
       });
     });
   });
-  tag("KHU ĐỂ XE", -1.3 + OFF, 1.1, Z1 - 0.3, 2.2, 1);
-  tag("KHU ĐỂ XE", 8.5 + OFF, 1.1, Z1 - 0.3, 2.2, 1);
+    COLS.forEach((c) => (c.b = { x: c.x, ex: c.ex, xin: c.xin, xm: c.xm, xout: c.xout })); /* lưu tọa độ gốc */
+  const TG = [-1.3, 8.5].map((x) => [tag("KHU ĐỂ XE", x, 1.1, Z1 - 0.3, 2.2, 1), x]);
   /* ---------- đường lớn trải dài trước bãi xe ---------- */
   const ZR = Z1 + 3.8, ZS = ZR + 3.6 + 1.3;
   const ZL = ZR - 1.7; /* tâm làn gần sân (xe chạy theo chiều -x) */
@@ -405,6 +400,10 @@
   mergeGroup(Y);
   Y.traverse((o) => { if (o.isMesh) o.castShadow = false; }); /* sân nằm ngoài vùng bóng → bỏ để nhẹ máy */
   scene.add(Y);
+
+    mergeGroup(YD);
+  YD.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+  scene.add(YD);
 
   /* ---------- xe máy: mỗi chiếc là 1 nhóm riêng (đã gộp mesh) để ẩn/hiện/chạy được ---------- */
   const RN = Math.random, PICK = (a) => a[Math.floor(RN() * a.length)], J = () => (RN() - 0.5) * 0.5;
@@ -479,10 +478,15 @@
   const doorGlass = new THREE.MeshStandardMaterial({ color: 0xcfe8ff, roughness: 0.05, transparent: true, opacity: 0.3, depthWrite: false });
   const frost = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, transparent: true, opacity: 0.55, depthWrite: false });
   const fm = M(0xb8bcc4, 0.35, 0.7), hm = M(0x8a8d94, 0.3, 0.8);
+
+  const DG = new THREE.Group(); /* nhóm cửa kính, dời theo DX */
+  DG.position.x = DX;
+  scene.add(DG);
+
   function panel(cx, dir) {
     const g = new THREE.Group();
     g.position.set(cx, 0, DOORZ);
-    scene.add(g);
+    DG.add(g);
     rb(PW, 0.1, 0.06, fm, 0, 0, 0, g, 0.01);
     rb(PW, 0.08, 0.06, fm, 0, PH - 0.08, 0, g, 0.01);
     rb(0.08, PH, 0.06, fm, -PW / 2 + 0.04, 0, 0, g, 0.01);
@@ -496,10 +500,10 @@
     rb(0.03, 0.7, 0.05, hm, dir < 0 ? PW / 2 - 0.16 : -PW / 2 + 0.16, 0.9, 0.05, g, 0.005);
     return g;
   }
-  const pL = panel(DX - PW / 2, -1), pR = panel(DX + PW / 2, 1);
-  rb(PW * 2 + 0.3, 0.1, 0.14, fm, DX, 2.38, DOORZ, scene, 0.01);
-  rb(0.5, 0.1, 0.1, 0x2b2d33, DX, 2.28, DOORZ + 0.05, scene, 0.01);
-  rb(0.06, 0.06, 0.02, glowMat(0x00c853, 0x00e676, 1), DX, 2.3, DOORZ + 0.105, scene, 0.005);
+    const pL = panel(-PW / 2, -1), pR = panel(PW / 2, 1);
+  rb(PW * 2 + 0.3, 0.1, 0.14, fm, 0, 2.38, DOORZ, DG, 0.01);
+  rb(0.5, 0.1, 0.1, 0x2b2d33, 0, 2.28, DOORZ + 0.05, DG, 0.01);
+  rb(0.06, 0.06, 0.02, glowMat(0x00c853, 0x00e676, 1), 0, 2.3, DOORZ + 0.105, DG, 0.005);
   let doorO = 0;
 
   /* ---------- khách hàng (đi bộ trong cửa hàng – logic giữ nguyên) ---------- */
@@ -508,9 +512,17 @@
     B1: [-3.4, 11.6], BS1: [-3.4, 7.5], B2: [-3.4, 4], BS2: [-3.4, 0.5], B3: [-3.4, -4.2],
     C1: [-4.8, 11.5], C2: [-2, 11.5],
   };
-  const EDGES = [["E", "A1"], ["A1", "AS1"], ["AS1", "A2"], ["A2", "AS2"], ["AS2", "A3"], ["B1", "BS1"], ["BS1", "B2"], ["B2", "BS2"], ["BS2", "B3"], ["A2", "B2"], ["A3", "B3"], ["A1", "C2"], ["C2", "B1"], ["B1", "C1"]];
+   const EDGES_BASE = [["A1", "AS1"], ["AS1", "A2"], ["A2", "AS2"], ["AS2", "A3"], ["B1", "BS1"], ["BS1", "B2"], ["B2", "BS2"], ["BS2", "B3"], ["A2", "B2"], ["A3", "B3"], ["A1", "C2"], ["C2", "B1"], ["B1", "C1"]];
   const ADJ = {};
-  EDGES.forEach(([a, b]) => { (ADJ[a] = ADJ[a] || []).push(b); (ADJ[b] = ADJ[b] || []).push(a); });
+  function buildGraph() { /* điểm vào E đi theo cửa, nối vào lối đi gần cửa nhất */
+    NODE.E = [DX, 14];
+    Object.keys(ADJ).forEach((k) => delete ADJ[k]);
+    EDGES_BASE.concat([["E", DX >= 0 ? "A1" : "B1"]]).forEach(([a, b]) => {
+      (ADJ[a] = ADJ[a] || []).push(b);
+      (ADJ[b] = ADJ[b] || []).push(a);
+    });
+  }
+  buildGraph();
   function bfs(a, b) {
     if (a === b) return [a];
     const prev = { [a]: null }, q = [a];
@@ -568,7 +580,6 @@
     c.g.position.set(sx, 0, sz);
     c.g.rotation.y = Math.atan2(DX - sx, 17 - sz);
     q.push({ x: DX + J() * 2, z: 17.2 }, { x: DX + J(), z: 15.3 });
-        if (Math.abs(DX - NODE.E[0]) > 1) q.push({ x: NODE.E[0] + J(), z: 14.8 }); /* đi dọc thềm trong cửa tới lối kệ */
     let cur = "E";
     const picks = BR.slice().sort(() => RN() - 0.5).slice(0, 1 + Math.floor(RN() * 2));
     picks.forEach((k) => { cur = go(q, cur, k, { act: "stock", dur: 1 + RN() * 1.2, face: faceOf(k) }); });
@@ -831,6 +842,46 @@
     pose(n, dt, t);
   }
 
+    /* ============ DỜI CỬA ============ */
+  function layout() {
+        buildGraph();   /* <-- thêm dòng này */
+
+    const off = DX - BASE;
+    veh.splice(0).forEach((v) => {
+      scene.remove(v.H);
+      disposeObj(v.H);
+      v.slot.state = "empty";
+      if (v.kind === "out") { v.slot.H = null; v.slot.B = null; }
+    });
+    custs.splice(0).forEach((c) => { scene.remove(c.g); disposeChar(c); });
+    SLOTS.forEach((s) => (s.owner = null));
+    COLS.forEach((c) => ["x", "ex", "xin", "xm", "xout"].forEach((k) => (c[k] = c.b[k] + off)));
+    SLOTS.forEach((s) => {
+      s.ex = s.col.ex;
+      if (s.state === "parked" && s.H) s.H.position.x = s.col.x;
+    });
+    YD.position.x = off;
+    TG.forEach(([t, bx]) => (t.position.x = bx + off));
+    DG.position.x = DX;
+    const seg = (m, a, b) => {
+      m.visible = b - a > 0.2;
+      m.scale.x = Math.max(0.01, b - a);
+      m.position.x = (a + b) / 2;
+    };
+    seg(curbs[0], -10.2, off - 2.5);
+    seg(curbs[1], off + 8, 10.2);
+  }
+  window.moveDoor = (x) => {
+    const dx = clampDoor(x);
+    STORE.door = [dx - DOOR_W / 2, dx + DOOR_W / 2];
+    DX = dx;
+    try { localStorage.setItem(DOOR_KEY, JSON.stringify({ dx })); } catch (e) {}
+    window.rebuildFront && window.rebuildFront();
+    layout();
+    spawnT = 1;
+  };
+  layout(); /* áp vị trí cửa đã lưu */
+
   /* ---------- vòng cập nhật (bọc ren.render như các patch trước) ---------- */
   /* 2 xe đến ngay từ đầu (xuất phát gần hơn) để thấy hành động lái xe vào sớm */
   SLOTS.filter((s) => s.state === "empty").sort(() => RN() - 0.5).slice(0, 2).forEach((s, i) => ride(s, 12 + i * 10));
@@ -861,8 +912,128 @@
     npcs.forEach((n) => chk(n.g.position));
     doorO = Math.min(1, Math.max(0, doorO + (near ? 1 : -1) * dt * 0.9));
     const e = doorO * doorO * (3 - 2 * doorO); /* mượt đầu/cuối */
-    pL.position.x = DX - PW / 2 - e * PW;
-    pR.position.x = DX + PW / 2 + e * PW;
+        pL.position.x = -PW / 2 - e * PW;
+    pR.position.x = PW / 2 + e * PW;
     _render(s, c);
+  };
+})();
+
+/* ============ PATCH: SỬA VỊ TRÍ CỬA + CAMERA BAY TỚI CỬA (IIFE, chỉ thêm mới) ============ */
+(() => {
+  const sp = document.querySelector("#signp"); /* bảng bảng hiệu (loại trừ lẫn nhau) */
+  const hd = STORE.D / 2;
+  const EXT = 16;  /* bề ngang cần thấy (m) */
+  const PH = 1.0;  /* góc nhìn */
+  const STEP = 0.5;
+
+  const css = document.createElement("style");
+    css.textContent = `#doorp{left:calc(50% + 100px);top:128px;transform:translateX(0);width:244px;display:none;z-index:4}
+#doorp .r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+#doorp .r>span{color:var(--mute);font-size:12px}
+#doorp .stp{margin-left:0}
+#doorp .stp button{font-size:16px;line-height:1}
+#doorp b{font-variant-numeric:tabular-nums;min-width:52px;text-align:center;display:inline-block}
+#doorp .r.c{flex-direction:column;align-items:stretch}
+#doorp .r.c .seg{display:flex}
+#doorp .r.c .seg button{flex:1;padding:6px 4px;font-size:12px}
+#doorp .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#doorp .hd h4{margin:0}
+#doorp .hd .cls,#doorp .tgl{-webkit-appearance:none;appearance:none;border:0;outline:0;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
+/* nút Thu gọn: nổi khối rõ ràng */
+#doorp .hd .cls{padding:5px 12px;font-size:12px;font-weight:600;line-height:1.3;color:var(--ink,#1d1d1f);background:rgba(255,255,255,.92);border-radius:999px;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 0 0 1px rgba(0,0,0,.12),0 3px 8px rgba(0,0,0,.18)}
+#doorp .hd .cls:hover{background:#fff;transform:translateY(-1px);box-shadow:0 1px 0 #fff inset,0 0 0 1px rgba(0,0,0,.14),0 5px 12px rgba(0,0,0,.22)}
+#doorp .hd .cls:active{transform:translateY(0);box-shadow:0 0 0 1px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.2)}
+@media (prefers-color-scheme:dark){#doorp .hd .cls{color:#f5f5f7;background:rgba(255,255,255,.16);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 0 0 1px rgba(255,255,255,.22),0 3px 8px rgba(0,0,0,.5)}#doorp .hd .cls:hover{background:rgba(255,255,255,.24)}}
+/* nút mở (khi thu gọn): cũng nổi khối */
+#doorp .tgl{display:none;width:100%;padding:2px 4px;font-size:13px;font-weight:600;line-height:1.4;white-space:nowrap;background:transparent}
+#doorp.min{width:auto}
+#doorp.min .body,#doorp.min .hd{display:none}
+#doorp.min .tgl{display:block}
+@media (max-width:1180px){#doorp{left:auto;right:12px;top:172px;transform:none}}
+@media (max-width:720px){
+#doorp{left:8px;right:8px;top:auto;width:auto;bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+#doorp.min{left:auto;right:8px;width:auto;bottom:calc(100px + env(safe-area-inset-bottom,0px))}}`;
+  document.head.appendChild(css);
+
+  const pnl = document.createElement("div");
+  pnl.className = "panel";
+  pnl.id = "doorp";
+  $("#store").appendChild(pnl);
+
+  let open = false;
+  const syncOpen = () => pnl.classList.toggle("min", !open);
+  const curX = () => (STORE.door[0] + STORE.door[1]) / 2;
+
+  function drawPanel() {
+    const x = curX(),
+      on = (v) => (Math.abs(x - v) < 0.01 ? "on" : "");
+    pnl.innerHTML = `<button class="tgl" data-t="open">Sửa vị trí cửa</button>
+<div class="hd"><h4>VỊ TRÍ CỬA</h4><button class="cls" data-t="close" title="Thu về nút &quot;Sửa vị trí cửa&quot;">Thu gọn</button></div>
+<div class="body">
+<div class="r c"><span>Chọn nhanh</span><span class="seg"><button data-p="${-DOOR_LIM}" class="${on(-DOOR_LIM)}">Bên trái</button><button data-p="0" class="${on(0)}">Ở giữa</button><button data-p="${DOOR_LIM}" class="${on(DOOR_LIM)}">Bên phải</button></span></div>
+<div class="r"><span>Dịch cửa</span><span class="stp"><button data-d="-1" title="Sang trái">−</button><b>x = ${x.toFixed(1)} m</b><button data-d="1" title="Sang phải">+</button></span></div></div>`;
+    syncOpen();
+  }
+  drawPanel();
+
+  /* camera bay tới cửa; thu gọn thì bay về chỗ cũ (nếu chưa tự kéo/zoom) */
+  let ours = null, saved = null, active = false;
+  const near = (b) =>
+    Math.abs(cam.r - b.r) < 0.6 && Math.abs(cam.tx - b.tx) < 0.3 &&
+    Math.abs(cam.tz - b.tz) < 0.3 && Math.abs(wrap(cam.th - b.th)) < 0.1;
+  function target() {
+    const t = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
+      a = Math.min(1, camera.aspect || 1);
+    return {
+      th: cam.th + wrap(0 - cam.th), /* nhìn thẳng vào mặt tiền */
+      ph: PH,
+      r: THREE.MathUtils.clamp(EXT / (t * a), 8, cam.fit),
+      tx: curX(), ty: 0.8, tz: hd + 2.5,
+    };
+  }
+  function flyIn() {
+    saved = { th: cam.th, ph: cam.ph, r: cam.r, tx: cam.tx, ty: cam.ty, tz: cam.tz };
+    cam.vth = 0;
+    cam.T = ours = target();
+  }
+  function flyBack() {
+    const mine = cam.T === ours || (!cam.T && ours && near(ours));
+    if (saved && mine) {
+      cam.vth = 0;
+      cam.T = { ...saved, th: cam.th + wrap(saved.th - cam.th) };
+    }
+    saved = ours = null;
+  }
+
+  pnl.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.t) { open = b.dataset.t === "open"; syncOpen(); return; }
+    if (b.dataset.p != null) window.moveDoor(+b.dataset.p);
+    if (b.dataset.d) window.moveDoor(curX() + b.dataset.d * STEP);
+    drawPanel();
+    if (active) { cam.vth = 0; cam.T = ours = target(); } /* bay theo cửa mới */
+  });
+  pnl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  let shown = false;
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => {
+    const legOpen = !document.querySelector("#legend.shut") && innerWidth <= 1180,
+      want = mode === "edit" && !selected && tab === "store" && !legOpen,
+      signOpen = sp && sp.style.display === "block" && !sp.classList.contains("min");
+    if (want !== shown) {
+      shown = want;
+      pnl.style.display = want ? "block" : "none";
+      if (!want) { open = false; syncOpen(); }
+    }
+    const now = shown && open;
+    if (now !== active) {
+      active = now;
+      active ? flyIn() : flyBack();
+      if (sp) sp.style.visibility = active ? "hidden" : "";
+    }
+    pnl.style.visibility = signOpen ? "hidden" : ""; /* 2 bảng không đè nhau */
+    _r(s, c);
   };
 })();
