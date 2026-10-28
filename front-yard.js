@@ -1008,7 +1008,7 @@
   pnl.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.t) { open = b.dataset.t === "open"; syncOpen(); return; }
+    if (b.dataset.t) { if (b.dataset.t === "close" && window.EditDial) EditDial.closePanel(); return; }
     if (b.dataset.p != null) window.moveDoor(+b.dataset.p);
     if (b.dataset.d) window.moveDoor(curX() + b.dataset.d * STEP);
     drawPanel();
@@ -1019,13 +1019,13 @@
   let shown = false;
   const _r = ren.render.bind(ren);
   ren.render = (s, c) => {
-    const legOpen = !document.querySelector("#legend.shut") && innerWidth <= 1180,
-      want = mode === "edit" && !selected && tab === "store" && !legOpen,
+    const want = tab === "store" && !!window.EditDial && EditDial.panel === "door",
       signOpen = sp && sp.style.display === "block" && !sp.classList.contains("min");
     if (want !== shown) {
       shown = want;
       pnl.style.display = want ? "block" : "none";
-      if (!want) { open = false; syncOpen(); }
+      open = want;
+      syncOpen();
     }
     const now = shown && open;
     if (now !== active) {

@@ -7978,8 +7978,7 @@ let FR = 0,
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.t) {
-      open = b.dataset.t === "open";
-      syncOpen();
+      if (b.dataset.t === "close" && window.EditDial) EditDial.closePanel();
       return;
     }
     if (b.dataset.k)
@@ -8016,16 +8015,12 @@ let FR = 0,
       m.depthWrite = f > 0.98;
     });
     root.visible = f > 0.03;
-    const legOpen =
-      !document.querySelector("#legend.shut") && innerWidth <= 1180;
-    const want = mode === "edit" && !selected && tab === "store" && !legOpen;
+    const want = tab === "store" && !!window.EditDial && EditDial.panel === "sign";
     if (want !== shown) {
       shown = want;
       pnl.style.display = want ? "block" : "none";
-      if (!want) {
-        open = false;
-        syncOpen();
-      } /* ẩn bảng → lần sau vào lại sẽ thu gọn */
+      open = want; /* mở từ menu Chỉnh sửa thì bung sẵn */
+      syncOpen();
     }
     _render(s, c);
   };
