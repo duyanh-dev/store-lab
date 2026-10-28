@@ -3846,6 +3846,8 @@ S({
   },
   routine: { type: "station", code: "CASHIER_002", side: "back", act: "scan" },
 });
+
+const DEFAULT_STAFF = JSON.stringify({ staff: StaffRegistry.all(), tags: TagRegistry.all() });
 const SKEY = "store-staff-v3";
 try {
   const d = JSON.parse(localStorage.getItem(SKEY));
