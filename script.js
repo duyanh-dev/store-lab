@@ -7693,6 +7693,213 @@ let FR = 0,
   if (typeof cur !== "undefined" && cur) showChar(cur.code);
 })();
 
+
+/* ============ PATCH: CHỌN KỆ → NHẤC LÊN + ICON THAO TÁC; DI CHUYỂN CHỈ KHI BẤM ICON (IIFE, chỉ thêm mới) ============
+   - Bỏ kéo-thả kệ tự do: pointerdown không còn bắt kệ để kéo (bọc pickItem).
+   - Chạm trực tiếp vào kệ (không kéo) mới chọn; kéo / zoom / pan chỉ điều khiển camera.
+   - Kệ được chọn nhấc lên bằng lò xo giảm chấn (mượt, hơi nảy nhẹ), thả xuống không lún sàn.
+   - Hai icon quanh kệ: di chuyển · chuyển sang kệ khác (không có chữ).
+   - Chỉ khi bấm icon di chuyển thì kéo mới dời kệ (dùng lại nguyên snapPos / guides / undo cũ). */
+(() => {
+  const LIFT = 0.18,      /* độ nhấc (m) */
+    SPRING = 140,         /* độ cứng lò xo */
+    DAMP = 15;            /* giảm chấn (ζ ≈ 0.63: nảy nhẹ rồi êm) */
+  let moveCode = null;
+  const isMoving = () => !!moveCode && moveCode === selected && mode === "edit";
+
+  /* ---------- Icon ---------- */
+  Object.assign(ICONS, {
+    dxMove:
+      '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
+    dxSwap:
+      '<path d="M4 8h13M13.5 4.5L17 8l-3.5 3.5M20 16H7M10.5 12.5L7 16l3.5 3.5"/>',
+  });
+
+  /* ---------- CSS ---------- */
+  const css = document.createElement("style");
+  css.textContent = `
+.dx-layer{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.dx-ic{position:absolute;left:0;top:0;pointer-events:none;will-change:transform}
+.dx-ic button{display:grid;place-items:center;width:44px;height:44px;margin:-22px 0 0 -22px;padding:0;border:0;border-radius:50%;
+ color:var(--ink);background:var(--sx-panel,rgba(248,248,250,.82));-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);
+ box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px 0 var(--sx-hi,rgba(255,255,255,.9));
+ opacity:0;transform:scale(.4);pointer-events:none;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+ transition:opacity .25s ease,transform .38s cubic-bezier(.2,1.4,.4,1),background .2s ease,color .2s ease}
+.dx-ic.dx-show button{opacity:1;transform:scale(1);pointer-events:auto}
+.dx-ic.dx-show button:active{transform:scale(.92)}
+.dx-ic.dx-sw button{transition-delay:.05s}
+.dx-ic.dx-act button{background:var(--acc,#0a84ff);color:#fff}
+.dx-ic svg{color:inherit}`;
+  document.head.appendChild(css);
+
+  const layer = document.createElement("div");
+  layer.className = "dx-layer";
+  $("#store").appendChild(layer);
+  const mk = (cls, ic, lb) => {
+    const d = document.createElement("div");
+    d.className = "dx-ic " + cls;
+    d.innerHTML = `<button type="button" aria-label="${lb}">${IC(ic, 22)}</button>`;
+    d.firstChild.addEventListener("pointerdown", (e) => e.stopPropagation());
+    layer.appendChild(d);
+    return d;
+  };
+  const elMv = mk("dx-mv", "dxMove", "Di chuyển kệ"),
+    elSw = mk("dx-sw", "dxSwap", "Chọn kệ khác");
+
+  elMv.firstChild.onclick = () => {
+    if (mode !== "edit" || !selected) return;
+    moveCode = isMoving() ? null : selected;
+  };
+  elSw.firstChild.onclick = () => {
+    const all = ShelfRegistry.all();
+    if (all.length < 2 || !selected) return;
+    const i = all.findIndex((s) => s.code === selected);
+    select(all[(i + 1) % all.length].code, true);
+  };
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape") moveCode = null;
+  });
+
+  /* ---------- Chặn kéo kệ tự do ----------
+     pointerdown gốc gọi pickItem(e): trả null thì không chọn, không bắt kéo → thao tác kéo chỉ là xoay camera.
+     Chỉ khi đang ở chế độ di chuyển mới trả về kệ đang chọn để handler gốc bắt đầu kéo. */
+  const _pick = pickItem;
+  pickItem = function (e) {
+    return isMoving() ? selected : null;
+  };
+
+  /* Chạm (không kéo) trong chế độ chỉnh sửa: xác định kệ được chạm để handler gốc ở pointerup chọn / bỏ chọn */
+  cv.parentElement.addEventListener(
+    "pointerup",
+    (e) => {
+      if (e.target !== cv || mode !== "edit") return;
+      if (!(ptrs.size === 1 && ptrs.has(e.pointerId) && moved < 6 && !panning)) return;
+      const c = _pick(e);
+      tapC = isMoving() ? (c && c !== selected ? c : selected) : c;
+    },
+    true,
+  );
+
+  /* đang di chuyển, chạm lại đúng kệ đó thì không bay camera lại */
+  const _sel = select;
+  select = function (c, f) {
+    if (f && c && c === selected && isMoving()) return;
+    return _sel.apply(this, arguments);
+  };
+
+  /* ---------- Nhấc kệ: lò xo giảm chấn ---------- */
+  const sp = {};
+  function stepLift(dt) {
+    const want = mode === "edit" && tab === "store" ? selected : null;
+    if (want && groups[want] && !sp[want]) sp[want] = { v: 0, vel: 0 };
+    for (const c in sp) {
+      const o = sp[c],
+        g = groups[c];
+      if (!g) {
+        delete sp[c];
+        continue;
+      }
+      const tgt = c === want ? LIFT : 0,
+        h = dt / 4;
+      for (let i = 0; i < 4; i++) {
+        o.vel += (SPRING * (tgt - o.v) - DAMP * o.vel) * h;
+        o.v += o.vel * h;
+        if (tgt === 0 && o.v < 0) {
+          o.v = 0;
+          o.vel = 0;
+        }
+      }
+      if (tgt === 0 && o.v < 0.0005 && Math.abs(o.vel) < 0.005) {
+        o.v = 0;
+        delete sp[c];
+      }
+      g.position.y = o.v;
+      if (labels[c]) labels[c].position.y = 2.7 + o.v;
+    }
+  }
+
+  /* ---------- Đặt icon quanh kệ (chiếu từ 3D ra màn hình) ---------- */
+  const V = new THREE.Vector3();
+  let lastSel = null,
+    showAt = 0,
+    shown = false;
+  const setShow = (b) => {
+    if (b === shown) return;
+    shown = b;
+    elMv.classList.toggle("dx-show", b);
+    elSw.classList.toggle("dx-show", b);
+  };
+  function placeIcons(n) {
+    const it =
+      mode === "edit" && selected && !elAModal.classList.contains("on")
+        ? ShelfRegistry.get(selected)
+        : null;
+    if (!it || !groups[it.code]) {
+      lastSel = null;
+      setShow(false);
+      return;
+    }
+    if (selected !== lastSel) {
+      lastSel = selected;
+      showAt = n + 140; /* đợi kệ nhấc lên một nhịp rồi icon mới bung ra */
+      setShow(false);
+    }
+    elMv.classList.toggle("dx-act", isMoving());
+    const r = cv.getBoundingClientRect(),
+      o = layer.getBoundingClientRect(),
+      u = [Math.sin(it.rot), Math.cos(it.rot)],
+      half = it.size[1] / 2 + 0.55,
+      y = 1.0 + (sp[it.code] ? sp[it.code].v : 0);
+    let ok = true;
+    const pr = (k) => {
+      V.set(it.pos[0] + u[0] * half * k, y, it.pos[1] + u[1] * half * k).project(camera);
+      if (V.z >= 1) ok = false;
+      return {
+        x: (V.x * 0.5 + 0.5) * r.width + r.left - o.left,
+        y: (-V.y * 0.5 + 0.5) * r.height + r.top - o.top,
+      };
+    };
+    let a = pr(1),
+      b = pr(-1);
+    /* không để hai icon chồng lên nhau khi kệ nhỏ / zoom xa */
+    const dx = a.x - b.x,
+      dy = a.y - b.y,
+      len = Math.hypot(dx, dy),
+      MIN = 58;
+    if (len < MIN) {
+      const mx = (a.x + b.x) / 2,
+        my = (a.y + b.y) / 2,
+        ux = len > 1 ? dx / len : 1,
+        uy = len > 1 ? dy / len : 0;
+      a = { x: mx + (ux * MIN) / 2, y: my + (uy * MIN) / 2 };
+      b = { x: mx - (ux * MIN) / 2, y: my - (uy * MIN) / 2 };
+    }
+    const M = 26,
+      cx = (p) => ({
+        x: Math.min(o.width - M, Math.max(M, p.x)),
+        y: Math.min(o.height - M, Math.max(M, p.y)),
+      });
+    a = cx(a);
+    b = cx(b);
+    elMv.style.transform = `translate(${a.x.toFixed(1)}px,${a.y.toFixed(1)}px)`;
+    elSw.style.transform = `translate(${b.x.toFixed(1)}px,${b.y.toFixed(1)}px)`;
+    setShow(ok && n >= showAt);
+  }
+
+  /* ---------- Móc vào vòng render ---------- */
+  const _r = ren.render.bind(ren);
+  let t0 = performance.now();
+  ren.render = (s, c) => {
+    const n = performance.now(),
+      dt = Math.min(0.05, (n - t0) / 1000);
+    t0 = n;
+    if (moveCode && !isMoving()) moveCode = null; /* đổi kệ / thoát chế độ sửa → tự tắt di chuyển */
+    stepLift(dt);
+    _r(s, c);
+    placeIcons(n); /* sau render để ma trận camera đã cập nhật, icon không bị trễ khung */
+  };
+})();
+
 /* ============ PATCH: CHẾ ĐỘ CHỈNH SỬA ẨN NHÂN VIÊN + KHÁCH, CHẾ ĐỘ XEM HIỆN LẠI (mượt) ============
    Chỉ thêm mới, không đụng core. Cách làm: ngay trước mỗi lần render, thu nhỏ nhân vật theo hệ số f
    (f giảm dần về 0 khi "edit", tăng dần về 1 khi "view"), render xong thì trả lại đúng như cũ.
