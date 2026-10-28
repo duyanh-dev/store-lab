@@ -600,9 +600,20 @@
     "beforeend",
     wrapSec(
       "shops",
-      `<div class="np-head"><div class="np-ttl"><h2>Danh sách cửa hàng<span class="np-cnt" id="shCnt">0</span></h2><p>Quản lý các cửa hàng của bạn. Bấm “Lưu cửa hàng” để lưu toàn bộ cửa hàng 3D đang chạy và xuất file JSON.</p></div>
-        <div class="np-actions"><button class="btn" data-np="import">${IC("upload", 15)}<span>Nhập JSON</span></button><button class="btn" data-np="export">${IC("download", 15)}<span>Xuất JSON</span></button><button class="btn pri" data-np="add">${IC("plus", 15)}<span>Thêm cửa hàng</span></button></div></div>
-       <div id="shBody"></div>`,
+      `<div class="np-sheet">
+  <div class="np-bar">
+    <div class="np-ttl"><h2>Danh sách cửa hàng<span class="np-cnt" id="shCnt">0</span></h2>
+      <p>Quản lý các cửa hàng của bạn. Bấm “Lưu cửa hàng” để lưu toàn bộ cửa hàng 3D đang chạy và xuất file JSON.</p></div>
+    <div class="np-actions">
+      <div class="np-pair">
+        <button class="btn" data-np="import">${IC("upload", 15)}<span>Nhập JSON</span></button>
+        <button class="btn" data-np="export">${IC("download", 15)}<span>Xuất JSON</span></button>
+      </div>
+      <button class="btn pri" data-np="add">${IC("plus", 15)}<span>Thêm cửa hàng</span></button>
+    </div>
+  </div>
+  <div id="shBody"></div>
+</div>`,
     ) + Object.keys(PH).map((k) => wrapSec(k, ph(PH[k]))).join(""),
   );
   document.body.insertAdjacentHTML("beforeend", '<div id="npModal"></div>');
@@ -640,18 +651,28 @@
     ? `<div class="np-grid">${shops
         .map(
           (s, i) => `<article class="sc st-${s.status}" data-id="${esc(s.id)}" style="--i:${Math.min(i, 12)}">
-  <div class="sc-top"><span class="sc-av">${esc((s.name.charAt(0) || "?").toUpperCase())}</span>
+  <div class="sc-top">
+    <span class="sc-av">${esc((s.name.charAt(0) || "?").toUpperCase())}</span>
     <div class="sc-nm"><b title="${esc(s.name)}">${esc(s.name)}</b><span class="code">${esc(s.id)}</span></div>
-    <span class="sc-st"><i></i>${STATUS[s.status]}</span></div>
+    <span class="sc-st">${STATUS[s.status]}</span>
+  </div>
   <ul class="sc-info">${row("pin", s.address)}${row("phone", s.phone)}${row("user", s.manager)}</ul>
   ${s.note ? `<p class="sc-note">${esc(s.note)}</p>` : ""}
-  <div class="sc-meta">Cập nhật ${esc(fmtD(s.updatedAt))}${s.snapshot ? `<span class="sc-snap" title="Đã lưu cửa hàng 3D">${IC("save", 12)}${esc(fmtD(snAt(s)))}</span>` : ""}${window.StoreLink && StoreLink.isActive(s.id) ? '<span class="sc-snap">Đang mở</span>' : ""}</div>
-  <div class="sc-acts"><button class="btn sm pri" data-np="view">${IC("pin", 13)}<span>Xem cửa hàng</span></button><button class="btn sm" data-np="edit">${IC("edit", 13)}<span>Sửa</span></button><button class="btn sm" data-np="exp1">${IC("download", 13)}<span>Xuất</span></button><button class="btn sm red" data-np="del">${IC("trash", 13)}<span>Xóa</span></button></div>
+  <div class="sc-meta"><span>Cập nhật ${esc(fmtD(s.updatedAt))}</span>${s.snapshot ? `<span class="sc-snap" title="Đã lưu cửa hàng 3D">${IC("save", 12)}${esc(fmtD(snAt(s)))}</span>` : ""}${window.StoreLink && StoreLink.isActive(s.id) ? '<span class="sc-snap">Đang mở</span>' : ""}</div>
+  <div class="sc-acts">
+    <button class="btn pri" data-np="view">${IC("pin", 15)}<span>Xem cửa hàng</span></button>
+    <div class="sc-seg">
+      <button class="btn sm" data-np="edit">${IC("edit", 14)}<span>Sửa</span></button>
+      <button class="btn sm" data-np="exp1">${IC("download", 14)}<span>Xuất</span></button>
+      <button class="btn sm red" data-np="del">${IC("trash", 14)}<span>Xóa</span></button>
+    </div>
+  </div>
 </article>`,
         )
         .join("")}</div>`
     : `<div class="np-empty"><span class="np-ico">${IC("shops", 36)}</span><h3>Chưa có cửa hàng nào</h3><p>Thêm cửa hàng đầu tiên hoặc nhập danh sách từ file JSON đã xuất trước đó.</p><div class="row"><button class="btn pri" data-np="add">${IC("plus", 15)}<span>Thêm cửa hàng</span></button><button class="btn" data-np="import">${IC("upload", 15)}<span>Nhập JSON</span></button></div></div>`;
 }
+
 
   /* ============ 5. CỬA SỔ ============ */
   const M = $("#npModal");
@@ -670,7 +691,7 @@
   const hover = () => matchMedia("(hover:hover)").matches;
 
   /* ---- Thêm / sửa ---- */
-  function openForm(id) {
+function openForm(id) {
     const s = id ? shops.find((x) => x.id === id) : null;
     fStatus = s ? s.status : "active";
     const f = (k, l, ph2, ta) =>
@@ -678,11 +699,13 @@
     openM(
       `${X}<h2>${s ? "Sửa cửa hàng" : "Thêm cửa hàng"}</h2>${s ? `<p class="sub"><span class="code">${esc(s.id)}</span></p>` : ""}
 <div class="nf" data-edit="${s ? esc(s.id) : ""}">
-  ${f("name", "Tên cửa hàng *", "VD: Cửa hàng Quận 1")}
-  ${f("address", "Địa chỉ", "Số nhà, đường, quận…")}
-  <div class="g2">${f("phone", "Điện thoại", "09xx xxx xxx")}${f("manager", "Người quản lý", "Tên người phụ trách")}</div>
+  <div class="nf-grp">
+    ${f("name", "Tên cửa hàng *", "VD: Cửa hàng Quận 1")}
+    ${f("address", "Địa chỉ", "Số nhà, đường, quận…")}
+    <div class="g2">${f("phone", "Điện thoại", "09xx xxx xxx")}${f("manager", "Người quản lý", "Tên người phụ trách")}</div>
+  </div>
   <div><label>Trạng thái</label><div class="seg" id="fSt">${Object.entries(STATUS).map(([k, n]) => `<button type="button" class="${k === fStatus ? "on" : ""}" data-st="${k}">${n}</button>`).join("")}</div></div>
-  ${f("note", "Ghi chú", "", 1)}
+  <div class="nf-grp">${f("note", "Ghi chú", "", 1)}</div>
   <div class="nf-err" id="fErr"></div>
 </div>
 <div class="np-foot"><button class="btn" data-np="close">Hủy</button><button class="btn pri" data-np="save">${IC("check", 15)}<span>${s ? "Lưu thay đổi" : "Thêm cửa hàng"}</span></button></div>`,
@@ -718,7 +741,7 @@
     openM(
       `<div class="np-confirm"><span class="np-ico">${IC("trash", 28)}</span><h2>Xóa cửa hàng?</h2>
 <p>“${esc(s.name)}” (${esc(s.id)}) sẽ bị xóa khỏi danh sách${s.snapshot ? ", kể cả dữ liệu cửa hàng 3D đã lưu" : ""}. Bạn nên xuất JSON trước nếu muốn giữ bản sao.</p></div>
-<div class="np-foot"><button class="btn" data-np="close">Hủy</button><button class="btn pri" style="background:#ff453a;box-shadow:0 6px 16px rgba(255,69,58,.35)" data-np="delok" data-id="${esc(id)}">${IC("trash", 15)}<span>Xóa</span></button></div>`,
+<div class="np-foot"><button class="btn" data-np="close">Hủy</button><button class="btn pri red" data-np="delok" data-id="${esc(id)}">${IC("trash", 15)}<span>Xóa</span></button></div>`,
       "np-s",
     );
   }

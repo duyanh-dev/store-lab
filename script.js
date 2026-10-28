@@ -25,10 +25,11 @@ const $ = (s) => document.querySelector(s),
 const STORE = { W: 14, D: 30, door: [0.5, 6.5], kho: [4.8, 6.6] };
 
 /* ====== VỊ TRÍ CỬA (đổi được trong Chỉnh sửa → "Sửa vị trí cửa") ====== */
-const DOOR_W = 6,                                   /* bề rộng lỗ cửa */
-  DOOR_LIM = STORE.W / 2 - DOOR_W / 2 - 0.5,        /* = 3.5 */
+const DOOR_W = 6 /* bề rộng lỗ cửa */,
+  DOOR_LIM = STORE.W / 2 - DOOR_W / 2 - 0.5 /* = 3.5 */,
   DOOR_KEY = "store-door-v1";
-const clampDoor = (x) => Math.round(Math.max(-DOOR_LIM, Math.min(DOOR_LIM, +x || 0)) * 2) / 2;
+const clampDoor = (x) =>
+  Math.round(Math.max(-DOOR_LIM, Math.min(DOOR_LIM, +x || 0)) * 2) / 2;
 let doorDX = 3.5; /* mặc định giống bản cũ (cửa bên phải) */
 try {
   const s = JSON.parse(localStorage.getItem(DOOR_KEY));
@@ -40,10 +41,13 @@ const DOOR_POS = "left"; /* "right" = đúng như bản cũ */
 {
   const lim = STORE.W / 2 - DOOR_W / 2 - 0.5; /* = 3.5, chừa 0.5m mép tường */
   const dx =
-    DOOR_POS === "left" ? -lim :
-    DOOR_POS === "right" ? lim :
-    DOOR_POS === "center" ? 0 :
-    Math.max(-lim, Math.min(lim, +DOOR_POS || 0));
+    DOOR_POS === "left"
+      ? -lim
+      : DOOR_POS === "right"
+        ? lim
+        : DOOR_POS === "center"
+          ? 0
+          : Math.max(-lim, Math.min(lim, +DOOR_POS || 0));
   STORE.door = [dx - DOOR_W / 2, dx + DOOR_W / 2];
 }
 const R = ShelfRegistry.register;
@@ -3847,7 +3851,10 @@ S({
   routine: { type: "station", code: "CASHIER_002", side: "back", act: "scan" },
 });
 
-const DEFAULT_STAFF = JSON.stringify({ staff: StaffRegistry.all(), tags: TagRegistry.all() });
+const DEFAULT_STAFF = JSON.stringify({
+  staff: StaffRegistry.all(),
+  tags: TagRegistry.all(),
+});
 const SKEY = "store-staff-v3";
 try {
   const d = JSON.parse(localStorage.getItem(SKEY));
@@ -4243,7 +4250,7 @@ const wallSet = (key) =>
     rb(t + 0.04, 0.12, len, S.m.b, px, 0, (a + b) / 2, scene, 0.02);
   };
 
-   /* mặt tiền dựng bằng hàm để dựng lại được khi dời cửa */
+  /* mặt tiền dựng bằng hàm để dựng lại được khi dời cửa */
   let front = [];
   function buildFront() {
     front.forEach((o) => scene.remove(o));
@@ -4253,7 +4260,17 @@ const wallSet = (key) =>
     hwall(-hw - t / 2, d0, hd, "f", true);
     hwall(d1, hw + t / 2, hd, "f", true);
     lintel(d0, d1, hd, "f");
-    rb(d1 - d0, 0.03, 1.5, 0x3a3a40, dm, 0, hd - 0.8, scene, 0.01); /* thảm cửa */
+    rb(
+      d1 - d0,
+      0.03,
+      1.5,
+      0x3a3a40,
+      dm,
+      0,
+      hd - 0.8,
+      scene,
+      0.01,
+    ); /* thảm cửa */
     tag("CỬA VÀO", dm, 0.9, hd + 0.9, 3, 1);
     front = scene.children.slice(n0);
   }
@@ -4272,7 +4289,6 @@ const wallSet = (key) =>
   vwall(hw + 0.5, -hd - 5, -hd, "rr");
   hwall(-hw - 0.5 - t / 2, hw + 0.5 + t / 2, -hd - 5, "bb");
 
-  
   for (let i = 0; i < 5; i++)
     rb(0.9, 0.6, 0.7, 0xc9a678, -5 + i * 1.6, 0, -hd - 2, scene, 0.04);
   tag("CỬA VÀO", (STORE.door[0] + STORE.door[1]) / 2, 0.9, hd + 0.9, 3, 1);
@@ -7317,14 +7333,22 @@ let FR = 0,
   const isGray = (role) => (ROLES[role] || ROLES.staff)[1] === "gray";
 
   /* hành động riêng của từng chức vụ: [nhãn nút, mã mode] */
-  const roleAct = (role) => (isGray(role) ? ["Kiểm kho", "check"] : ["Lau nhà", "mop"]);
+  const roleAct = (role) =>
+    isGray(role) ? ["Kiểm kho", "check"] : ["Lau nhà", "mop"];
 
   /* công việc tự động của NPC trong cửa hàng: 'mop' | 'check' | null */
   function jobOf(n) {
     const s = n.s,
       r = s.routine || {};
-    if (isGray(s.role)) return r.type === "patrol" ? "check" : null; /* quản lý đi tuần = cầm sổ kiểm kho */
-    if (CFG.mopStaff.includes(s.code) || r.type === "mop" || r.type === "patrol")
+    if (isGray(s.role))
+      return r.type === "patrol"
+        ? "check"
+        : null; /* quản lý đi tuần = cầm sổ kiểm kho */
+    if (
+      CFG.mopStaff.includes(s.code) ||
+      r.type === "mop" ||
+      r.type === "patrol"
+    )
       return "mop"; /* nhân viên đi tuần = lau nhà */
     return null; /* thu ngân / xếp hàng giữ nguyên */
   }
@@ -7410,12 +7434,31 @@ let FR = 0,
       book.rotation.x = 0.55; /* nghiêng mặt giấy hướng lên và về phía mắt */
       book.visible = false;
       c.b.add(book);
-      put(book, new THREE.BoxGeometry(0.2, 0.27, 0.012), 0x2f5d50, 0, 0, 0, 0.6); /* bìa sổ */
-      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.22), paperMat());
+      put(
+        book,
+        new THREE.BoxGeometry(0.2, 0.27, 0.012),
+        0x2f5d50,
+        0,
+        0,
+        0,
+        0.6,
+      ); /* bìa sổ */
+      const paper = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.17, 0.22),
+        paperMat(),
+      );
       paper.position.set(0, -0.005, -0.0075);
       paper.rotation.y = PI; /* mặt giấy quay về phía người cầm */
       book.add(paper);
-      put(book, new THREE.BoxGeometry(0.08, 0.03, 0.02), 0xc9ced6, 0, 0.125, -0.012, 0.3); /* kẹp sổ */
+      put(
+        book,
+        new THREE.BoxGeometry(0.08, 0.03, 0.02),
+        0xc9ced6,
+        0,
+        0.125,
+        -0.012,
+        0.3,
+      ); /* kẹp sổ */
       const pen = put(
         c.aR,
         new THREE.CylinderGeometry(0.007, 0.007, 0.13, 6),
@@ -7443,14 +7486,38 @@ let FR = 0,
       piv.rotation.x = -al;
       piv.visible = false;
       c.b.add(piv);
-      put(piv, new THREE.CylinderGeometry(0.013, 0.013, Ls, 8), 0xb08a5a, 0, -Ls / 2, 0, 0.6); /* cán */
+      put(
+        piv,
+        new THREE.CylinderGeometry(0.013, 0.013, Ls, 8),
+        0xb08a5a,
+        0,
+        -Ls / 2,
+        0,
+        0.6,
+      ); /* cán */
       const hd = new THREE.Group();
       hd.position.y = -Ls;
       hd.rotation.x = al; /* bù góc để đầu lau nằm ngang */
       piv.add(hd);
-      put(hd, new THREE.BoxGeometry(0.3, 0.015, 0.1), 0x6f737b, 0, 0.03, 0, 0.5); /* khung kẹp */
-      for (let i = 0; i < 7; i++) /* các sợi bông */
-        put(hd, new THREE.BoxGeometry(0.044, 0.045, 0.13), i % 2 ? 0xf4efe0 : 0xe2dcc8, -0.15 + i * 0.05, 0, 0, 0.95);
+      put(
+        hd,
+        new THREE.BoxGeometry(0.3, 0.015, 0.1),
+        0x6f737b,
+        0,
+        0.03,
+        0,
+        0.5,
+      ); /* khung kẹp */
+      for (let i = 0; i < 7; i++ /* các sợi bông */)
+        put(
+          hd,
+          new THREE.BoxGeometry(0.044, 0.045, 0.13),
+          i % 2 ? 0xf4efe0 : 0xe2dcc8,
+          -0.15 + i * 0.05,
+          0,
+          0,
+          0.95,
+        );
       c.pr.mop = [piv];
       c.pr.piv = piv;
       c.pr.hy = h.y;
@@ -7497,7 +7564,8 @@ let FR = 0,
   function overlay(c, kind, walking, dt, t) {
     const P = c.pr;
     if (!P) return;
-    c.ov = (c.ov || 0) + ((kind ? 1 : 0) - (c.ov || 0)) * (1 - Math.exp(-dt * 9));
+    c.ov =
+      (c.ov || 0) + ((kind ? 1 : 0) - (c.ov || 0)) * (1 - Math.exp(-dt * 9));
     if (kind) c.lk = kind;
     const cur = {
       ar: c.aR.rotation.x,
@@ -7510,11 +7578,13 @@ let FR = 0,
       ll: c.lL.rotation.x,
       lr: c.lR.rotation.x,
     };
-    if (!c.ox || (!kind && c.ov < 0.002)) c.ox = { ...cur }; /* nghỉ: bám theo pose gốc */
+    if (!c.ox || (!kind && c.ov < 0.002))
+      c.ox = { ...cur }; /* nghỉ: bám theo pose gốc */
     if (kind) {
       const T = targetsFor(kind, c, walking, t),
         k = 1 - Math.exp(-dt * 10);
-      for (const n in cur) c.ox[n] += ((T[n] !== undefined ? T[n] : cur[n]) - c.ox[n]) * k;
+      for (const n in cur)
+        c.ox[n] += ((T[n] !== undefined ? T[n] : cur[n]) - c.ox[n]) * k;
     }
     c.aR.rotation.x = cur.ar + (c.ox.ar - cur.ar) * c.ov;
     c.aL.rotation.x = cur.al + (c.ox.al - cur.al) * c.ov;
@@ -7530,8 +7600,11 @@ let FR = 0,
     (P.mop || []).forEach((o) => (o.visible = show && c.lk === "mop"));
     (P.check || []).forEach((o) => (o.visible = show && c.lk === "check"));
     if (P.piv) {
-      P.piv.rotation.z = 0.2 * Math.sin(t * 3.4) * c.ov; /* quét cây lau qua lại */
-      P.piv.position.y = P.hy - (c.b.position.y - c.by); /* bù nhịp nhún để đầu lau luôn sát sàn */
+      P.piv.rotation.z =
+        0.2 * Math.sin(t * 3.4) * c.ov; /* quét cây lau qua lại */
+      P.piv.position.y =
+        P.hy -
+        (c.b.position.y - c.by); /* bù nhịp nhún để đầu lau luôn sát sàn */
     }
   }
 
@@ -7550,7 +7623,8 @@ let FR = 0,
   pose = function (c, dt, t) {
     _pose5(c, dt, t);
     const m = c.mode;
-    let kind = m === "mop" || m === "check" ? m : m === "walk" ? c.job || null : null;
+    let kind =
+      m === "mop" || m === "check" ? m : m === "walk" ? c.job || null : null;
     if (kind && !(c.pr && c.pr[kind])) kind = null;
     overlay(c, kind, m === "walk", dt, t);
   };
@@ -7612,7 +7686,10 @@ let FR = 0,
       const g = goal(n);
       if (Math.hypot(g.x - p.x, g.z - p.z) < 0.12) n.mi++;
     } else if (job === "check" && n.mode === "check") {
-      n.wait = Math.max(0, n.wait - dt * 0.5); /* kéo dài thời gian đứng ghi chép gấp đôi */
+      n.wait = Math.max(
+        0,
+        n.wait - dt * 0.5,
+      ); /* kéo dài thời gian đứng ghi chép gấp đôi */
     }
   };
 
@@ -7628,7 +7705,10 @@ let FR = 0,
       cur.mode = "idle";
     }
     $("#acts").innerHTML = list
-      .map((a) => `<button class="${a[1] === act ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+      .map(
+        (a) =>
+          `<button class="${a[1] === act ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`,
+      )
       .join("");
   }
   const _sc5 = showChar;
@@ -7643,11 +7723,20 @@ let FR = 0,
     const ra = roleAct(draft.role),
       key = ra[1] + "|" + pvMode,
       el = $("#pvb");
-    if (pvMode === "mop" || pvMode === "check") if (pvMode !== ra[1]) pvMode = "idle";
+    if (pvMode === "mop" || pvMode === "check")
+      if (pvMode !== ra[1]) pvMode = "idle";
     if (el.dataset.key === key) return;
     el.dataset.key = key;
-    el.innerHTML = [["Đứng", "idle"], ["Đi bộ", "walk"], ["Vẫy tay", "wave"], ra]
-      .map((a) => `<button class="${a[1] === pvMode ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+    el.innerHTML = [
+      ["Đứng", "idle"],
+      ["Đi bộ", "walk"],
+      ["Vẫy tay", "wave"],
+      ra,
+    ]
+      .map(
+        (a) =>
+          `<button class="${a[1] === pvMode ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`,
+      )
       .join("");
   }
   const _rb5 = rebuildPv;
@@ -7693,64 +7782,72 @@ let FR = 0,
   if (typeof cur !== "undefined" && cur) showChar(cur.code);
 })();
 
-
-/* ============ PATCH: CHỌN KỆ → NHẤC LÊN + ICON THAO TÁC; DI CHUYỂN CHỈ KHI BẤM ICON (IIFE, chỉ thêm mới) ============
-   - Bỏ kéo-thả kệ tự do: pointerdown không còn bắt kệ để kéo (bọc pickItem).
-   - Chạm trực tiếp vào kệ (không kéo) mới chọn; kéo / zoom / pan chỉ điều khiển camera.
-   - Kệ được chọn nhấc lên bằng lò xo giảm chấn (mượt, hơi nảy nhẹ), thả xuống không lún sàn.
-   - Hai icon quanh kệ: di chuyển · chuyển sang kệ khác (không có chữ).
-   - Chỉ khi bấm icon di chuyển thì kéo mới dời kệ (dùng lại nguyên snapPos / guides / undo cũ). */
+/* ============ PATCH: CHỌN KỆ → NHẤC LÊN + 2 NÚT KÍNH LỎNG (liquid glass), xếp dọc sát kệ ============ */
 (() => {
-  const LIFT = 0.18,      /* độ nhấc (m) */
-    SPRING = 140,         /* độ cứng lò xo */
-    DAMP = 15;            /* giảm chấn (ζ ≈ 0.63: nảy nhẹ rồi êm) */
+  const LIFT = 0.18, SPRING = 140, DAMP = 15;
   let moveCode = null;
   const isMoving = () => !!moveCode && moveCode === selected && mode === "edit";
 
-  /* ---------- Icon ---------- */
   Object.assign(ICONS, {
-    dxMove:
-      '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
-    dxSwap:
-      '<path d="M4 8h13M13.5 4.5L17 8l-3.5 3.5M20 16H7M10.5 12.5L7 16l3.5 3.5"/>',
+    dxMove: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',
+    dxSwap: '<path d="M4 8h13M13.5 4.5L17 8l-3.5 3.5M20 16H7M10.5 12.5L7 16l3.5 3.5"/>',
   });
 
-  /* ---------- CSS ---------- */
+  /* ---------- CSS: viên thuốc kính dọc ---------- */
   const css = document.createElement("style");
   css.textContent = `
 .dx-layer{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
-.dx-ic{position:absolute;left:0;top:0;pointer-events:none;will-change:transform}
-.dx-ic button{display:grid;place-items:center;width:44px;height:44px;margin:-22px 0 0 -22px;padding:0;border:0;border-radius:50%;
- color:var(--ink);background:var(--sx-panel,rgba(248,248,250,.82));-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);
- box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px 0 var(--sx-hi,rgba(255,255,255,.9));
- opacity:0;transform:scale(.4);pointer-events:none;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
- transition:opacity .25s ease,transform .38s cubic-bezier(.2,1.4,.4,1),background .2s ease,color .2s ease}
-.dx-ic.dx-show button{opacity:1;transform:scale(1);pointer-events:auto}
-.dx-ic.dx-show button:active{transform:scale(.92)}
-.dx-ic.dx-sw button{transition-delay:.05s}
-.dx-ic.dx-act button{background:var(--acc,#0a84ff);color:#fff}
-.dx-ic svg{color:inherit}`;
+.dx-pill{--b:36px;position:absolute;left:0;top:0;display:flex;flex-direction:column;gap:2px;padding:3px;border-radius:999px;
+ background:rgba(255,255,255,.26);
+ -webkit-backdrop-filter:blur(22px) saturate(190%);backdrop-filter:blur(22px) saturate(190%);
+ border:.5px solid rgba(255,255,255,.6);
+ box-shadow:0 6px 18px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.75),inset 0 -1px 0 rgba(255,255,255,.18);
+ opacity:0;pointer-events:none;will-change:transform,opacity;transition:opacity .22s ease}
+.dx-pill.dx-show{opacity:1;pointer-events:auto}
+.dx-b{position:relative;display:grid;place-items:center;width:var(--b);height:var(--b);padding:0;border:0;border-radius:50%;
+ background:transparent;color:var(--ink,#1d1d1f);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+ transform:scale(.55);opacity:0;
+ transition:transform .42s cubic-bezier(.2,1.5,.4,1),opacity .22s ease,background .18s ease,color .18s ease,box-shadow .18s ease}
+.dx-b::after{content:"";position:absolute;inset:-4px}
+.dx-pill.dx-show .dx-b{transform:scale(1);opacity:1}
+.dx-pill.dx-show .dx-b:nth-child(2){transition-delay:.05s}
+.dx-pill.dx-show .dx-b:active{transform:scale(.88);transition-delay:0s}
+.dx-b svg{width:18px;height:18px;stroke-width:1.6;color:inherit}
+@media (hover:hover){.dx-b:hover{background:rgba(255,255,255,.38)}}
+.dx-b.dx-act{background:var(--acc,#0a84ff);color:#fff;box-shadow:0 2px 8px rgba(10,132,255,.45),inset 0 1px 0 rgba(255,255,255,.35)}
+@media (max-width:720px){.dx-pill{--b:31px;padding:2px;gap:1px}.dx-b svg{width:16px;height:16px}}
+@media (prefers-color-scheme:dark){
+ .dx-pill{background:rgba(58,58,66,.34);border-color:rgba(255,255,255,.2);
+  box-shadow:0 6px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(255,255,255,.04)}
+ .dx-b{color:#f5f5f7}
+ @media (hover:hover){.dx-b:hover{background:rgba(255,255,255,.14)}}
+}`;
   document.head.appendChild(css);
 
   const layer = document.createElement("div");
   layer.className = "dx-layer";
   $("#store").appendChild(layer);
-  const mk = (cls, ic, lb) => {
-    const d = document.createElement("div");
-    d.className = "dx-ic " + cls;
-    d.innerHTML = `<button type="button" aria-label="${lb}">${IC(ic, 22)}</button>`;
-    d.firstChild.addEventListener("pointerdown", (e) => e.stopPropagation());
-    layer.appendChild(d);
-    return d;
+  const pill = document.createElement("div");
+  pill.className = "dx-pill";
+  layer.appendChild(pill);
+  const mkb = (ic, lb) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "dx-b";
+    b.title = b.ariaLabel = lb;
+    b.innerHTML = IC(ic, 18);
+    b.addEventListener("pointerdown", (e) => e.stopPropagation());
+    pill.appendChild(b);
+    return b;
   };
-  const elMv = mk("dx-mv", "dxMove", "Di chuyển kệ"),
-    elSw = mk("dx-sw", "dxSwap", "Chọn kệ khác");
+  const elMv = mkb("dxMove", "Di chuyển kệ"),
+    elSw = mkb("dxSwap", "Chọn kệ khác");
 
-  elMv.firstChild.onclick = () => {
+  elMv.onclick = () => {
     if (mode !== "edit" || !selected) return;
     moveCode = isMoving() ? null : selected;
   };
-  elSw.firstChild.onclick = () => {
+  elSw.onclick = () => {
     const all = ShelfRegistry.all();
     if (all.length < 2 || !selected) return;
     const i = all.findIndex((s) => s.code === selected);
@@ -7760,15 +7857,11 @@ let FR = 0,
     if (e.key === "Escape") moveCode = null;
   });
 
-  /* ---------- Chặn kéo kệ tự do ----------
-     pointerdown gốc gọi pickItem(e): trả null thì không chọn, không bắt kéo → thao tác kéo chỉ là xoay camera.
-     Chỉ khi đang ở chế độ di chuyển mới trả về kệ đang chọn để handler gốc bắt đầu kéo. */
+  /* ---------- Chặn kéo kệ tự do (giữ nguyên logic cũ) ---------- */
   const _pick = pickItem;
   pickItem = function (e) {
     return isMoving() ? selected : null;
   };
-
-  /* Chạm (không kéo) trong chế độ chỉnh sửa: xác định kệ được chạm để handler gốc ở pointerup chọn / bỏ chọn */
   cv.parentElement.addEventListener(
     "pointerup",
     (e) => {
@@ -7779,110 +7872,62 @@ let FR = 0,
     },
     true,
   );
-
-  /* đang di chuyển, chạm lại đúng kệ đó thì không bay camera lại */
   const _sel = select;
   select = function (c, f) {
     if (f && c && c === selected && isMoving()) return;
     return _sel.apply(this, arguments);
   };
 
-  /* ---------- Nhấc kệ: lò xo giảm chấn ---------- */
+  /* ---------- Nhấc kệ: lò xo giảm chấn (giữ nguyên) ---------- */
   const sp = {};
   function stepLift(dt) {
     const want = mode === "edit" && tab === "store" ? selected : null;
     if (want && groups[want] && !sp[want]) sp[want] = { v: 0, vel: 0 };
     for (const c in sp) {
-      const o = sp[c],
-        g = groups[c];
-      if (!g) {
-        delete sp[c];
-        continue;
-      }
-      const tgt = c === want ? LIFT : 0,
-        h = dt / 4;
+      const o = sp[c], g = groups[c];
+      if (!g) { delete sp[c]; continue; }
+      const tgt = c === want ? LIFT : 0, h = dt / 4;
       for (let i = 0; i < 4; i++) {
         o.vel += (SPRING * (tgt - o.v) - DAMP * o.vel) * h;
         o.v += o.vel * h;
-        if (tgt === 0 && o.v < 0) {
-          o.v = 0;
-          o.vel = 0;
-        }
+        if (tgt === 0 && o.v < 0) { o.v = 0; o.vel = 0; }
       }
-      if (tgt === 0 && o.v < 0.0005 && Math.abs(o.vel) < 0.005) {
-        o.v = 0;
-        delete sp[c];
-      }
+      if (tgt === 0 && o.v < 0.0005 && Math.abs(o.vel) < 0.005) { o.v = 0; delete sp[c]; }
       g.position.y = o.v;
       if (labels[c]) labels[c].position.y = 2.7 + o.v;
     }
   }
 
-  /* ---------- Đặt icon quanh kệ (chiếu từ 3D ra màn hình) ---------- */
+  /* ---------- Đặt viên thuốc: sát đầu kệ phía bên phải màn hình ---------- */
   const V = new THREE.Vector3();
-  let lastSel = null,
-    showAt = 0,
-    shown = false;
+  let lastSel = null, showAt = 0, shown = false;
   const setShow = (b) => {
     if (b === shown) return;
     shown = b;
-    elMv.classList.toggle("dx-show", b);
-    elSw.classList.toggle("dx-show", b);
+    pill.classList.toggle("dx-show", b);
   };
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
   function placeIcons(n) {
-    const it =
-      mode === "edit" && selected && !elAModal.classList.contains("on")
-        ? ShelfRegistry.get(selected)
-        : null;
-    if (!it || !groups[it.code]) {
-      lastSel = null;
-      setShow(false);
-      return;
-    }
-    if (selected !== lastSel) {
-      lastSel = selected;
-      showAt = n + 140; /* đợi kệ nhấc lên một nhịp rồi icon mới bung ra */
-      setShow(false);
-    }
+    const it = mode === "edit" && selected && !elAModal.classList.contains("on") ? ShelfRegistry.get(selected) : null;
+    if (!it || !groups[it.code]) { lastSel = null; setShow(false); return; }
+    if (selected !== lastSel) { lastSel = selected; showAt = n + 140; setShow(false); }
     elMv.classList.toggle("dx-act", isMoving());
     const r = cv.getBoundingClientRect(),
       o = layer.getBoundingClientRect(),
       u = [Math.sin(it.rot), Math.cos(it.rot)],
-      half = it.size[1] / 2 + 0.55,
-      y = 1.0 + (sp[it.code] ? sp[it.code].v : 0);
+      half = it.size[1] / 2 + 0.15,
+      yy = 0.9 + (sp[it.code] ? sp[it.code].v : 0);
     let ok = true;
     const pr = (k) => {
-      V.set(it.pos[0] + u[0] * half * k, y, it.pos[1] + u[1] * half * k).project(camera);
+      V.set(it.pos[0] + u[0] * half * k, yy, it.pos[1] + u[1] * half * k).project(camera);
       if (V.z >= 1) ok = false;
-      return {
-        x: (V.x * 0.5 + 0.5) * r.width + r.left - o.left,
-        y: (-V.y * 0.5 + 0.5) * r.height + r.top - o.top,
-      };
+      return { x: (V.x * 0.5 + 0.5) * r.width + r.left - o.left, y: (-V.y * 0.5 + 0.5) * r.height + r.top - o.top };
     };
-    let a = pr(1),
-      b = pr(-1);
-    /* không để hai icon chồng lên nhau khi kệ nhỏ / zoom xa */
-    const dx = a.x - b.x,
-      dy = a.y - b.y,
-      len = Math.hypot(dx, dy),
-      MIN = 58;
-    if (len < MIN) {
-      const mx = (a.x + b.x) / 2,
-        my = (a.y + b.y) / 2,
-        ux = len > 1 ? dx / len : 1,
-        uy = len > 1 ? dy / len : 0;
-      a = { x: mx + (ux * MIN) / 2, y: my + (uy * MIN) / 2 };
-      b = { x: mx - (ux * MIN) / 2, y: my - (uy * MIN) / 2 };
-    }
-    const M = 26,
-      cx = (p) => ({
-        x: Math.min(o.width - M, Math.max(M, p.x)),
-        y: Math.min(o.height - M, Math.max(M, p.y)),
-      });
-    a = cx(a);
-    b = cx(b);
-    elMv.style.transform = `translate(${a.x.toFixed(1)}px,${a.y.toFixed(1)}px)`;
-    elSw.style.transform = `translate(${b.x.toFixed(1)}px,${b.y.toFixed(1)}px)`;
+    const a = pr(1), b = pr(-1), p = a.x >= b.x ? a : b; /* đầu kệ nằm bên phải màn hình */
+    const W = pill.offsetWidth || 42, H = pill.offsetHeight || 84, MG = 8;
+    const x = clampN(p.x + 10, MG, o.width - W - MG),
+      y = clampN(p.y - H / 2, MG, o.height - H - MG);
+    pill.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
     setShow(ok && n >= showAt);
   }
 
@@ -7890,13 +7935,12 @@ let FR = 0,
   const _r = ren.render.bind(ren);
   let t0 = performance.now();
   ren.render = (s, c) => {
-    const n = performance.now(),
-      dt = Math.min(0.05, (n - t0) / 1000);
+    const n = performance.now(), dt = Math.min(0.05, (n - t0) / 1000);
     t0 = n;
-    if (moveCode && !isMoving()) moveCode = null; /* đổi kệ / thoát chế độ sửa → tự tắt di chuyển */
+    if (moveCode && !isMoving()) moveCode = null;
     stepLift(dt);
     _r(s, c);
-    placeIcons(n); /* sau render để ma trận camera đã cập nhật, icon không bị trễ khung */
+    placeIcons(n);
   };
 })();
 
@@ -7905,8 +7949,8 @@ let FR = 0,
    (f giảm dần về 0 khi "edit", tăng dần về 1 khi "view"), render xong thì trả lại đúng như cũ.
    Nên các logic đang chạy (đi lại, tạo khách, lên/xuống xe, cửa tự động...) không bị ảnh hưởng. */
 (() => {
-  const SPEED = 5;            /* tốc độ mờ/hiện: lớn = nhanh (≈ 0.4s) */
-  const CH = new WeakSet();   /* mọi nhân vật 3D: nhân viên + khách */
+  const SPEED = 5; /* tốc độ mờ/hiện: lớn = nhanh (≈ 0.4s) */
+  const CH = new WeakSet(); /* mọi nhân vật 3D: nhân viên + khách */
 
   /* ghi nhận mọi nhân vật được tạo từ giờ về sau (khách mới, nhân viên mới/sửa) */
   const _mk = makeChar;
@@ -7917,14 +7961,17 @@ let FR = 0,
   };
   npcs.forEach((n) => CH.add(n.g)); /* nhân viên đã có sẵn */
 
-  let f = mode === "edit" ? 0 : 1, last = performance.now();
+  let f = mode === "edit" ? 0 : 1,
+    last = performance.now();
   const saved = [];
 
-  const _before = scene.onBeforeRender, _after = scene.onAfterRender;
+  const _before = scene.onBeforeRender,
+    _after = scene.onAfterRender;
 
   scene.onBeforeRender = function () {
     if (_before) _before.apply(this, arguments);
-    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000);
+    const now = performance.now(),
+      dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const goal = mode === "edit" ? 0 : 1;
     f += (goal - f) * (1 - Math.exp(-dt * SPEED));
@@ -8222,7 +8269,8 @@ let FR = 0,
       m.depthWrite = f > 0.98;
     });
     root.visible = f > 0.03;
-    const want = tab === "store" && !!window.EditDial && EditDial.panel === "sign";
+    const want =
+      tab === "store" && !!window.EditDial && EditDial.panel === "sign";
     if (want !== shown) {
       shown = want;
       pnl.style.display = want ? "block" : "none";
@@ -8232,7 +8280,6 @@ let FR = 0,
     _render(s, c);
   };
 })();
-
 
 /* ============ PATCH: BẤM "Sửa bảng hiệu" → CAMERA BAY TỚI BẢNG HIỆU (IIFE, chỉ thêm mới) ============
    - Mở panel  → đặt cam.T tới mặt tiền (bảng chính + bảng phụ), dùng stepCam có sẵn để bay mượt.
@@ -8244,12 +8291,16 @@ let FR = 0,
   const hd = STORE.D / 2;
 
   /* điểm nhìn & độ gần: chỉnh ở đây nếu muốn */
-  const FOCUS = { x: -2.5, y: 2.8, z: hd + 1.2 }; /* giữa bảng chính và bảng phụ */
+  const FOCUS = {
+    x: -2.5,
+    y: 2.8,
+    z: hd + 1.2,
+  }; /* giữa bảng chính và bảng phụ */
   const EXT = 7; /* bề ngang cần thấy (m); nhỏ hơn = zoom gần hơn */
   const PH = 1.2; /* góc nhìn: lớn = nhìn ngang hơn, nhỏ = nhìn từ trên xuống */
 
-  let ours = null, /* cam.T do patch này đặt */
-    saved = null, /* góc nhìn trước khi bay tới bảng */
+  let ours = null /* cam.T do patch này đặt */,
+    saved = null /* góc nhìn trước khi bay tới bảng */,
     active = false;
 
   const near = (a, b) =>
@@ -8259,7 +8310,14 @@ let FR = 0,
     Math.abs(wrap(cam.th - b.th)) < 0.1;
 
   function flyIn() {
-    saved = { th: cam.th, ph: cam.ph, r: cam.r, tx: cam.tx, ty: cam.ty, tz: cam.tz };
+    saved = {
+      th: cam.th,
+      ph: cam.ph,
+      r: cam.r,
+      tx: cam.tx,
+      ty: cam.ty,
+      tz: cam.tz,
+    };
     const t = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
       a = Math.min(1, camera.aspect || 1),
       r = THREE.MathUtils.clamp(EXT / (t * a), 6, cam.fit);
@@ -8295,5 +8353,3 @@ let FR = 0,
     _r(s, c);
   };
 })();
-
-
