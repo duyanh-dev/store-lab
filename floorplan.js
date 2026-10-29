@@ -316,7 +316,6 @@
     P.walls.forEach((w) => wall(G, w));
     const fd = P.walls.find((w) => w.key === "f").open[0];
     rb(fd.w, 0.03, 1.5, 0x3a3a40, fd.c, 0, HD - 0.8, G, 0.01);
-    lab(G, "CỬA VÀO", fd.c, HD + 0.9, 3);
     P.zones
       .filter((z) => z.k === "kho")
       .forEach((z) => {

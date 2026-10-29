@@ -4271,7 +4271,6 @@ const wallSet = (key) =>
       scene,
       0.01,
     ); /* thảm cửa */
-    tag("CỬA VÀO", dm, 0.9, hd + 0.9, 3, 1);
     front = scene.children.slice(n0);
   }
   buildFront();
@@ -4291,7 +4290,6 @@ const wallSet = (key) =>
 
   for (let i = 0; i < 5; i++)
     rb(0.9, 0.6, 0.7, 0xc9a678, -5 + i * 1.6, 0, -hd - 2, scene, 0.04);
-  tag("CỬA VÀO", (STORE.door[0] + STORE.door[1]) / 2, 0.9, hd + 0.9, 3, 1);
 })();
 
 const gmat = new THREE.MeshStandardMaterial({ color: 0xdadee5, roughness: 1 });
@@ -5603,6 +5601,7 @@ function saveDraft() {
   isNew = false;
   foot();
   $("#mcode").textContent = s.code;
+  $("#modal").classList.remove("on"); /* lưu xong thì đóng modal */
   toast("Đã lưu " + s.code);
 }
 $("#foot").onclick = (e) => {
@@ -7289,6 +7288,336 @@ let FR = 0,
   );
 })();
 
+/* ============ PATCH v4: nâng cấp model nhân viên + logo MAXIDI ngực trái (IIFE) ============
+   CÁCH DÙNG: dán toàn bộ khối này xuống CUỐI script.js (sau PATCH v3).
+   Không sửa logic cũ: chỉ bọc makeChar() để thêm chi tiết, rồi dựng lại NPC trong cửa hàng. */
+(() => {
+  /* ---------- Cấu hình logo (chỉnh ở đây nếu muốn đổi cỡ / vị trí) ---------- */
+  const LOGO = {
+    side: 1 /* +1 = ngực trái của nhân vật (bên phải màn hình khi nhìn chính diện); -1 = ngực phải */,
+    w: 0.092 /* bề rộng logo (đơn vị model, tự co theo chiều cao nhân vật) */,
+    h: 0.092 /* chiều cao logo */,
+    x: 0.105 /* độ lệch ngang so với tâm ngực, nhân với W (thể hình) */,
+    y: 0.485 /* độ cao tâm logo trên thân (nằm trên mép tạp dề 0.43) */,
+  };
+
+  /* ---------- Vật liệu logo (tạo 1 lần, dùng chung cho mọi nhân vật) ---------- */
+  let _logoMat = null;
+
+  /* Vẽ logo bằng canvas: "!M" + "MAXIDI" + "Chợ Kiểu Mới", chữ trắng, nền trong suốt */
+  function logoMat() {
+    if (_logoMat) return _logoMat;
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 256;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fff";
+    g.strokeStyle = "#fff";
+    g.lineJoin = "round";
+    g.textAlign = "center";
+    g.textBaseline = "alphabetic";
+    /* chọn cỡ chữ để dòng vừa bề rộng maxW (không vượt maxSize) */
+    const fit = (txt, spec, maxW, maxSize) => {
+      g.font = spec.replace("{s}", 100);
+      return Math.min(maxSize, (100 * maxW) / g.measureText(txt).width);
+    };
+    /* vẽ một dòng chữ trắng đậm tại baseline y */
+    const line = (txt, spec, size, y, skew = 0) => {
+      g.save();
+      g.translate(128, y);
+      g.transform(1, 0, -skew, 1, 0, 0); /* nghiêng chữ (italic) */
+      g.font = spec.replace("{s}", size);
+      g.lineWidth = size * 0.035; /* viền mỏng cho chữ dày hơn */
+      g.strokeText(txt, 0, 0);
+      g.fillText(txt, 0, 0);
+      g.restore();
+    };
+    const SPEC_M = '900 {s}px "Arial Black","Helvetica Neue",Arial,sans-serif';
+    const SPEC_T = "800 {s}px Arial,Helvetica,sans-serif";
+    const SPEC_S = "600 {s}px Arial,Helvetica,sans-serif";
+    line("!M", SPEC_M, fit("!M", SPEC_M, 200, 150), 118, 0.16);
+    line("MAXIDI", SPEC_T, fit("MAXIDI", SPEC_T, 236, 64), 186);
+    line("Chợ Kiểu Mới", SPEC_S, fit("Chợ Kiểu Mới", SPEC_S, 220, 36), 234);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 4;
+    _logoMat = new THREE.MeshStandardMaterial({
+      map: tex,
+      transparent: true,
+      roughness: 0.85,
+      depthWrite: false,
+      polygonOffset: true /* chống z-fight với mặt áo */,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      emissive: 0xffffff /* giữ chữ luôn sáng trắng dưới bóng đổ */,
+      emissiveMap: tex,
+      emissiveIntensity: 0.25,
+    });
+    return _logoMat;
+  }
+
+  /* ---------- Helper ---------- */
+
+  /* thêm một mesh vào parent, gắn nhãn bộ phận (part) để chọn/tô sáng trong hồ sơ */
+  const add = (parent, geo, color, x, y, z, part, rough = 0.75) => {
+    const m = new THREE.Mesh(geo, M(color, rough));
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.userData.part = part;
+    parent.add(m);
+    return m;
+  };
+
+  /* làm tối/sáng một màu hex theo hệ số k */
+  const shade = (c, k) => new THREE.Color(c).multiplyScalar(k).getHex();
+
+  /* ---------- Logo ngực trái: dải trụ cong ôm đúng thân áo ---------- */
+  function addLogo(c, W) {
+    /* bỏ miếng thẻ trắng nhỏ cũ ở ngực (chữ trắng sẽ không nhìn thấy trên nền trắng) */
+    const old = c.b.children.find(
+      (m) =>
+        m.isMesh &&
+        m.geometry.type === "BoxGeometry" &&
+        Math.abs(m.geometry.parameters.width - 0.1) < 1e-6 &&
+        Math.abs(m.geometry.parameters.height - 0.06) < 1e-6 &&
+        Math.abs(m.geometry.parameters.depth - 0.01) < 1e-6,
+    );
+    if (old) {
+      c.b.remove(old);
+      old.geometry.dispose();
+    }
+    /* bán kính thân áo tại độ cao logo (thân thon: đáy = 0.92 × đỉnh) */
+    const rTop = 0.2 * W,
+      rBot = rTop * 0.92,
+      t = (LOGO.y - 0.025) / 0.55,
+      r = rBot + (rTop - rBot) * t + 0.003;
+    const xc = LOGO.side * LOGO.x * W,
+      th = Math.asin(THREE.MathUtils.clamp(xc / r, -0.95, 0.95)),
+      len = LOGO.w / r;
+    const geo = new THREE.CylinderGeometry(
+      r,
+      r,
+      LOGO.h,
+      6,
+      1,
+      true,
+      th - len / 2,
+      len,
+    );
+    const m = new THREE.Mesh(geo, logoMat());
+    m.position.y = LOGO.y;
+    m.renderOrder = 2;
+    m.userData.part = "body";
+    c.b.add(m);
+  }
+
+  /* ---------- Nâng cấp chi tiết model ---------- */
+  function upgrade(c, s) {
+    const k = { ...LOOK0, ...s.look },
+      gray = (ROLES[s.role] || ROLES.staff)[1] === "gray",
+      shirt = gray ? 0x9a9aa0 : 0xff8fb1,
+      W = 0.8 + k.build * 0.6,
+      LEG = 0.82 * k.legRatio,
+      ARM = 0.55 * k.armRatio,
+      skin = hex(k.skin),
+      hair = hex(k.hair),
+      shoes = hex(k.shoes),
+      A = k.acc || [];
+
+    /* 1) logo ngực trái */
+    addLogo(c, W);
+
+    /* 2) cổ áo (trắng nếu có cà vạt) */
+    const collar = add(
+      c.b,
+      new THREE.TorusGeometry(0.07, 0.014, 8, 20),
+      A.includes("tie") ? 0xffffff : shade(shirt, 0.85),
+      0,
+      0.58,
+      0,
+      "body",
+    );
+    collar.rotation.x = PI / 2;
+
+    /* 3) vai bo tròn + gấu tay áo cho cả hai tay */
+    [c.aL, c.aR].forEach((a) => {
+      add(a, new THREE.SphereGeometry(0.066 * W, 12, 8), shirt, 0, 0, 0, "arms");
+      add(
+        a,
+        new THREE.CylinderGeometry(0.066 * W, 0.066 * W, 0.022, 12),
+        shade(shirt, 0.88),
+        0,
+        -0.225,
+        0,
+        "arms",
+      );
+    });
+
+    /* 4) thắt lưng + khóa */
+    add(
+      c.b,
+      new THREE.CylinderGeometry(0.19 * W, 0.19 * W, 0.03, 16),
+      0x2a2a2e,
+      0,
+      0.035,
+      0,
+      "legs",
+    );
+    add(
+      c.b,
+      new THREE.BoxGeometry(0.05, 0.032, 0.012),
+      0xd4af37,
+      0,
+      0.035,
+      0.19 * W + 0.004,
+      "legs",
+      0.3,
+    );
+
+    /* 5) quản lý / cửa hàng phó: cầu vai có sọc (2 sọc = trưởng, 1 sọc = phó) + đồng hồ đeo tay */
+    if (gray) {
+      const bars = s.role === "manager" ? 2 : 1;
+      [-1, 1].forEach((x) => {
+        const ep = add(
+          c.b,
+          new THREE.BoxGeometry(0.075, 0.012, 0.1),
+          shade(shirt, 0.7),
+          x * (0.2 * W + 0.05),
+          0.594,
+          0,
+          "body",
+        );
+        ep.rotation.z = -x * 0.25; /* nghiêng theo dốc vai */
+        for (let i = 0; i < bars; i++)
+          add(
+            ep,
+            new THREE.BoxGeometry(0.06, 0.004, 0.012),
+            0xd4af37,
+            0,
+            0.008,
+            (i - (bars - 1) / 2) * 0.03,
+            "body",
+            0.3,
+          );
+      });
+      add(
+        c.aR,
+        new THREE.CylinderGeometry(0.058 * W, 0.058 * W, 0.025, 12),
+        0x2a2a2e,
+        0,
+        -ARM + 0.08,
+        0,
+        "arms",
+      );
+      add(
+        c.aR,
+        new THREE.BoxGeometry(0.014, 0.022, 0.022),
+        0xc9ced6,
+        0.058 * W,
+        -ARM + 0.08,
+        0,
+        "arms",
+        0.2,
+      );
+    }
+
+    /* 6) khuôn mặt: tai, lông mày, mũi */
+    [-1, 1].forEach((x) => {
+      const ear = add(
+        c.head,
+        new THREE.SphereGeometry(0.032, 10, 8),
+        skin,
+        x * 0.147,
+        -0.005,
+        0,
+        "head",
+      );
+      ear.scale.set(0.5, 1, 0.8);
+      const brow = add(
+        c.head,
+        new THREE.BoxGeometry(0.05, 0.009, 0.01),
+        hair,
+        x * 0.055,
+        0.042,
+        0.134,
+        "face",
+      );
+      brow.rotation.z = -x * 0.12; /* đuôi mày hơi cụp cho thân thiện */
+    });
+    const nose = add(
+      c.head,
+      new THREE.SphereGeometry(0.013, 8, 6),
+      shade(skin, 0.92),
+      0,
+      -0.03,
+      0.148,
+      "face",
+    );
+    nose.scale.set(1, 0.9, 1.1);
+
+    /* 7) mái tóc mái (bỏ qua khi đội mũ hoặc không tóc) */
+    if (k.hairStyle !== "none" && !A.includes("cap")) {
+      const bang = add(
+        c.head,
+        new THREE.SphereGeometry(0.07, 12, 8),
+        hair,
+        0,
+        0.085,
+        0.105,
+        "hair",
+      );
+      bang.scale.set(1.7, 0.5, 0.8);
+    }
+
+    /* 8) đế giày */
+    [c.lL, c.lR].forEach((l) =>
+      add(
+        l,
+        new THREE.BoxGeometry(0.14 * W, 0.02, 0.25),
+        shade(shoes, 0.78),
+        0,
+        -LEG - 0.045,
+        0.045,
+        "shoes",
+      ),
+    );
+  }
+
+  /* ---------- Bọc makeChar: mọi nơi dùng makeChar (NPC, sân khấu, xem trước) đều có model mới ---------- */
+  const _mk4 = makeChar;
+  makeChar = function (s) {
+    const c = _mk4(s);
+    upgrade(c, s);
+    return c;
+  };
+
+  /* ---------- Dựng lại NPC đã tạo từ trước (giữ nguyên vị trí, hướng, tiến độ tuần tra) ---------- */
+  function rebuildNpcs() {
+    const old = npcs.splice(0),
+      keep = old.map((o) => ({
+        code: o.s.code,
+        p: o.g.position.clone(),
+        r: o.g.rotation.y,
+        i: o.i,
+        wait: o.wait,
+      }));
+    old.forEach((o) => {
+      scene.remove(o.g);
+      disposeChar(o);
+    });
+    keep.forEach((q) => {
+      const s = StaffRegistry.get(q.code);
+      if (!s) return;
+      const n = addNpc(s);
+      n.g.position.copy(q.p);
+      n.g.rotation.y = q.r;
+      n.i = q.i;
+      n.wait = q.wait;
+    });
+  }
+  rebuildNpcs();
+  /* nếu tab Nhân viên đã có nhân vật đang hiển thị thì dựng lại để thấy model mới */
+  if (typeof cur !== "undefined" && cur) showChar(cur.code);
+})();
+
 /* ============ PATCH v5: hành động mới theo chức vụ (IIFE) ============
    - Nhân viên (staff)            : LAU NHÀ (cầm cây lau, đi chậm và quét qua lại)
    - Quản lý / Cửa hàng phó (gray): CẦM SỔ + CHECK LIST KIỂM KHO (ghi chép, thỉnh thoảng nhìn kệ)
@@ -7766,6 +8095,658 @@ let FR = 0,
   rebuildNpcs();
   if (typeof cur !== "undefined" && cur) showChar(cur.code);
 })();
+
+
+/* ============ PATCH v6: nhân viên lấy hàng ở kho rồi fill kệ (IIFE) ============
+   Chu trình của nhân viên được giao việc này (lặp mãi):
+     1) đi vào KHO, cúi xuống lấy hàng
+     2) chọn ngẫu nhiên một quầy trong cửa hàng; loại hàng theo quầy:
+          quầy rau → RAU CỦ · tủ thịt/hải sản → THỊT · tủ mát/đông/sữa chua → SỮA · kệ khô/gạo/nước → ĐỒ KHÔ
+        (quầy hàng khô / gạo / nước có khả năng cao là KÉO XE NÂNG TAY chở nguyên PALLET thay vì bê thùng)
+     3) đi theo lối đi trống tới quầy, đứng trước quầy fill hàng
+     4) quay về kho lấy chuyến tiếp theo
+   CÁCH DÙNG: dán toàn bộ khối này xuống CUỐI script.js, SAU PATCH v5.
+   Không sửa logic cũ: chỉ bọc makeChar / pose / goal / stepNpc / showChar / rebuildPv. */
+(() => {
+  /* ---------- Cấu hình ---------- */
+  const CFG = {
+    /* nhân viên (không phải quản lý) được giao việc lấy hàng + fill; cũng có thể đặt routine {type:"restock"} */
+    restockStaff: ["EMP_0004"],
+    palletChance: 0.45 /* xác suất kéo pallet khi quầy là loại hàng khối lượng lớn */,
+    fillSecBox: 4.5 /* giây fill một thùng */,
+    fillSecPallet: 6.5 /* giây dỡ một pallet */,
+    speedBox: 0.85 /* tốc độ khi bê thùng (1 = đi bình thường) */,
+    speedPallet: 0.65 /* tốc độ khi kéo pallet */,
+    margin: 0.5 /* khoảng cách tránh kệ khi tìm đường (m) */,
+  };
+
+  /* quầy nào thì loại hàng nào */
+  const KIND_OF = {
+    produce: "veg",
+    produce3: "veg",
+    chiller: "meat",
+    meat: "meat",
+    seafood: "meat",
+    cold: "milk",
+    dairy: "milk",
+    ufreezer: "milk",
+    freezer: "milk",
+    icecream: "milk",
+    shelf: "dry",
+    noodle: "dry",
+    snack: "dry",
+    sauce: "dry",
+    household: "dry",
+    bakeshelf: "dry",
+    candy: "dry",
+    rice: "dry",
+    display: "dry",
+    drinks: "dry",
+    eggs: "dry",
+    bakery: "dry",
+  };
+  /* các quầy hay được chở bằng pallet */
+  const BULK = { shelf: 1, rice: 1, drinks: 1, display: 1, noodle: 1, snack: 1, sauce: 1, household: 1, bakeshelf: 1 };
+  const KINDS = ["veg", "meat", "dry", "milk"];
+
+  /* điểm quan trọng quanh cửa kho (tính từ kích thước cửa hàng) */
+  const KHO = (() => {
+    const cx = (STORE.kho[0] + STORE.kho[1]) / 2,
+      zb = -STORE.D / 2;
+    return {
+      inn: [cx, zb + 1.0] /* ngay trong cửa hàng, trước cửa kho */,
+      door: [cx, zb - 0.8] /* vừa qua cửa, trong kho */,
+      pick: [cx - 3.1, zb - 2.0] /* chỗ đứng lấy hàng */,
+      face: [cx - 4.3, zb - 2.0] /* hướng nhìn vào chồng thùng trong kho */,
+    };
+  })();
+
+  /* ---------- Tiện ích vai trò ---------- */
+
+  /* quản lý / cửa hàng phó (chức vụ "gray") không làm việc này */
+  const isGray = (role) => (ROLES[role] || ROLES.staff)[1] === "gray";
+
+  /* nhân viên nào đang được giao việc lấy hàng + fill */
+  const restockOf = (n) => {
+    const s = n.s,
+      r = s.routine || {};
+    return !isGray(s.role) && (CFG.restockStaff.includes(s.code) || r.type === "restock");
+  };
+
+  /* ---------- Tìm đường: đồ thị các điểm trên lối đi, tránh mọi quầy ---------- */
+
+  /* đoạn thẳng a→b có cắt hình chữ nhật o không (phương pháp slab) */
+  function segBox(a, b, o) {
+    let t0 = 0,
+      t1 = 1;
+    const ax = [
+      [a[0], b[0] - a[0], o.x0, o.x1],
+      [a[1], b[1] - a[1], o.z0, o.z1],
+    ];
+    for (const [p, d, lo, hi] of ax) {
+      if (Math.abs(d) < 1e-9) {
+        if (p < lo || p > hi) return false;
+      } else {
+        let u = (lo - p) / d,
+          v = (hi - p) / d;
+        if (u > v) [u, v] = [v, u];
+        t0 = Math.max(t0, u);
+        t1 = Math.min(t1, v);
+        if (t0 > t1) return false;
+      }
+    }
+    return true;
+  }
+
+  /* các nút lưới đặt dọc các lối đi chính */
+  function gridNodes() {
+    const xs = [-5.6, -3.4, -1.7, 0, 1.7, 3.4, KHO.inn[0]],
+      zs = [11.4, 4, -3.2, -5, -12],
+      out = [];
+    xs.forEach((x) => zs.forEach((z) => out.push([x, z])));
+    return out;
+  }
+
+  /* đường đi ngắn nhất from→to (mảng điểm, không gồm from); không tìm được thì đi thẳng */
+  function route(from, to) {
+    const m = CFG.margin,
+      ob = ShelfRegistry.all().map((it) => {
+        const q = bounds(it);
+        return { x0: q.x - q.hx - m, x1: q.x + q.hx + m, z0: q.z - q.hz - m, z1: q.z + q.hz + m };
+      }),
+      inb = (p, o) => p[0] > o.x0 && p[0] < o.x1 && p[1] > o.z0 && p[1] < o.z1,
+      /* bỏ qua kệ mà điểm đầu/cuối đang nằm trong vùng đệm (để còn bước ra được) */
+      clear = (a, b) => !ob.some((o) => !inb(a, o) && !inb(b, o) && segBox(a, b, o));
+    if (clear(from, to)) return [to];
+    const nodes = [from, to];
+    gridNodes().forEach((q) => {
+      if (!ob.some((o) => inb(q, o))) nodes.push(q);
+    });
+    const N = nodes.length,
+      dist = Array(N).fill(1e9),
+      prev = Array(N).fill(-1),
+      done = Array(N).fill(false);
+    dist[0] = 0;
+    for (;;) {
+      let u = -1;
+      for (let i = 0; i < N; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i;
+      if (u < 0 || dist[u] >= 1e9) break;
+      done[u] = true;
+      if (u === 1) break;
+      for (let v = 0; v < N; v++) {
+        if (done[v]) continue;
+        const d = dist[u] + Math.hypot(nodes[u][0] - nodes[v][0], nodes[u][1] - nodes[v][1]);
+        if (d < dist[v] && clear(nodes[u], nodes[v])) {
+          dist[v] = d;
+          prev[v] = u;
+        }
+      }
+    }
+    if (prev[1] < 0) return [to];
+    const out = [];
+    for (let i = 1; i !== 0; i = prev[i]) out.unshift(nodes[i]);
+    return out;
+  }
+
+  /* đường từ vị trí hiện tại vào kho: ra cửa → trong kho → chỗ lấy hàng */
+  const pathToKho = (pos) => [...route(pos, KHO.inn), KHO.door, KHO.pick];
+
+  /* ---------- Chọn chuyến hàng ngẫu nhiên ---------- */
+
+  /* chọn quầy cần fill (khác quầy vừa fill), loại hàng theo quầy, và bê thùng hay kéo pallet */
+  function pickJob(rs) {
+    let its = ShelfRegistry.all().filter((it) => KIND_OF[it.type]);
+    if (its.length > 1 && rs.last) its = its.filter((it) => it.code !== rs.last);
+    if (!its.length) {
+      rs.tg = null;
+      return;
+    }
+    const it = its[Math.floor(Math.random() * its.length)],
+      side = it.sides === 2 && Math.random() < 0.5 ? -1 : 1 /* quầy 2 mặt: chọn mặt ngẫu nhiên */,
+      lx = side * (it.size[0] / 2 + 0.75),
+      c = Math.cos(it.rot),
+      s = Math.sin(it.rot),
+      hw = STORE.W / 2 - 0.4,
+      hd = STORE.D / 2 - 0.4;
+    rs.last = it.code;
+    rs.kind = KIND_OF[it.type];
+    rs.style = BULK[it.type] && Math.random() < CFG.palletChance ? "pallet" : "box";
+    rs.tg = {
+      it,
+      stand: [
+        THREE.MathUtils.clamp(it.pos[0] + lx * c, -hw, hw),
+        THREE.MathUtils.clamp(it.pos[1] - lx * s, -hd, hd),
+      ],
+      face: it.pos,
+    };
+  }
+
+  /* ---------- Máy trạng thái của NPC: init → toKho → load → toShelf → fill → toKho … ---------- */
+
+  /* chạy một nhịp: chuyển điểm, đổi pha, bật/tắt thùng và pallet */
+  function advance(n, dt) {
+    const rs = n.rs,
+      p = n.g.position,
+      pos = [p.x, p.z];
+    switch (rs.phase) {
+      case "init":
+        rs.path = pathToKho(pos);
+        rs.pi = 0;
+        rs.phase = "toKho";
+        break;
+      case "toKho":
+      case "toShelf": {
+        const last = rs.pi === rs.path.length - 1,
+          w = rs.path[rs.pi];
+        if (Math.hypot(w[0] - p.x, w[1] - p.z) < (last ? 0.1 : 0.25)) {
+          if (!last) rs.pi++;
+          else if (rs.phase === "toKho") {
+            rs.phase = "load";
+            rs.t = 0;
+            pickJob(rs); /* chọn trước chuyến kế tiếp */
+          } else {
+            rs.phase = "fill";
+            rs.t = 0;
+            rs.fp = 0;
+            if (rs.style === "pallet") rs.carry = true; /* lấy từng thùng nhỏ từ pallet */
+          }
+        }
+        break;
+      }
+      case "load": {
+        rs.t += dt;
+        if (!rs.tg) {
+          /* chưa có quầy nào cần fill: đợi rồi thử lại */
+          if (rs.t > 2.5) {
+            rs.t = 0;
+            pickJob(rs);
+          }
+          break;
+        }
+        if (rs.t > 0.6) {
+          if (rs.style === "pallet") {
+            if (!rs.pallet) {
+              rs.pallet = true;
+              rs.prog = 0; /* pallet mới đầy hàng */
+            }
+          } else rs.pallet = false; /* bỏ pallet cũ lại kho */
+        }
+        if (rs.t > 0.8 && rs.style === "box") rs.carry = true; /* nhấc thùng lên */
+        if (rs.t > 1.9) {
+          rs.path = route(pos, rs.tg.stand);
+          rs.pi = 0;
+          rs.phase = "toShelf";
+        }
+        break;
+      }
+      case "fill": {
+        rs.t += dt;
+        const dur = rs.style === "pallet" ? CFG.fillSecPallet : CFG.fillSecBox;
+        rs.fp = Math.min(1, rs.t / dur);
+        if (rs.style === "pallet") rs.prog = rs.fp;
+        if (rs.t >= dur) {
+          rs.carry = false;
+          if (rs.style !== "pallet") rs.pallet = false;
+          rs.path = pathToKho(pos);
+          rs.pi = 0;
+          rs.phase = "toKho";
+        }
+        break;
+      }
+    }
+  }
+
+  /* ---------- Bọc goal / stepNpc ---------- */
+
+  /* goal: NPC đang làm việc này thì đích là điểm hiện tại trên đường đi của nó */
+  const _goal6 = goal;
+  goal = function (n) {
+    if (!n.rj || !n.rs) return _goal6(n);
+    const rs = n.rs,
+      p = n.g.position;
+    if (rs.phase === "toKho" || rs.phase === "toShelf") {
+      const last = rs.pi === rs.path.length - 1,
+        w = rs.path[rs.pi],
+        toK = rs.phase === "toKho";
+      return {
+        x: w[0],
+        z: w[1],
+        act: last ? (toK ? "load" : "fill") : "walk",
+        face: last ? (toK ? KHO.face : rs.tg.face) : undefined,
+      };
+    }
+    if (rs.phase === "load") return { x: KHO.pick[0], z: KHO.pick[1], act: "load", face: KHO.face };
+    if (rs.phase === "fill") return { x: rs.tg.stand[0], z: rs.tg.stand[1], act: "fill", face: rs.tg.face };
+    return { x: p.x, z: p.z, act: "idle" };
+  };
+
+  /* stepNpc: chạy bước gốc, giảm tốc khi bê/kéo hàng, rồi chạy máy trạng thái */
+  const _step6 = stepNpc;
+  stepNpc = function (n, dt, t) {
+    n.rj = restockOf(n);
+    if (!n.rj) {
+      n.rs = null;
+      return _step6(n, dt, t);
+    }
+    if (!n.rs) n.rs = { phase: "init", t: 0, pallet: false, carry: false, prog: 0, fp: 0 };
+    const p = n.g.position,
+      x0 = p.x,
+      z0 = p.z;
+    _step6(n, dt, t);
+    const rs = n.rs,
+      f = rs.pallet && rs.style === "pallet" ? CFG.speedPallet : rs.carry ? CFG.speedBox : 1;
+    if (f < 1) {
+      p.x = x0 + (p.x - x0) * f;
+      p.z = z0 + (p.z - z0) * f;
+    }
+    advance(n, dt);
+  };
+
+  /* ---------- Đạo cụ: thùng hàng, xe nâng tay + pallet ---------- */
+
+  /* thêm mesh vào parent (cast=false cho vật nhỏ để đỡ tốn bóng đổ) */
+  const put = (parent, geo, color, x, y, z, rough = 0.75, cast = true) => {
+    const m = new THREE.Mesh(geo, M(color, rough));
+    m.position.set(x, y, z);
+    m.castShadow = cast;
+    parent.add(m);
+    return m;
+  };
+  const BOX = (x, y, z) => new THREE.BoxGeometry(x, y, z);
+
+  /* ống nối hai điểm (dùng cho cán xe nâng) */
+  function link(parent, p1, p2, r, color) {
+    const a = new THREE.Vector3(...p1),
+      d = new THREE.Vector3(...p2).sub(a),
+      m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), M(color, 0.5));
+    m.position.copy(a).addScaledVector(d, 0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  }
+
+  /* một thùng hàng: gốc nhóm nằm ở đáy thùng; items = các món bên trong (ẩn dần khi fill) */
+  function mkCrate(kind, parent) {
+    const g = new THREE.Group(),
+      W = 0.36,
+      D = 0.28,
+      T = 0.02,
+      S = {
+        veg: { wall: 0xd2b48c, base: 0xc9a678, h: 0.15 } /* sọt gỗ */,
+        meat: { wall: 0xf4f4f0, base: 0xe9e9e4, h: 0.17 } /* thùng xốp */,
+        dry: { wall: 0xc9a678, base: 0xb8956a, h: 0.13 } /* thùng carton */,
+        milk: { wall: 0x1e88e5, base: 0x1565c0, h: 0.15 } /* két nhựa */,
+      }[kind],
+      items = [];
+    g.visible = false;
+    parent.add(g);
+    put(g, BOX(W, T, D), S.base, 0, T / 2, 0);
+    [-1, 1].forEach((s) => {
+      put(g, BOX(T, S.h, D), S.wall, (s * (W - T)) / 2, S.h / 2, 0);
+      put(g, BOX(W, S.h, T), S.wall, 0, S.h / 2, (s * (D - T)) / 2);
+    });
+    if (kind === "veg") {
+      const col = [0x5cb85c, 0xff8a3d, 0xe53935, 0x7cb342, 0xff8a3d, 0x5cb85c];
+      for (let i = 0; i < 6; i++)
+        items.push(put(g, new THREE.SphereGeometry(0.06, 8, 6), col[i], (i % 3 - 1) * 0.105, 0.1, (i < 3 ? -1 : 1) * 0.06, 0.8, false));
+    } else if (kind === "meat") {
+      const col = [0xe58a86, 0xf19a94, 0xc62828, 0xe58a86];
+      for (let i = 0; i < 4; i++) items.push(put(g, BOX(0.3, 0.03, 0.2), col[i], 0, 0.035 + i * 0.038, 0, 0.6, false));
+    } else if (kind === "dry") {
+      const col = [0xf9a825, 0xe53935, 0x43a047, 0x1e88e5, 0xfdd835, 0xef6c00];
+      for (let i = 0; i < 6; i++) items.push(put(g, BOX(0.1, 0.17, 0.07), col[i], (i % 3 - 1) * 0.11, 0.1, (i < 3 ? -1 : 1) * 0.07, 0.7, false));
+    } else {
+      for (let i = 0; i < 6; i++)
+        items.push(put(g, BOX(0.075, 0.19, 0.075), i % 2 ? 0x81d4fa : 0xffffff, (i % 3 - 1) * 0.11, 0.11, (i < 3 ? -1 : 1) * 0.07, 0.5, false));
+    }
+    return { grp: g, items };
+  }
+
+  /* xe nâng tay + pallet 12 thùng carton, nằm phía SAU nhân vật (gốc toạ độ = gốc nhân vật); tay cầm khớp với tay phải */
+  function mkPallet(c, hand) {
+    const g = new THREE.Group(),
+      cartons = [],
+      col = [0xc9a678, 0xd9b98a, 0xb8956a];
+    g.visible = false;
+    c.g.add(g);
+    put(g, BOX(0.24, 0.2, 0.3), 0xc62828, 0, 0.19, -0.95, 0.5) /* thân xe */;
+    [-1, 1].forEach((s) => {
+      put(g, BOX(0.1, 0.06, 1.2), 0x8d9199, s * 0.2, 0.05, -1.55, 0.5, false) /* càng nâng */;
+      put(g, new THREE.CylinderGeometry(0.035, 0.035, 0.05, 10), 0x2a2a2e, s * 0.2, 0.035, -2.1, 0.6, false).rotation.z = PI / 2;
+      put(g, new THREE.CylinderGeometry(0.04, 0.04, 0.05, 10), 0x2a2a2e, s * 0.1, 0.04, -0.95, 0.6, false).rotation.z = PI / 2;
+    });
+    put(g, BOX(0.8, 0.03, 1.1), 0xcfa979, 0, 0.15, -1.6) /* mặt pallet */;
+    [-0.35, 0, 0.35].forEach((x) => put(g, BOX(0.1, 0.07, 1.1), 0xb08a5a, x, 0.1, -1.6, 0.8, false));
+    for (let L = 0; L < 3; L++)
+      for (let i = 0; i < 2; i++)
+        for (let j = 0; j < 2; j++)
+          cartons.push(put(g, BOX(0.37, 0.25, 0.49), col[(L + i + j) % 3], (i - 0.5) * 0.38, 0.165 + 0.13 + L * 0.26, -1.6 + (j - 0.5) * 0.5, 0.85));
+    link(g, [0, 0.3, -0.95], hand, 0.014, 0x55595f) /* cán xe */;
+    put(g, new THREE.CylinderGeometry(0.02, 0.02, 0.16, 8), 0x222226, hand[0], hand[1], hand[2], 0.5, false).rotation.z = PI / 2 /* tay nắm */;
+    return { grp: g, cartons };
+  }
+
+  /* dựng đạo cụ lần đầu cần dùng (NPC chưa làm việc này thì không tốn gì) */
+  function build(c) {
+    const P = c.pr,
+      v = { crates: {}, pal: null };
+    KINDS.forEach((k) => (v.crates[k] = mkCrate(k, c.b)));
+    v.pal = mkPallet(c, [P.ax, P.by + 0.52 - P.L * Math.cos(0.5), -P.L * Math.sin(0.5)]);
+    P.b6 = v;
+  }
+
+  /* ---------- Tư thế ---------- */
+
+  /* hành động hiện tại của nhân vật (NPC: theo pha; xem trước: theo nút bấm); null = không có */
+  function spec(c, t) {
+    const r = c.rs;
+    if (c.rj && r) {
+      const base = { style: r.style, kind: r.style === "pallet" ? "dry" : r.kind, carry: r.carry, pallet: r.pallet, prog: r.prog || 0, fp: 0 };
+      if (r.phase === "load") return { ph: "load", ...base };
+      if (r.phase === "toShelf") return { ph: "carry", ...base };
+      if (r.phase === "fill") return { ph: "fill", ...base, fp: r.fp };
+      if (r.phase === "toKho" && r.pallet) return { ph: "carry", ...base, carry: false }; /* kéo pallet rỗng về kho */
+      return null;
+    }
+    if (c.mode === "box")
+      return { ph: "fill", style: "box", kind: c.rk || "veg", carry: true, pallet: false, prog: 0, fp: (t % 5) / 5 };
+    if (c.mode === "pallet")
+      return { ph: "carry", style: "pallet", kind: "dry", carry: false, pallet: true, prog: 0, fp: 0, inPlace: true };
+    return null;
+  }
+
+  /* góc đích của từng khớp theo hành động (khớp không nhắc tới sẽ giữ theo pose gốc) */
+  function targets(sp, c, t) {
+    const P = c.pr,
+      T = {};
+    if (sp.ph === "load") {
+      /* cúi gập người nhặt hàng, chân giữ thẳng */
+      Object.assign(T, { lean: 0.45, ar: -0.7, al: -0.7, arz: -P.rzH, alz: P.rzH, hx: 0.3, ll: -0.45, lr: -0.45 });
+    } else if (sp.ph === "fill") {
+      /* đưa thùng lên xuống như đang xếp hàng vào kệ */
+      const q = 0.25 * Math.sin(t * 2.2);
+      Object.assign(T, { lean: 0.12, ar: -0.95 + q, al: -0.95 + q, arz: -P.rzH, alz: P.rzH, hx: 0.22, ll: -0.12, lr: -0.12 });
+    } else if (sp.style === "pallet") {
+      /* tay phải ra sau nắm cán xe nâng, ngả người nhẹ khi kéo */
+      Object.assign(T, { ar: 0.5, arz: 0, lean: -0.04, hx: 0 });
+    } else {
+      /* bê thùng bằng hai tay trước bụng */
+      Object.assign(T, { lean: 0.04, ar: -0.95, al: -0.95, arz: -P.rzH, alz: P.rzH, hx: 0.12 });
+    }
+    if (sp.inPlace) {
+      /* xem trước: bước tại chỗ để thấy dáng kéo */
+      const w = Math.sin(t * 5) * 0.45;
+      T.ll = w;
+      T.lr = -w;
+      T.al = -w * 0.6;
+    }
+    return T;
+  }
+
+  /* áp hành động lên nhân vật: hoà trộn mượt, đặt thùng vào tay, bật/tắt pallet, ẩn dần hàng đã fill */
+  function overlay(c, sp, dt, t) {
+    const P = c.pr;
+    if (!P || !P.mk6) return; /* quản lý không có đạo cụ này */
+    if (!P.b6) {
+      if (!sp) return;
+      build(c);
+    }
+    c.ov6 = (c.ov6 || 0) + ((sp ? 1 : 0) - (c.ov6 || 0)) * (1 - Math.exp(-dt * 9));
+    if (sp) c.sp6 = sp;
+    const cur = {
+      ar: c.aR.rotation.x,
+      al: c.aL.rotation.x,
+      arz: c.aR.rotation.z,
+      alz: c.aL.rotation.z,
+      lean: c.b.rotation.x,
+      hx: c.head.rotation.x,
+      ll: c.lL.rotation.x,
+      lr: c.lR.rotation.x,
+    };
+    if (!c.ox6 || (!sp && c.ov6 < 0.002)) c.ox6 = { ...cur }; /* nghỉ: bám theo pose gốc */
+    if (sp) {
+      const T = targets(sp, c, t),
+        k = 1 - Math.exp(-dt * 10);
+      for (const n in cur) c.ox6[n] += ((T[n] !== undefined ? T[n] : cur[n]) - c.ox6[n]) * k;
+    }
+    const o = c.ox6,
+      w = c.ov6,
+      mix = (n) => cur[n] + (o[n] - cur[n]) * w;
+    c.aR.rotation.x = mix("ar");
+    c.aL.rotation.x = mix("al");
+    c.aR.rotation.z = mix("arz");
+    c.aL.rotation.z = mix("alz");
+    c.b.rotation.x = mix("lean");
+    c.head.rotation.x = mix("hx");
+    c.lL.rotation.x = mix("ll");
+    c.lR.rotation.x = mix("lr");
+    /* hiện đạo cụ theo hành động gần nhất; ẩn khi đã thả xong */
+    const S = c.sp6,
+      show = w > 0.02 && !!S,
+      v = P.b6,
+      q = -c.aR.rotation.x /* góc đưa tay ra trước → vị trí bàn tay */,
+      hy = 0.52 - P.L * Math.cos(P.rzH) * Math.cos(q),
+      hz = P.L * Math.cos(P.rzH) * Math.sin(q);
+    KINDS.forEach((k) => {
+      const cr = v.crates[k],
+        on = show && S.carry && S.kind === k;
+      cr.grp.visible = on;
+      if (!on) return;
+      const vis = S.ph === "fill" && S.style === "box" ? Math.ceil(cr.items.length * (1 - S.fp)) : cr.items.length;
+      cr.items.forEach((m, i) => (m.visible = i < vis)); /* hàng vơi dần khi fill */
+      cr.grp.position.set(0, hy - 0.1, hz);
+    });
+    v.pal.grp.visible = show && S.pallet;
+    if (v.pal.grp.visible) {
+      const vis = Math.round(v.pal.cartons.length * (1 - S.prog));
+      v.pal.cartons.forEach((m, i) => (m.visible = i < vis)); /* dỡ từ trên xuống */
+    }
+  }
+
+  /* ---------- Bọc makeChar / pose ---------- */
+
+  /* makeChar: nhân viên thường được gắn thông số tay/vai để dựng đạo cụ khi cần */
+  const _mk6 = makeChar;
+  makeChar = function (s) {
+    const c = _mk6(s);
+    if (!isGray(s.role)) {
+      const k = { ...LOOK0, ...s.look },
+        W = 0.8 + k.build * 0.6,
+        L = 0.55 * k.armRatio + 0.01,
+        ax = 0.2 * W + 0.05;
+      Object.assign(c.pr, {
+        mk6: true,
+        L,
+        ax,
+        /* góc khép tay để hai bàn tay nằm sát hai bên thùng (cách tâm 0.2 m) */
+        rzH: Math.asin(THREE.MathUtils.clamp((ax - 0.2) / L, 0, 0.95)),
+      });
+    }
+    return c;
+  };
+
+  /* pose: chạy pose gốc (gồm các lớp v5) rồi phủ hành động lấy hàng / fill */
+  const _pose6 = pose;
+  pose = function (c, dt, t) {
+    _pose6(c, dt, t);
+    if (c.mode === "box" && c.pm !== "box") c.rk = KINDS[Math.floor(Math.random() * KINDS.length)]; /* mỗi lần bấm: loại hàng ngẫu nhiên */
+    c.pm = c.mode;
+    overlay(c, spec(c, t), dt, t);
+  };
+
+  /* ---------- Giao diện: nút hành động theo chức vụ ---------- */
+
+  /* các hành động riêng của chức vụ: [nhãn, mode] */
+  const roleActs = (role) =>
+    isGray(role)
+      ? [["Kiểm kho", "check"]]
+      : [
+          ["Lau nhà", "mop"],
+          ["Fill hàng", "box"],
+          ["Kéo pallet", "pallet"],
+        ];
+
+  /* vẽ lại hàng nút ở sân khấu: 5 nút cũ + các nút riêng của chức vụ */
+  function refreshActs() {
+    const s = cur && StaffRegistry.get(cur.code);
+    if (!s) return;
+    const list = ACTS.concat(roleActs(s.role));
+    if (!list.some((a) => a[1] === act)) {
+      act = "idle";
+      cur.mode = "idle";
+    }
+    $("#acts").innerHTML = list
+      .map((a) => `<button class="${a[1] === act ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+      .join("");
+  }
+  const _sc6 = showChar;
+  showChar = function (c) {
+    _sc6(c);
+    refreshActs();
+  };
+
+  /* vẽ lại nút trong hộp xem trước hồ sơ theo chức vụ đang chỉnh */
+  function refreshPvb() {
+    if (!draft) return;
+    const ra = roleActs(draft.role),
+      el = $("#pvb"),
+      list = [["Đứng", "idle"], ["Đi bộ", "walk"], ["Vẫy tay", "wave"], ...ra],
+      key = draft.role + "|" + pvMode;
+    if (!list.some((a) => a[1] === pvMode)) pvMode = "idle";
+    if (el.dataset.key6 === key && el.children.length === list.length) return;
+    el.dataset.key6 = key;
+    el.innerHTML = list
+      .map((a) => `<button class="${a[1] === pvMode ? "on" : ""}" data-a="${a[1]}">${a[0]}</button>`)
+      .join("");
+  }
+  const _rb6 = rebuildPv;
+  rebuildPv = function () {
+    _rb6();
+    refreshPvb();
+    if (pv) pv.mode = pvMode;
+  };
+
+  /* CSS: nhiều nút hành động hơn → tự xuống dòng (PC) / lưới 4 cột (điện thoại) */
+  const css = document.createElement("style");
+  css.textContent =
+    "/* PATCH v6: hàng nút hành động nhiều nút */" +
+    "#acts{flex-wrap:wrap;justify-content:center;border-radius:22px;max-width:calc(100% - 24px)}" +
+    "@media (max-width:720px){#acts{grid-template-columns:repeat(4,1fr)}}";
+  document.head.appendChild(css);
+
+  /* ---------- Dựng lại NPC và nhân vật đang hiển thị để có đạo cụ mới ---------- */
+
+  /* dựng lại toàn bộ NPC trong cửa hàng, giữ nguyên vị trí / hướng / tiến độ tuần tra */
+  function rebuildNpcs() {
+    const old = npcs.splice(0),
+      keep = old.map((o) => ({
+        code: o.s.code,
+        p: o.g.position.clone(),
+        r: o.g.rotation.y,
+        i: o.i,
+        wait: o.wait,
+      }));
+    old.forEach((o) => {
+      scene.remove(o.g);
+      disposeChar(o);
+    });
+    keep.forEach((q) => {
+      const s = StaffRegistry.get(q.code);
+      if (!s) return;
+      const n = addNpc(s);
+      n.g.position.copy(q.p);
+      n.g.rotation.y = q.r;
+      n.i = q.i;
+      n.wait = q.wait;
+    });
+  }
+  rebuildNpcs();
+  if (typeof cur !== "undefined" && cur) showChar(cur.code);
+})();
+
+/* ============ PATCH: sửa thanh tab của modal hồ sơ bị lún lên mép ============ */
+(() => {
+  const css = document.createElement("style");
+  css.textContent = `
+#form{padding-top:0!important}
+#form .nav2{
+  position:sticky;top:0;z-index:6;
+  margin:0 0 12px!important;
+  padding:12px 2px 8px!important;
+  display:flex;justify-content:center;
+  background:rgba(248,248,250,.72);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+}
+#form .nav2 .seg{display:flex;width:100%;max-width:100%;overflow-x:auto;scrollbar-width:none}
+#form .nav2 .seg::-webkit-scrollbar{display:none}
+#form .nav2 .seg button{flex:1 0 auto;white-space:nowrap;padding:7px 12px}
+@media (prefers-color-scheme:dark){
+  #form .nav2{background:rgba(44,44,50,.62)}
+}`;
+  document.head.appendChild(css);
+})();
+
 
 /* ============ PATCH: CHỌN KỆ → NHẤC LÊN + 2 NÚT KÍNH LỎNG (liquid glass), xếp dọc sát kệ ============ */
 (() => {
@@ -8877,6 +9858,329 @@ function apply() {
     });
   }
 
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => { _r(s, c); update(); };
+})();
+
+/* ============ PATCH: KỆ CỨNG · nhân viên không đi xuyên (lưới điều hướng + A* + đẩy ra) ============ */
+(() => {
+  const CS = 0.25,       /* kích thước ô lưới (m) */
+    R_GRID = 0.3,        /* bán kính an toàn khi tìm đường */
+    R_LINE = 0.26,       /* bán kính kiểm tra đường thẳng */
+    R_HARD = 0.2,        /* bán kính đẩy cứng (chống xuyên) */
+    MARGIN = 0.3;        /* chừa mép tường */
+  const HW = STORE.W / 2, HD = STORE.D / 2, NX = Math.ceil(STORE.W / CS), NZ = Math.ceil(STORE.D / CS);
+  const grid = new Uint8Array(NX * NZ);
+  let obs = [], sig = "", ver = 0;
+
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+  const cellI = (x) => clampN(Math.floor((x + HW) / CS), 0, NX - 1),
+    cellJ = (z) => clampN(Math.floor((z + HD) / CS), 0, NZ - 1),
+    cx = (i) => -HW + (i + 0.5) * CS,
+    cz = (j) => -HD + (j + 0.5) * CS;
+
+  /* ---------- chướng ngại vật: mỗi kệ = hình chữ nhật xoay ---------- */
+  const toObs = (it) => {
+    const c = Math.cos(it.rot), s = Math.sin(it.rot), hx = it.size[0] / 2, hz = it.size[1] / 2;
+    return { x: it.pos[0], z: it.pos[1], c, s, hx, hz, ex: Math.abs(c) * hx + Math.abs(s) * hz, ez: Math.abs(s) * hx + Math.abs(c) * hz };
+  };
+  const inObs = (o, x, z, r) => {
+    const dx = x - o.x, dz = z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c;
+    return Math.abs(lx) < o.hx + r && Math.abs(lz) < o.hz + r;
+  };
+  const blockedAt = (x, z, r) => {
+    if (Math.abs(x) > HW - MARGIN || Math.abs(z) > HD - MARGIN) return true;
+    for (const o of obs) if (inObs(o, x, z, r)) return true;
+    return false;
+  };
+  const clearLine = (x0, z0, x1, z1, r = R_LINE) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(len / 0.1));
+    for (let k = 1; k <= n; k++) if (blockedAt(x0 + ((x1 - x0) * k) / n, z0 + ((z1 - z0) * k) / n, r)) return false;
+    return true;
+  };
+
+  /* ---------- dựng lại lưới khi bố cục thay đổi (thêm / xoá / dời / xoay / đổi cỡ / undo) ---------- */
+  const signature = () => {
+    let s = 0, n = 0;
+    ShelfRegistry.all().forEach((it) => {
+      n++;
+      s += n * (it.pos[0] * 13.1 + it.pos[1] * 7.7 + it.rot * 3.3 + it.size[0] * 5.1 + it.size[1] * 2.9);
+    });
+    return s.toFixed(4) + "|" + n;
+  };
+  function rebuild() {
+    obs = ShelfRegistry.all().map(toObs);
+    grid.fill(0);
+    for (let j = 0; j < NZ; j++)
+      for (let i = 0; i < NX; i++)
+        if (Math.abs(cx(i)) > HW - MARGIN || Math.abs(cz(j)) > HD - MARGIN) grid[j * NX + i] = 1;
+    obs.forEach((o) => {
+      const i0 = cellI(o.x - o.ex - R_GRID), i1 = cellI(o.x + o.ex + R_GRID),
+        j0 = cellJ(o.z - o.ez - R_GRID), j1 = cellJ(o.z + o.ez + R_GRID);
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) if (inObs(o, cx(i), cz(j), R_GRID)) grid[j * NX + i] = 1;
+    });
+    ver++;
+  }
+  function ensure() {
+    const s = signature();
+    if (s !== sig) { sig = s; rebuild(); }
+  }
+  ensure();
+
+  /* ô trống gần nhất (khi điểm đích / điểm đứng nằm trong vùng cấm) */
+  function nearestFree(i, j) {
+    if (!grid[j * NX + i]) return [i, j];
+    let best = null, bd = 1e9;
+    for (let r = 1; r <= 24 && !best; r++) {
+      for (let dj = -r; dj <= r; dj++)
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const a = i + di, b = j + dj;
+          if (a < 0 || b < 0 || a >= NX || b >= NZ || grid[b * NX + a]) continue;
+          const d = di * di + dj * dj;
+          if (d < bd) { bd = d; best = [a, b]; }
+        }
+    }
+    return best;
+  }
+  const snapFree = (x, z) => {
+    const f = nearestFree(cellI(x), cellJ(z));
+    return f ? [cx(f[0]), cz(f[1])] : null;
+  };
+
+  /* ---------- A* trên lưới, 8 hướng, không cắt góc, rồi kéo thẳng đường đi ---------- */
+  function findPath(x0, z0, x1, z1) {
+    const s = nearestFree(cellI(x0), cellJ(z0)), g = nearestFree(cellI(x1), cellJ(z1));
+    if (!s || !g) return null;
+    const N = NX * NZ, G = new Float32Array(N).fill(1e9), from = new Int32Array(N).fill(-1), done = new Uint8Array(N),
+      si = s[1] * NX + s[0], gi = g[1] * NX + g[0], H = [];
+    const push = (f, id) => {
+      H.push([f, id]);
+      let k = H.length - 1;
+      while (k > 0) {
+        const p = (k - 1) >> 1;
+        if (H[p][0] <= H[k][0]) break;
+        [H[p], H[k]] = [H[k], H[p]];
+        k = p;
+      }
+    };
+    const pop = () => {
+      const top = H[0], last = H.pop();
+      if (H.length) {
+        H[0] = last;
+        let k = 0;
+        for (;;) {
+          let l = 2 * k + 1, r = l + 1, m = k;
+          if (l < H.length && H[l][0] < H[m][0]) m = l;
+          if (r < H.length && H[r][0] < H[m][0]) m = r;
+          if (m === k) break;
+          [H[m], H[k]] = [H[k], H[m]];
+          k = m;
+        }
+      }
+      return top;
+    };
+    const hf = (i, j) => {
+      const dx = Math.abs(i - g[0]), dz = Math.abs(j - g[1]);
+      return dx + dz + (1.414 - 2) * Math.min(dx, dz);
+    };
+    G[si] = 0;
+    push(hf(s[0], s[1]), si);
+    const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+    let found = false;
+    while (H.length) {
+      const id = pop()[1];
+      if (done[id]) continue;
+      done[id] = 1;
+      if (id === gi) { found = true; break; }
+      const i = id % NX, j = (id / NX) | 0;
+      for (const [di, dj, c] of D) {
+        const a = i + di, b = j + dj;
+        if (a < 0 || b < 0 || a >= NX || b >= NZ) continue;
+        const nid = b * NX + a;
+        if (grid[nid] || done[nid]) continue;
+        if (di && dj && (grid[j * NX + a] || grid[b * NX + i])) continue;
+        const ng = G[id] + c;
+        if (ng < G[nid]) { G[nid] = ng; from[nid] = id; push(ng + hf(a, b), nid); }
+      }
+    }
+    if (!found) return null;
+    const cells = [];
+    for (let id = gi; id !== -1; id = from[id]) cells.push([cx(id % NX), cz((id / NX) | 0)]);
+    cells.reverse();
+    if (!blockedAt(x1, z1, R_LINE)) cells[cells.length - 1] = [x1, z1];
+    const pts = [[x0, z0], ...cells], out = [];
+    let a = 0;
+    while (a < pts.length - 1) {
+      let b = pts.length - 1;
+      while (b > a + 1 && !clearLine(pts[a][0], pts[a][1], pts[b][0], pts[b][1])) b--;
+      out.push(pts[b]);
+      a = b;
+    }
+    return out;
+  }
+
+  /* ---------- đẩy ra khỏi kệ (lưới an toàn: kệ bị kéo đè lên người, góc kẹt…) ---------- */
+  function pushOut(p, r = R_HARD) {
+    for (let k = 0; k < 2; k++)
+      for (const o of obs) {
+        const dx = p.x - o.x, dz = p.z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c,
+          ox = o.hx + r - Math.abs(lx), oz = o.hz + r - Math.abs(lz);
+        if (ox > 0 && oz > 0) {
+          let nx = lx, nz = lz;
+          if (ox < oz) nx = (lx < 0 ? -1 : 1) * (o.hx + r);
+          else nz = (lz < 0 ? -1 : 1) * (o.hz + r);
+          p.x = o.x + nx * o.c + nz * o.s;
+          p.z = o.z - nx * o.s + nz * o.c;
+        }
+      }
+    p.x = clampN(p.x, -HW + 0.25, HW - 0.25);
+    p.z = clampN(p.z, -HD + 0.25, HD - 0.25);
+  }
+
+  /* ---------- gắn vào NPC: đích không đi thẳng được thì đi theo đường vòng ---------- */
+  const _goal = goal;
+  goal = function (n) {
+    const g0 = _goal(n);
+    ensure();
+    const p = n.g.position;
+    let gx = g0.x, gz = g0.z;
+    if (blockedAt(gx, gz, R_LINE)) {
+      const s = snapFree(gx, gz);
+      if (s) { gx = s[0]; gz = s[1]; }
+    }
+    const g = gx === g0.x && gz === g0.z ? g0 : { ...g0, x: gx, z: gz };
+    if (clearLine(p.x, p.z, g.x, g.z)) { n.nv = null; return g; }
+    const now = performance.now();
+    let st = n.nv;
+    if (!st || st.ver !== ver || Math.hypot(st.gx - g.x, st.gz - g.z) > 0.3 || now - st.t > 2000) {
+      st = n.nv = { ver, gx: g.x, gz: g.z, t: now, path: findPath(p.x, p.z, g.x, g.z) || [], i: 0 };
+    }
+    while (st.i < st.path.length && Math.hypot(st.path[st.i][0] - p.x, st.path[st.i][1] - p.z) < 0.25) st.i++;
+    if (st.i >= st.path.length) return g;
+    const w = st.path[st.i];
+    return { x: w[0], z: w[1], act: "walk" }; /* điểm trung gian: chưa tới đích thật nên chưa làm việc */
+  };
+
+  const _step = stepNpc;
+  stepNpc = function (n, dt, t) {
+    _step(n, dt, t);
+    pushOut(n.g.position);
+  };
+
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => { ensure(); _r(s, c); };
+
+  /* API dùng chung cho khách hàng / nhân vật khác sau này */
+  window.dxNav = {
+    blocked: (x, z, r = R_LINE) => { ensure(); return blockedAt(x, z, r); },
+    clear: (x0, z0, x1, z1, r = R_LINE) => { ensure(); return clearLine(x0, z0, x1, z1, r); },
+    path: (x0, z0, x1, z1) => { ensure(); return findPath(x0, z0, x1, z1); },
+    pushOut: (pos, r = R_HARD) => { ensure(); pushOut(pos, r); },
+  };
+})();
+
+
+/* ============ PATCH: NHÃN "CỬA VÀO" · LIQUID GLASS (DOM overlay, IIFE, chỉ thêm mới) ============
+   - Nằm trên nền sân trước cửa → không che tầm nhìn vào trong cửa hàng
+   - Không đường line, không chấm tròn; pointer-events: none nên không chặn thao tác
+   - Tự mờ khi zoom sát / khi chuột lại gần; tự đi theo cửa khi đổi vị trí cửa (đọc STORE.door mỗi khung) */
+(() => {
+  /* ---------- CSS: viên kính nhỏ, thanh mảnh, hỗ trợ sáng / tối ---------- */
+  const css = document.createElement("style");
+  css.textContent = `
+/* lớp phủ chứa nhãn cửa: không nhận chuột */
+.dxd-layer{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+
+/* vị trí nhãn (được JS đặt bằng transform), opacity làm mượt khi mờ / hiện */
+.dxd{position:absolute;left:0;top:0;opacity:0;transition:opacity .35s ease;will-change:transform,opacity}
+
+/* viên kính lỏng: blur + saturate, viền sáng mảnh, bóng đổ mềm */
+.dxd-pill{display:flex;align-items:center;gap:6px;height:24px;padding:0 12px 0 9px;border-radius:999px;
+ transform:translate(-50%,-50%) scale(var(--sc,1));transform-origin:50% 50%;
+ color:var(--ink,#1d1d1f);background:rgba(255,255,255,.28);
+ -webkit-backdrop-filter:blur(18px) saturate(210%) brightness(1.06);backdrop-filter:blur(18px) saturate(210%) brightness(1.06);
+ box-shadow:
+  inset 0 0 0 .5px rgba(255,255,255,.55),
+  inset 1.5px 1.5px 1px -1px rgba(255,255,255,.95),
+  inset -1.5px -1.5px 1px -1px rgba(255,255,255,.6),
+  0 8px 22px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+ font:600 11.5px/1 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;letter-spacing:-.005em;white-space:nowrap}
+
+/* biểu tượng mũi tên nhỏ, nhún nhẹ như đang mời vào */
+.dxd-ic{display:grid;place-items:center;width:14px;height:14px;opacity:.7;animation:dxdBob 2.4s ease-in-out infinite}
+.dxd-ic svg{width:14px;height:14px;display:block}
+@keyframes dxdBob{0%,100%{transform:translateY(1px)}50%{transform:translateY(-1.5px)}}
+
+/* điện thoại: nhỏ gọn hơn */
+@media (max-width:720px){.dxd-pill{height:22px;padding:0 10px 0 8px;font-size:11px}}
+
+/* chế độ tối */
+@media (prefers-color-scheme:dark){
+ .dxd-pill{color:#f5f5f7;background:rgba(40,40,46,.34);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.5),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.18),0 8px 24px rgba(0,0,0,.45)}
+}
+
+/* người dùng giảm chuyển động: tắt nhún */
+@media (prefers-reduced-motion:reduce){.dxd-ic{animation:none}}`;
+  document.head.appendChild(css);
+
+  /* ---------- DOM: lớp phủ + nhãn ---------- */
+  const layer = document.createElement("div");
+  layer.className = "dxd-layer";
+  layer.innerHTML =
+    '<div class="dxd"><div class="dxd-pill"><span class="dxd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 14.5L12 9l5.5 5.5"/></svg></span><span>Cửa vào</span></div></div>';
+  $("#store").appendChild(layer);
+  const el = layer.querySelector(".dxd"),
+    pill = layer.querySelector(".dxd-pill");
+
+  /* ---------- Trạng thái ---------- */
+  const V = new THREE.Vector3(), V2 = new THREE.Vector3();
+  let px = -1e4, py = -1e4, lastOp = -1, lastSc = -1;
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  /* theo dõi chuột (chỉ chuột thật) để nhãn tự lánh khi con trỏ tới gần */
+  cv.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" && e.buttons === 0) {
+      const r = layer.getBoundingClientRect();
+      px = e.clientX - r.left;
+      py = e.clientY - r.top;
+    } else px = py = -1e4;
+  });
+  cv.addEventListener("pointerleave", () => (px = py = -1e4));
+  cv.addEventListener("pointerdown", () => (px = py = -1e4));
+
+  /* ---------- Cập nhật vị trí + độ mờ mỗi khung hình ---------- */
+  function update() {
+    /* tâm cửa hiện tại (đọc mỗi khung nên dời cửa vẫn đúng) */
+    const dm = (STORE.door[0] + STORE.door[1]) / 2,
+      r = cv.getBoundingClientRect(),
+      lo = layer.getBoundingClientRect();
+
+    /* điểm neo: nền sân ngay trước cửa → nằm dưới cửa trên màn hình, không đè nội thất */
+    V.set(dm, 0.04, STORE.D / 2 + 1.5).project(camera);
+    const sx = (V.x * 0.5 + 0.5) * r.width + r.left - lo.left,
+      sy = (-V.y * 0.5 + 0.5) * r.height + r.top - lo.top,
+      ok = V.z < 1 && sx > -60 && sx < lo.width + 60 && sy > -20 && sy < lo.height + 40;
+
+    el.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px)`;
+
+    /* độ mờ: zoom sát thì ẩn dần, chỉnh sửa thì nhạt hơn, chuột lại gần thì lánh */
+    const zk = clampN((cam.r / cam.fit - 0.28) / 0.3, 0, 1),
+      dodge = clampN((Math.hypot(sx - px, sy - py) - 30) / 60, 0.12, 1);
+    let op = ok ? zk * dodge * (mode === "edit" ? 0.55 : 0.95) : 0;
+    if (tab !== "store") op = 0;
+
+    /* thu nhỏ nhẹ khi ở xa để có chiều sâu */
+    const dist = camera.position.distanceTo(V2.set(dm, 0.04, STORE.D / 2 + 1.5)),
+      sc = clampN(1.08 - (dist - 14) / 170, 0.82, 1);
+
+    if (Math.abs(op - lastOp) > 0.01) { el.style.opacity = op.toFixed(2); lastOp = op; }
+    if (Math.abs(sc - lastSc) > 0.01) { pill.style.setProperty("--sc", sc.toFixed(2)); lastSc = sc; }
+  }
+
+  /* ---------- Móc vào vòng render ---------- */
   const _r = ren.render.bind(ren);
   ren.render = (s, c) => { _r(s, c); update(); };
 })();

@@ -574,25 +574,7 @@
     return c;
   }
   /* lập lịch đi của khách: tới cửa -> chọn hàng -> thanh toán -> ra về (về lại xe của mình nếu có) */
-  function plan(c, sx, sz, slot) {
-    const q = c.q;
-    c.slot = slot || null;
-    c.g.position.set(sx, 0, sz);
-    c.g.rotation.y = Math.atan2(DX - sx, 17 - sz);
-    q.push({ x: DX + J() * 2, z: 17.2 }, { x: DX + J(), z: 15.3 });
-    let cur = "E";
-    const picks = BR.slice().sort(() => RN() - 0.5).slice(0, 1 + Math.floor(RN() * 2));
-    picks.forEach((k) => { cur = go(q, cur, k, { act: "stock", dur: 1 + RN() * 1.2, face: faceOf(k) }); });
-    const cs = RN() < 0.5 ? "C1" : "C2";
-    cur = go(q, cur, cs, { act: "scan", dur: 1.8 + RN() * 1.2, face: [NODE[cs][0], 13.5] });
-    cur = go(q, cur, "E");
-    q.push({ x: DX + J(), z: 15.3 }, { x: DX + J(), z: 17.4 });
-    if (slot) q.push({ x: slot.ex, z: slot.z, gone: true }); /* về đúng chiếc xe của mình */
-    else q.push({ x: DX + (RN() - 0.5) * 5, z: Z1 - 0.4, gone: true });
-    c.g.scale.setScalar(c.sc * 0.01);
-    scene.add(c.g);
-    custs.push(c);
-  }
+ 
 
   /* ============ XE CỦA KHÁCH: VÀO / RA ============ */
   const veh = [];
@@ -814,32 +796,419 @@
     plan(newCust(), DX + (RN() - 0.5) * 5, Z1 - 0.5, null);
   }
 
+   /* ============ NÃO KHÁCH HÀNG (thay plan + stepCust cũ) ============ */
+  const NAV = () => window.dxNav;
+  const rnd = (a, b) => a + RN() * (b - a);
+  const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
+  const wpick = (a, f) => {
+    let r = RN() * a.reduce((s, x) => s + f(x), 0);
+    for (const x of a) if ((r -= f(x)) <= 0) return x;
+    return a[a.length - 1];
+  };
+  let CID = 0;
+  const CQ = {}; /* mã quầy thu ngân → hàng chờ */
+  const alive = (c) => custs.indexOf(c) >= 0;
+  const SPOT_W = { shelf: 1.3, produce: 1.2, cold: 1, freezer: 0.8, rice: 0.6, display: 0.5 };
+  const MISS = [
+    { k: "quick", w: 3, n: [1, 2], pace: 1.15, dw: [0.5, 1.1], pat: [9, 16] },
+    { k: "normal", w: 4, n: [3, 5], pace: 1.0, dw: [0.9, 1.8], pat: [16, 28] },
+    { k: "browse", w: 2, n: [2, 4], pace: 0.82, dw: [1.6, 3.0], pat: [14, 24] },
+  ];
+  const W2 = (it, lx, lz) => {
+    const c = Math.cos(it.rot), s = Math.sin(it.rot);
+    return [it.pos[0] + lx * c + lz * s, it.pos[1] - lx * s + lz * c];
+  };
+  const armOf = (n) => 0.55 * ((n.s.look && n.s.look.armRatio) || 1) + 0.01;
+  const prop = (p, w, h, d, m, x, y, z) => {
+    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    o.position.set(x, y, z);
+    o.castShadow = true;
+    p.add(o);
+    return o;
+  };
+  const faceTo = (n, f, dt) => {
+    const p = n.g.position;
+    n.g.rotation.y = turn(n.g.rotation.y, Math.atan2(f[0] - p.x, f[1] - p.z), Math.min(1, dt * 6));
+  };
+
+  /* ---- giỏ / túi ---- */
+  function mkBasket(n) {
+    const g = new THREE.Group(), a = armOf(n), bm = M(0xe53935, 0.6), hm = M(0xdddddd, 0.4);
+    prop(g, 0.3, 0.02, 0.2, bm, 0, -0.07, 0);
+    [-1, 1].forEach((s) => {
+      prop(g, 0.3, 0.14, 0.015, bm, 0, 0, s * 0.1);
+      prop(g, 0.015, 0.14, 0.2, bm, s * 0.15, 0, 0);
+      prop(g, 0.012, 0.1, 0.012, hm, s * 0.1, 0.1, 0);
+    });
+    prop(g, 0.2, 0.012, 0.012, hm, 0, 0.15, 0);
+    g.position.set(0, -a - 0.12, 0.03);
+    g.rotation.x = 0.28;
+    g.visible = false;
+    n.aL.add(g);
+    n.bk = g;
+    n.bki = 0;
+  }
+  function mkBag(n) {
+    const g = new THREE.Group(), a = armOf(n);
+    prop(g, 0.2, 0.28, 0.12, M(0xd7b98a, 0.85), 0, 0, 0);
+    prop(g, 0.08, 0.02, 0.125, M(0xc2a173, 0.85), 0, 0.15, 0);
+    g.position.set(0, -a - 0.16, 0.03);
+    g.rotation.x = 0.28;
+    g.visible = false;
+    n.aL.add(g);
+    n.bag = g;
+  }
+  function addItem(n) {
+    if (!n.bk) return;
+    n.items++;
+    if (n.bki >= 9) return;
+    const o = prop(n.bk, 0.07, 0.1, 0.06, M(PICK(SHIRT), 0.6), -0.08 + (n.bki % 3) * 0.08, 0.02 + Math.floor(n.bki / 3) * 0.06, (RN() - 0.5) * 0.06);
+    o.rotation.y = RN() * 3;
+    n.bki++;
+  }
+
+  /* ---- bong bóng lời nói (dùng tag() có sẵn, gắn vào đầu nhân vật) ---- */
+  function killBub(n) {
+    if (!n.bub) return;
+    n.g.remove(n.bub);
+    if (n.bub.material.map) n.bub.material.map.dispose();
+    n.bub.material.dispose();
+    n.bub = null;
+  }
+  function say(n, txt, dur = 2.4) {
+    killBub(n);
+    const s = tag(txt, 0, 0, 0, 1.3, 0);
+    scene.remove(s);
+    n.g.add(s);
+    s.position.set(0, 2.15, 0);
+    n.bub = s;
+    n.sayT = dur;
+  }
+
+  /* ---- kệ → chỗ đứng ---- */
+  function spotsOf(it) {
+    const out = [], sides = it.sides === 2 ? [1, -1] : [1], half = Math.max(0.2, it.size[1] / 2 - 0.45);
+    sides.forEach((s) => [-0.7, 0, 0.7].forEach((f) => {
+      const p = W2(it, s * (it.size[0] / 2 + 0.7), f * half), q = W2(it, s * (it.size[0] / 2 - 0.05), f * half);
+      out.push({ x: p[0], z: p[1], face: q });
+    }));
+    return out;
+  }
+  function taken(n, x, z) {
+    return custs.some((o) => o !== n && !o.leaving && (dist(o.g.position.x, o.g.position.z, x, z) < 0.7 || (o.res && dist(o.res.x, o.res.z, x, z) < 0.8))) ||
+      npcs.some((o) => dist(o.g.position.x, o.g.position.z, x, z) < 0.7);
+  }
+  function chooseSpot(n, sh) {
+    const p = n.g.position, N = NAV();
+    let best = null, bd = 1e9;
+    spotsOf(sh).forEach((s) => {
+      if (Math.abs(s.x) > hw - 0.5 || Math.abs(s.z) > hd - 0.9) return;
+      if (N && N.blocked(s.x, s.z, 0.24)) return;
+      if (taken(n, s.x, s.z)) return;
+      const d = dist(s.x, s.z, p.x, p.z);
+      if (d < bd) { bd = d; best = s; }
+    });
+    n.res = best ? { x: best.x, z: best.z } : null;
+    return best;
+  }
+
+  /* ---- danh sách mua sắm ---- */
+  function buildList(n) {
+    const its = ShelfRegistry.all().filter((i) => SPOT_W[i.type]);
+    if (!its.length) return [];
+    const k = Math.min(its.length, n.ms.n[0] + Math.floor(RN() * (n.ms.n[1] - n.ms.n[0] + 1))),
+      pool = its.slice(), pick = [];
+    while (pick.length < k && pool.length) {
+      const ws = pool.map((i) => SPOT_W[i.type] * (n.pref[i.type] || 1));
+      let r = RN() * ws.reduce((a, b) => a + b, 0), j = 0;
+      while (j < ws.length - 1 && (r -= ws[j]) > 0) j++;
+      pick.push(pool.splice(j, 1)[0]);
+    }
+    const nn = (arr, st) => { /* gần nhất trước */
+      const a = arr.slice(), r = [];
+      let cur = st;
+      while (a.length) {
+        let bi = 0, bd = 1e9;
+        a.forEach((i, x) => { const d = dist(i.pos[0], i.pos[1], cur[0], cur[1]); if (d < bd) { bd = d; bi = x; } });
+        const i = a.splice(bi, 1)[0];
+        r.push(i);
+        cur = i.pos;
+      }
+      return r;
+    };
+    const isCold = (i) => i.type === "cold" || i.type === "freezer",
+      A = nn(pick.filter((i) => !isCold(i)), [DX, hd - 1]),
+      B = nn(pick.filter(isCold), A.length ? A[A.length - 1].pos : [DX, hd - 1]); /* hàng mát/đông lấy cuối */
+    return A.concat(B).map((i) => ({ code: i.code, tries: 0 }));
+  }
+
+  /* ---- thu ngân ---- */
+  const manned = (it) => StaffRegistry.all().some((s) => s.routine && s.routine.type === "station" && s.routine.code === it.code);
+  function queSpot(it, k) {
+    const p = W2(it, it.size[0] / 2 + 0.55 + k * 0.62, -it.size[1] * 0.1), f = W2(it, 0, -it.size[1] * 0.1);
+    return { x: p[0], z: p[1], face: f };
+  }
+  function qcap(it) {
+    const N = NAV();
+    let k = 0;
+    while (k < 6) {
+      const s = queSpot(it, k);
+      if (N && N.blocked(s.x, s.z, 0.22)) break;
+      k++;
+    }
+    return Math.max(1, k);
+  }
+  const est = (c) => 2.4 + (c.items || 0) * 0.45;
+  function qWait(code, until) {
+    let w = 0;
+    for (const c of (CQ[code] || []).filter(alive)) { if (c === until) break; w += est(c); }
+    return w;
+  }
+  function pickCashier(n, skip) {
+    let best = null;
+    ShelfRegistry.all().forEach((it) => {
+      if (it.type !== "cashier" || it.code === skip) return;
+      const sp = queSpot(it, Math.min((CQ[it.code] || []).filter(alive).length, qcap(it) - 1)),
+        e = qWait(it.code) + dist(n.g.position.x, n.g.position.z, sp.x, sp.z) / n.spd + (manned(it) ? 0 : 12);
+      if (!best || e < best.e) best = { it, e };
+    });
+    return best;
+  }
+  function joinQ(n, it) {
+    n.qc = it.code;
+    (CQ[it.code] = (CQ[it.code] || []).filter(alive)).push(n);
+    n.nv = null;
+  }
+  function leaveQ(n) {
+    const Q = CQ[n.qc];
+    if (Q) { const i = Q.indexOf(n); if (i >= 0) Q.splice(i, 1); }
+    n.qc = null;
+  }
+
+  /* ---- di chuyển: đường vòng qua kệ + né người ---- */
+  function step(n, wx, wz, dt, dT) {
+    const p = n.g.position, ox = p.x, oz = p.z, dx = wx - p.x, dz = wz - p.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    let sx = 0, sz = 0, fr = 1;
+    const probe = (q) => {
+      const rx = p.x - q.x, rz = p.z - q.z, dd = Math.hypot(rx, rz);
+      if (dd < 0.01 || dd > 0.8) return;
+      const w = (0.8 - dd) / 0.8;
+      sx += (rx / dd) * w;
+      sz += (rz / dd) * w;
+      if ((-rx * ux - rz * uz) / dd > 0.55 && dd < 0.85) fr = Math.min(fr, Math.max(0.15, (dd - 0.38) / 0.45)); /* có người phía trước */
+    };
+    if (n.ghost > 0) n.ghost -= dt;
+    else {
+      custs.forEach((o) => { if (o !== n && !o.leaving && o.pop > 0.4) probe(o.g.position); });
+      npcs.forEach((o) => probe(o.g.position));
+    }
+    const sk = Math.min(1, dT / 0.6), sd = fr < 0.75 ? 0.9 : 0; /* sd: lách sang bên phải, mọi người cùng quy ước nên không đối đầu */
+    let vx = ux + sx * 1.3 * sk - uz * sd, vz = uz + sz * 1.3 * sk + ux * sd;
+    const vl = Math.hypot(vx, vz) || 1;
+    vx /= vl;
+    vz /= vl;
+    const sp = n.spd * fr * (0.3 + 0.7 * Math.min(1, dT / 0.8)), len = Math.min(sp * dt, d);
+    p.x += vx * len;
+    p.z += vz * len;
+    if (p.z < hd - 0.8 && NAV()) NAV().pushOut(p, 0.2);
+    n.g.rotation.y = turn(n.g.rotation.y, Math.atan2(vx, vz), Math.min(1, dt * 8));
+    const mv = Math.hypot(p.x - ox, p.z - oz);
+    n.mode = mv > 0.004 ? "walk" : "idle";
+    if (dT > 0.45 && mv < n.spd * dt * 0.12) n.stk += dt; else n.stk = Math.max(0, n.stk - dt);
+    if (n.stk > 1.8) { n.stk = 0; n.rep = true; n.ghost = 0.9; } /* kẹt → tìm đường mới, tạm thời xuyên qua người */
+  }
+  /* trả về true khi tới nơi (hoặc không có đường tới) */
+  function go(n, tx, tz, dt, nav = true, tol = 0.14) {
+    const p = n.g.position, d0 = dist(tx, tz, p.x, p.z), N = NAV();
+    if (d0 < tol) return true;
+    let wx = tx, wz = tz;
+    if (nav && N && p.z < hd - 0.45 && tz < hd - 0.45 && !N.clear(p.x, p.z, tx, tz, 0.24)) {
+      const now = performance.now();
+      let s = n.nv;
+      if (!s || dist(s.gx, s.gz, tx, tz) > 0.3 || now - s.t > 2200 || n.rep) {
+        s = n.nv = { gx: tx, gz: tz, t: now, path: N.path(p.x, p.z, tx, tz) || [], i: 0 };
+        n.rep = false;
+      }
+      if (!s.path.length) return true; /* bị bịt kín hoàn toàn */
+      while (s.i < s.path.length && dist(s.path[s.i][0], s.path[s.i][1], p.x, p.z) < 0.22) s.i++;
+      if (s.i < s.path.length) { wx = s.path[s.i][0]; wz = s.path[s.i][1]; }
+    } else n.nv = null;
+    step(n, wx, wz, dt, d0);
+    return dist(tx, tz, p.x, p.z) < tol;
+  }
+
+  /* ---- lập kế hoạch: khách mới bước vào đời ---- */
+  function plan(c, sx, sz, slot) {
+    c.id = ++CID;
+    c.slot = slot || null;
+    c.ms = wpick(MISS, (m) => m.w);
+    c.spd = c.v * c.ms.pace * rnd(0.92, 1.08);
+    c.pat = rnd(c.ms.pat[0], c.ms.pat[1]);
+    c.pref = {};
+    Object.keys(SPOT_W).forEach((k) => (c.pref[k] = rnd(0.35, 1.8)));
+    c.noBuy = c.ms.k === "browse" && RN() < 0.15;
+    c.items = 0; c.qt = 0; c.sw = 0; c.rk = 0; c.hy = 0; c.hyT = 0; c.reachT = 0; c.stk = 0; c.cool = 0; c.ghost = 0; c.sayT = 0; c.chk = 0; c.wait = 0;
+    c.list = buildList(c);
+    const gx = DX + rnd(-0.9, 0.9);
+    if (slot) {
+      c.g.position.set(slot.ex, 0, slot.z);
+      c.wp = [[slot.ex, hd + 0.6], [gx, hd + 0.6], [gx, hd - 1.0]]; /* đi dọc lối giữa hai hàng xe, không xuyên xe đỗ */
+    } else {
+      c.g.position.set(DX + rnd(-1.2, 1.2), 0, sz);
+      c.wp = [[gx, hd + 0.6], [gx, hd - 1.0]];
+    }
+    c.g.rotation.y = Math.atan2(c.wp[0][0] - c.g.position.x, c.wp[0][1] - c.g.position.z);
+    mkBasket(c);
+    mkBag(c);
+    c.st = "enter";
+    c.g.scale.setScalar(c.sc * 0.01);
+    scene.add(c.g);
+    custs.push(c);
+  }
+
+  /* ---- bộ não: máy trạng thái ---- */
+  function think(n, dt, t) {
+    const p = n.g.position;
+    switch (n.st) {
+      case "enter": {
+        const w = n.wp[0];
+        if (!w) { n.st = "next"; if (n.bk) n.bk.visible = true; break; } /* cầm giỏ ở cửa */
+        if (go(n, w[0], w[1], dt, false)) n.wp.shift();
+        break;
+      }
+      case "next": {
+        if (n.cool > 0) { n.cool -= dt; n.hyT = Math.sin(t * 1.3 + n.id) * 0.4; break; }
+        const it = n.list.shift();
+        if (!it) { n.st = n.items > 0 ? "toq" : "leave"; break; }
+        const sh = ShelfRegistry.get(it.code);
+        if (!sh) break; /* kệ đã bị xoá → bỏ qua */
+        const sp = chooseSpot(n, sh);
+        if (!sp) { if (it.tries++ < 2) { n.list.push(it); n.cool = 1.2; } break; } /* kệ đang chen chúc → ghé lại sau */
+        n.tgt = { sh, sp, it };
+        n.st = "goto";
+        n.nv = null;
+        break;
+      }
+      case "goto": {
+        const T = n.tgt, sh = ShelfRegistry.get(T.it.code);
+        if (!sh) { n.res = null; n.st = "next"; break; }
+        if (dist(p.x, p.z, T.sp.x, T.sp.z) < 2.2 && taken(n, T.sp.x, T.sp.z)) { /* chỗ đứng bị người khác chiếm → đổi chỗ */
+          const s2 = chooseSpot(n, sh);
+          if (s2) { T.sp = s2; n.nv = null; }
+          else { n.res = null; if (T.it.tries++ < 2) n.list.push(T.it); n.cool = 1; n.st = "next"; }
+          break;
+        }
+        if (go(n, T.sp.x, T.sp.z, dt, true, 0.12)) {
+          if (dist(p.x, p.z, T.sp.x, T.sp.z) > 0.7) { n.res = null; n.st = "next"; break; }
+          n.st = "look";
+          n.wait = 0;
+          n.dur = rnd(n.ms.dw[0], n.ms.dw[1]);
+          n.willPick = !n.noBuy && RN() < (n.ms.k === "browse" ? 0.75 : 0.96);
+          n.picked = false;
+        }
+        break;
+      }
+      case "look": {
+        faceTo(n, n.tgt.sp.face, dt);
+        n.wait += dt;
+        const u = n.wait / n.dur;
+        n.hyT = Math.sin(t * 1.2 + n.id) * 0.5 * (u < 0.5 ? 1 : 0.3); /* đảo mắt dọc kệ */
+        if (u > 0.5 && u < 0.9) n.reachT = 1; /* với tay lấy hàng */
+        if (u > 0.68 && !n.picked) { n.picked = true; if (n.willPick) addItem(n); }
+        if (u >= 1) { n.res = null; n.st = "next"; n.cool = 0.15; }
+        break;
+      }
+      case "toq": {
+        const b = pickCashier(n);
+        if (!b) { n.st = "leave"; break; }
+        joinQ(n, b.it);
+        n.st = "queue";
+        break;
+      }
+      case "queue": {
+        const it = ShelfRegistry.get(n.qc);
+        if (!it) { n.qc = null; n.st = "toq"; break; }
+        const Q = (CQ[n.qc] = (CQ[n.qc] || []).filter(alive));
+        let idx = Q.indexOf(n);
+        if (idx < 0) { Q.push(n); idx = Q.length - 1; }
+        const sp = queSpot(it, Math.min(idx, qcap(it) - 1)), arrived = go(n, sp.x, sp.z, dt, true, idx === 0 ? 0.1 : 0.2);
+        n.qt += dt;
+        if (arrived) { faceTo(n, sp.face, dt); n.hyT = Math.sin(t * 0.7 + n.id) * 0.35; }
+        if (idx === 0 && arrived) { n.st = "serve"; n.wait = 0; break; }
+        if (idx > 0 && n.qt > n.pat * 0.45 && n.sw < 2 && (n.chk += dt) > 1.5) { /* quầy khác nhanh hơn rõ rệt → đổi hàng */
+          n.chk = 0;
+          const alt = pickCashier(n, n.qc);
+          if (alt && alt.e + 3 < qWait(n.qc, n)) { leaveQ(n); joinQ(n, alt.it); n.sw++; say(n, "Đổi quầy"); break; }
+        }
+        if (idx > 0 && n.qt > n.pat && !n.said) { n.said = true; say(n, "Đợi lâu quá…"); }
+        if (n.qt > n.pat * 1.6) { /* hết kiên nhẫn → bỏ giỏ ra về */
+          leaveQ(n);
+          if (n.bk) n.bk.visible = false;
+          n.items = 0;
+          say(n, "Thôi để lần sau");
+          n.st = "leave";
+        }
+        break;
+      }
+      case "serve": {
+        const it = ShelfRegistry.get(n.qc);
+        if (!it) { n.st = "toq"; break; }
+        faceTo(n, [it.pos[0], it.pos[1]], dt);
+        n.wait += dt;
+        const k = manned(it) ? 1 : 1.8, place = (0.7 + 0.22 * n.items) * k, pay = 1.5 * k;
+        if (n.wait < place) n.reachT = 1; /* đặt hàng lên băng chuyền */
+        else if (n.wait < place + pay) n.reachT = 0.6; /* quẹt thẻ */
+        else {
+          leaveQ(n);
+          if (n.bk) n.bk.visible = false;
+          if (n.bag) n.bag.visible = n.items > 0; /* giỏ → túi giấy */
+          if (RN() < 0.3) say(n, "Cảm ơn!");
+          n.st = "leave";
+        }
+        break;
+      }
+      case "leave": {
+        if (!n.lw) {
+          const gx = DX + rnd(-0.8, 0.8);
+          n.res = null;
+          n.lw = [[gx, hd - 1.0, true], [gx, hd + 0.6, false]];
+          if (n.slot) n.lw.push([n.slot.ex, hd + 0.6, false], [n.slot.ex, n.slot.z, false, true]);
+          else n.lw.push([DX + rnd(-1.2, 1.2), Z1 - 0.4, false, true]);
+        }
+        const w = n.lw[0];
+        if (!w) break;
+        if (go(n, w[0], w[1], dt, w[2])) {
+          if (w[3]) { n.leaving = true; n.mode = "idle"; if (n.slot) mount(n.slot, n); } /* tới xe: lên xe chạy ra */
+          else n.lw.shift();
+        }
+        break;
+      }
+    }
+  }
+  /* sau pose(): tay cầm giỏ/túi, với tay, quay đầu nhìn quanh */
+  function upper(n, dt, t) {
+    n.rk += (n.reachT - n.rk) * (1 - Math.exp(-dt * 9));
+    n.hy += (n.hyT - n.hy) * (1 - Math.exp(-dt * 5));
+    if ((n.bk && n.bk.visible) || (n.bag && n.bag.visible)) { n.aL.rotation.x = -0.28; n.aL.rotation.z = 0.05; }
+    if (n.rk > 0.01) {
+      n.aR.rotation.x = -1.25 * n.rk + Math.sin(t * 9) * 0.05 * n.rk;
+      n.b.rotation.x += 0.1 * n.rk;
+    }
+    n.head.rotation.y = n.hy;
+  }
   function stepCust(n, dt, t) {
-    const p = n.g.position, w = n.q[0];
     if (n.pop < 1 && !n.leaving) { n.pop = Math.min(1, n.pop + dt * 3); n.g.scale.setScalar(n.sc * Math.max(0.01, n.pop)); }
+    if (n.sayT > 0 && (n.sayT -= dt) <= 0) killBub(n);
+    n.reachT = 0;
+    n.hyT = 0;
+    n.mode = "idle";
     if (n.leaving) {
       n.out += dt * 3;
       n.g.scale.setScalar(n.sc * Math.max(0.01, 1 - n.out));
-    } else if (w) {
-      const dx = w.x - p.x, dz = w.z - p.z, d = Math.hypot(dx, dz);
-      if (d > 0.1) {
-        n.mode = "walk";
-        const v = Math.min(d, n.v * dt);
-        p.x += (dx / d) * v;
-        p.z += (dz / d) * v;
-        n.g.rotation.y = turn(n.g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
-      } else if (w.gone) {
-        n.leaving = true; n.mode = "idle";
-        if (n.slot) mount(n.slot, n); /* lên xe */
-      }
-      else if (!w.dur) n.q.shift();
-      else {
-        n.mode = w.act || "idle";
-        if (w.face) n.g.rotation.y = turn(n.g.rotation.y, Math.atan2(w.face[0] - p.x, w.face[1] - p.z), Math.min(1, dt * 6));
-        if ((n.wait += dt) >= w.dur) { n.wait = 0; n.q.shift(); }
-      }
-    } else n.leaving = true;
+      if (n.out >= 0.9) killBub(n);
+    } else think(n, dt, t);
     pose(n, dt, t);
+    upper(n, dt, t);
   }
 
     /* ============ DỜI CỬA ============ */
