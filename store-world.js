@@ -1284,12 +1284,17 @@
   box-shadow:0 1px 2px rgba(0,0,0,.5),0 24px 54px -14px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.4)}}
 @media (max-width:720px){#swPill{top:calc(var(--sl-top,14px) + 66px + env(safe-area-inset-top,0px))}}
 @media (prefers-reduced-motion:reduce){#swVeil,#swVeil .sw-c{transition-duration:.01s!important}}
-/* thanh công cụ bị tràn trên điện thoại → xuống dòng để hiện đủ mọi nút (class chỉ được gắn khi thật sự tràn) */
-#tools.sw-wrap{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-content:flex-start!important;gap:6px!important;
- max-width:calc(100vw - 16px)!important;width:auto!important;height:auto!important;max-height:none!important;overflow:visible!important;box-sizing:border-box}
-#tools.sw-wrapc{display:flex!important;flex-direction:column!important;flex-wrap:wrap!important;align-content:flex-start!important;gap:6px!important;
- max-height:var(--sw-mh,70vh)!important;height:auto!important;overflow:visible!important;box-sizing:border-box}
-#tools.sw-wrap>*,#tools.sw-wrapc>*{flex:0 0 auto!important}`;
+/* 2 nút icon ở góc trên phải */
+#swCorner{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);z-index:4;display:flex;flex-direction:column;gap:8px}#swCorner .sw-ib{-webkit-appearance:none;appearance:none;border:0;cursor:pointer;display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:50%;color:#1d1d1f;-webkit-tap-highlight-color:transparent;
+ background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.5));
+ -webkit-backdrop-filter:blur(26px) saturate(170%);backdrop-filter:blur(26px) saturate(170%);
+ box-shadow:0 1px 2px rgba(0,0,0,.08),0 10px 24px -8px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(0,0,0,.05);
+ transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+#swCorner .sw-ib:active{transform:scale(.92)}
+#swCorner .sw-ib svg{display:block}
+@media (prefers-color-scheme:dark){
+ #swCorner .sw-ib{color:#f5f5f7;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));
+  box-shadow:0 1px 2px rgba(0,0,0,.5),0 10px 24px -8px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.4)}}`;
   document.head.appendChild(css);
 
   const pill = document.createElement("div");
@@ -1335,33 +1340,45 @@
     veilOn = on;
   }
 
-  const bt = document.createElement("button");
-  bt.id = "swAll";
-  bt.className = "sx-lb";
-  bt.title = "Xem toàn bộ khu phố cửa hàng";
-  bt.innerHTML = IC("shops", 17) + "<span>Khu phố</span>";
-  bt.onclick = fitAll;
-  $("#tools").appendChild(bt);
+  const corner = document.createElement("div");
+corner.id = "swCorner";
+$("#store").appendChild(corner);
+corner.addEventListener("pointerdown", (e) => e.stopPropagation());
+const SVG = (p) => '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + "</svg>";
 
-  /* nút Ngày đêm: Tự động → Ban ngày → Ban đêm */
-  const DN_LBL = [
-      ["🌗", "Ngày đêm"],
-      ["☀️", "Ban ngày"],
-      ["🌙", "Ban đêm"],
-    ],
-    dnBtn = document.createElement("button");
-  dnBtn.id = "swDN";
-  dnBtn.className = "sx-lb";
-  const dnPaint = () => {
-    dnBtn.innerHTML = "<span>" + DN_LBL[DN.mode][0] + " " + DN_LBL[DN.mode][1] + "</span>";
-    dnBtn.title = "Chu kỳ ngày đêm: " + ["tự động", "luôn ban ngày", "luôn ban đêm"][DN.mode] + " (bấm để đổi)";
-  };
-  dnBtn.onclick = () => {
-    DN.mode = (DN.mode + 1) % 3;
-    dnPaint();
-  };
+/* nút Khu phố: chỉ icon */
+const bt = document.createElement("button");
+bt.id = "swAll";
+bt.type = "button";
+bt.className = "sw-ib";
+bt.title = "Xem toàn bộ khu phố cửa hàng";
+bt.setAttribute("aria-label", bt.title);
+bt.innerHTML = IC("shops", 19);
+bt.onclick = fitAll;
+corner.appendChild(bt);
+
+/* nút Ngày đêm: Tự động → Ban ngày → Ban đêm (chỉ icon) */
+const DN_ICO = [
+    SVG('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>'), /* tự động */
+    SVG('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'), /* ban ngày */
+    SVG('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'), /* ban đêm */
+  ],
+  DN_TXT = ["tự động", "luôn ban ngày", "luôn ban đêm"],
+  dnBtn = document.createElement("button");
+dnBtn.id = "swDN";
+dnBtn.type = "button";
+dnBtn.className = "sw-ib";
+const dnPaint = () => {
+  dnBtn.innerHTML = DN_ICO[DN.mode];
+  dnBtn.title = "Chu kỳ ngày đêm: " + DN_TXT[DN.mode] + " (bấm để đổi)";
+  dnBtn.setAttribute("aria-label", dnBtn.title);
+};
+dnBtn.onclick = () => {
+  DN.mode = (DN.mode + 1) % 3;
   dnPaint();
-  $("#tools").appendChild(dnBtn);
+};
+dnPaint();
+corner.appendChild(dnBtn);
 
   /* thanh công cụ trên điện thoại: chỉ khi thật sự tràn khỏi màn hình mới cho xuống dòng, còn vừa thì giữ nguyên UI chuẩn */
   const mqPhone = window.matchMedia("(max-width:720px), (max-height:520px)");
