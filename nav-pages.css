@@ -1,70 +1,90 @@
 /* =====================================================================
-   nav-pages.css – UI mới cho "Danh sách cửa hàng" (Apple liquid glass, nền sáng)
-   Chỉ đổi giao diện. Giữ nguyên tên class/ID mà nav-pages.js đang dùng
-   (.sc, .np-*, #npModal, .nf, .btn, data-np …) nên logic không bị ảnh hưởng.
-   Nguyên tắc: không shimmer, không chấm phát sáng, không bóng đổ màu –
-   chỉ có đổ bóng trung tính nhiều lớp để khối "nổi" lên.
+   nav-pages.css – "Danh sách cửa hàng" · Apple liquid glass (trung tính)
+   Chỉ đổi giao diện. Giữ nguyên class/ID/data-np mà nav-pages.js dùng.
+
+   Nguyên tắc thiết kế
+   - Trung tính tuyệt đối: chỉ xám / trắng / than chì. Không màu nhấn xanh,
+     không viền xanh, không chấm phát sáng, không shimmer, không bóng đổ màu.
+   - Khối nổi bằng CẤU TRÚC KÍNH, không bằng bóng bừa:
+       · vạch sáng mép trên (specular)  · vạch tối mảnh mép dưới (độ dày kính)
+       · đúng 2 lớp bóng ngoài: 1 lớp tiếp xúc nhỏ + 1 lớp môi trường mềm
+   - 3 mức độ cao cố định: --n-lift-sm (nút, icon) · --n-lift (thẻ) · --n-lift-lg (tấm, cửa sổ)
+   - Phần lõm (ô thông tin, ô nhập) dùng --n-well, đối xứng với phần nổi.
    ===================================================================== */
 
-/* ---------- Biến thiết kế (sáng / tối) ---------- */
+/* ---------- Biến thiết kế ---------- */
 section.np, #npModal {
-  --n-ink: #1c1c1e;
+  --n-ink: #1d1d1f;
   --n-mute: #6e6e73;
-  --n-hair: rgba(60, 60, 67, .13);
-  --n-sheet: rgba(255, 255, 255, .58);
-  --n-sheet-edge: rgba(255, 255, 255, .85);
-  --n-tile-a: #ffffff;
-  --n-tile-b: #fafafc;
-  --n-inset: #f2f2f6;
-  --n-fill: rgba(120, 120, 128, .12);
-  --n-fill2: rgba(120, 120, 128, .2);
-  --n-acc: #0a84ff;
-  --n-hi: inset 0 1px 0 rgba(255, 255, 255, .95);
-  --n-engrave: inset 0 1px 2px rgba(0, 0, 0, .06), inset 0 0 0 .5px rgba(0, 0, 0, .04);
-  --n-raise: 0 0 0 .5px rgba(0, 0, 0, .07), 0 1px 2px rgba(0, 0, 0, .05), 0 6px 16px rgba(0, 0, 0, .05), 0 18px 40px rgba(0, 0, 0, .05);
-  --n-raise-up: 0 0 0 .5px rgba(0, 0, 0, .08), 0 2px 4px rgba(0, 0, 0, .06), 0 12px 26px rgba(0, 0, 0, .08), 0 30px 60px rgba(0, 0, 0, .08);
-  --n-sheet-sh: 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 6px rgba(0, 0, 0, .04), 0 24px 60px rgba(0, 0, 0, .07);
-  --n-nav: rgba(255, 255, 255, .86);
-  --n-ok: #1f8a3b; --n-ok-bg: rgba(52, 199, 89, .15);
-  --n-wait: #a85f00; --n-wait-bg: rgba(255, 159, 10, .17);
-  --n-off: #6e6e73; --n-off-bg: rgba(120, 120, 128, .15);
-  --n-red: #ff3b30;
+  --n-hair: rgba(0, 0, 0, .08);
+  --n-fill: rgba(0, 0, 0, .05);
+  --n-fill2: rgba(0, 0, 0, .09);
+
+  /* mặt kính */
+  --n-sheet: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .38));
+  --n-card: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .66));
+  --n-card-solid: #ffffff;
+  --n-puck: linear-gradient(180deg, #ffffff, #f1f1f4);
+  --n-well-bg: rgba(0, 0, 0, .045);
+
+  /* mép kính: sáng trên – tối mảnh dưới */
+  --n-edge: inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 -1px 0 rgba(0, 0, 0, .05), inset 0 0 0 .5px rgba(255, 255, 255, .5);
+
+  /* ba mức nổi: tiếp xúc + môi trường, không thêm lớp */
+  --n-lift-sm: 0 .5px 1px rgba(0, 0, 0, .1), 0 3px 8px -2px rgba(0, 0, 0, .1);
+  --n-lift: 0 1px 2px rgba(0, 0, 0, .07), 0 12px 28px -8px rgba(0, 0, 0, .16);
+  --n-lift-lg: 0 2px 4px rgba(0, 0, 0, .08), 0 28px 60px -14px rgba(0, 0, 0, .26);
+
+  /* phần lõm */
+  --n-well: inset 0 1px 3px rgba(0, 0, 0, .1), inset 0 -1px 0 rgba(255, 255, 255, .85);
+
+  /* nút chính: than chì */
+  --n-pri: linear-gradient(180deg, #48484c, #1d1d1f);
+  --n-pri-edge: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(0, 0, 0, .35);
+  --n-focus: rgba(0, 0, 0, .4);
+  --n-red: #d62b21;
   color: var(--n-ink);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) section.np, :root:not([data-theme="light"]) #npModal {
-    --n-ink: #f5f5f7; --n-mute: #a1a1a8; --n-hair: rgba(255, 255, 255, .12);
-    --n-sheet: rgba(40, 40, 44, .55); --n-sheet-edge: rgba(255, 255, 255, .14);
-    --n-tile-a: #2e2e32; --n-tile-b: #28282c; --n-inset: rgba(0, 0, 0, .3);
-    --n-fill: rgba(255, 255, 255, .1); --n-fill2: rgba(255, 255, 255, .17);
-    --n-hi: inset 0 1px 0 rgba(255, 255, 255, .09);
-    --n-engrave: inset 0 1px 3px rgba(0, 0, 0, .35);
-    --n-raise: 0 0 0 .5px rgba(0, 0, 0, .5), 0 1px 2px rgba(0, 0, 0, .3), 0 8px 20px rgba(0, 0, 0, .28);
-    --n-raise-up: 0 0 0 .5px rgba(0, 0, 0, .55), 0 3px 6px rgba(0, 0, 0, .35), 0 16px 34px rgba(0, 0, 0, .4);
-    --n-sheet-sh: 0 0 0 .5px rgba(0, 0, 0, .5), 0 24px 60px rgba(0, 0, 0, .4);
-    --n-nav: rgba(44, 44, 48, .86);
-    --n-ok: #5fd37d; --n-ok-bg: rgba(52, 199, 89, .2);
-    --n-wait: #ffb84d; --n-wait-bg: rgba(255, 159, 10, .2);
-    --n-off: #a1a1a8; --n-off-bg: rgba(255, 255, 255, .1);
+    --n-ink: #f5f5f7; --n-mute: #a1a1a8; --n-hair: rgba(255, 255, 255, .1);
+    --n-fill: rgba(255, 255, 255, .08); --n-fill2: rgba(255, 255, 255, .14);
+    --n-sheet: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .04));
+    --n-card: linear-gradient(180deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .07));
+    --n-card-solid: #3a3a3e;
+    --n-puck: linear-gradient(180deg, #4a4a4f, #38383c);
+    --n-well-bg: rgba(0, 0, 0, .28);
+    --n-edge: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -1px 0 rgba(0, 0, 0, .4), inset 0 0 0 .5px rgba(255, 255, 255, .06);
+    --n-lift-sm: 0 .5px 1px rgba(0, 0, 0, .5), 0 3px 8px -2px rgba(0, 0, 0, .4);
+    --n-lift: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 28px -8px rgba(0, 0, 0, .55);
+    --n-lift-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 28px 60px -14px rgba(0, 0, 0, .7);
+    --n-well: inset 0 1px 3px rgba(0, 0, 0, .5), inset 0 -1px 0 rgba(255, 255, 255, .06);
+    --n-pri: linear-gradient(180deg, #fafafa, #d4d4d8);
+    --n-pri-edge: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(0, 0, 0, .15);
+    --n-focus: rgba(255, 255, 255, .6);
+    --n-red: #ff6b61;
   }
 }
 :root[data-theme="dark"] section.np, :root[data-theme="dark"] #npModal {
-  --n-ink: #f5f5f7; --n-mute: #a1a1a8; --n-hair: rgba(255, 255, 255, .12);
-  --n-sheet: rgba(40, 40, 44, .55); --n-sheet-edge: rgba(255, 255, 255, .14);
-  --n-tile-a: #2e2e32; --n-tile-b: #28282c; --n-inset: rgba(0, 0, 0, .3);
-  --n-fill: rgba(255, 255, 255, .1); --n-fill2: rgba(255, 255, 255, .17);
-  --n-hi: inset 0 1px 0 rgba(255, 255, 255, .09);
-  --n-engrave: inset 0 1px 3px rgba(0, 0, 0, .35);
-  --n-raise: 0 0 0 .5px rgba(0, 0, 0, .5), 0 1px 2px rgba(0, 0, 0, .3), 0 8px 20px rgba(0, 0, 0, .28);
-  --n-raise-up: 0 0 0 .5px rgba(0, 0, 0, .55), 0 3px 6px rgba(0, 0, 0, .35), 0 16px 34px rgba(0, 0, 0, .4);
-  --n-sheet-sh: 0 0 0 .5px rgba(0, 0, 0, .5), 0 24px 60px rgba(0, 0, 0, .4);
-  --n-nav: rgba(44, 44, 48, .86);
-  --n-ok: #5fd37d; --n-ok-bg: rgba(52, 199, 89, .2);
-  --n-wait: #ffb84d; --n-wait-bg: rgba(255, 159, 10, .2);
-  --n-off: #a1a1a8; --n-off-bg: rgba(255, 255, 255, .1);
+  --n-ink: #f5f5f7; --n-mute: #a1a1a8; --n-hair: rgba(255, 255, 255, .1);
+  --n-fill: rgba(255, 255, 255, .08); --n-fill2: rgba(255, 255, 255, .14);
+  --n-sheet: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .04));
+  --n-card: linear-gradient(180deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .07));
+  --n-card-solid: #3a3a3e;
+  --n-puck: linear-gradient(180deg, #4a4a4f, #38383c);
+  --n-well-bg: rgba(0, 0, 0, .28);
+  --n-edge: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -1px 0 rgba(0, 0, 0, .4), inset 0 0 0 .5px rgba(255, 255, 255, .06);
+  --n-lift-sm: 0 .5px 1px rgba(0, 0, 0, .5), 0 3px 8px -2px rgba(0, 0, 0, .4);
+  --n-lift: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 28px -8px rgba(0, 0, 0, .55);
+  --n-lift-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 28px 60px -14px rgba(0, 0, 0, .7);
+  --n-well: inset 0 1px 3px rgba(0, 0, 0, .5), inset 0 -1px 0 rgba(255, 255, 255, .06);
+  --n-pri: linear-gradient(180deg, #fafafa, #d4d4d8);
+  --n-pri-edge: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(0, 0, 0, .15);
+  --n-focus: rgba(255, 255, 255, .6);
+  --n-red: #ff6b61;
 }
 
-/* ---------- Thanh điều hướng: luôn nổi trên nội dung, không bị chìm ---------- */
+/* ---------- Thanh điều hướng ---------- */
 header { min-width: 0; z-index: 40 }
 header #tabs {
   position: relative;
@@ -91,36 +111,36 @@ header #tabs button.on svg.ic { opacity: 1 }
 @media (max-width: 720px) {
   header #tabs {
     flex: 1 1 0;
-    background: var(--n-nav, rgba(255, 255, 255, .86));
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    backdrop-filter: blur(24px) saturate(180%);
-    box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 4px 14px rgba(0, 0, 0, .08), inset 0 1px 0 rgba(255, 255, 255, .8);
+    background: rgba(255, 255, 255, .7);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(0, 0, 0, .05), 0 1px 2px rgba(0, 0, 0, .07), 0 6px 16px -6px rgba(0, 0, 0, .14);
   }
   header #tabs button { padding: 7px 12px; font-size: 13px }
 }
 
-/* ---------- Trang: nền tĩnh, sáng, có chiều sâu nhẹ (để kính có thứ để "khúc xạ") ---------- */
+/* ---------- Nền trang: xám trung tính, có độ sâu nhẹ để kính có thứ khúc xạ ---------- */
 section.np {
   overflow: hidden;
   background:
-    radial-gradient(60% 45% at 12% -5%, #e4ecff 0, rgba(228, 236, 255, 0) 70%),
-    radial-gradient(50% 40% at 96% 8%, #fdeaf2 0, rgba(253, 234, 242, 0) 70%),
-    radial-gradient(55% 45% at 80% 105%, #e9f6ee 0, rgba(233, 246, 238, 0) 70%),
-    linear-gradient(180deg, #f7f8fb, #eef0f5);
+    radial-gradient(55% 40% at 10% -5%, #ffffff 0, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(50% 40% at 100% 20%, #dcdce1 0, rgba(220, 220, 225, 0) 70%),
+    radial-gradient(60% 45% at 70% 110%, #ffffff 0, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #ececf0, #e1e1e6);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) section.np {
     background:
-      radial-gradient(60% 45% at 12% -5%, #1b2740 0, rgba(27, 39, 64, 0) 70%),
-      radial-gradient(50% 40% at 96% 8%, #3a2030 0, rgba(58, 32, 48, 0) 70%),
-      linear-gradient(180deg, #121215, #0c0c0f);
+      radial-gradient(55% 40% at 10% -5%, #2b2b30 0, rgba(43, 43, 48, 0) 70%),
+      radial-gradient(50% 40% at 100% 20%, #1a1a1d 0, rgba(26, 26, 29, 0) 70%),
+      linear-gradient(180deg, #151517, #0d0d0f);
   }
 }
 :root[data-theme="dark"] section.np {
   background:
-    radial-gradient(60% 45% at 12% -5%, #1b2740 0, rgba(27, 39, 64, 0) 70%),
-    radial-gradient(50% 40% at 96% 8%, #3a2030 0, rgba(58, 32, 48, 0) 70%),
-    linear-gradient(180deg, #121215, #0c0c0f);
+    radial-gradient(55% 40% at 10% -5%, #2b2b30 0, rgba(43, 43, 48, 0) 70%),
+    radial-gradient(50% 40% at 100% 20%, #1a1a1d 0, rgba(26, 26, 29, 0) 70%),
+    linear-gradient(180deg, #151517, #0d0d0f);
 }
 .np-scroll {
   position: absolute;
@@ -134,17 +154,17 @@ section.np {
 }
 .np-wrap { max-width: 1120px; margin: 0 auto }
 
-@keyframes np-in { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
+@keyframes np-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 
-/* ---------- Khối nền chung (một tấm kính bo cong chứa cả đầu trang + lưới thẻ) ---------- */
+/* ---------- Tấm kính nền (chứa đầu trang + lưới thẻ) ---------- */
 .np-sheet {
   padding: 18px;
   border-radius: 40px;
   background: var(--n-sheet);
-  -webkit-backdrop-filter: blur(34px) saturate(190%);
-  backdrop-filter: blur(34px) saturate(190%);
-  box-shadow: var(--n-sheet-sh), inset 0 1px 0 var(--n-sheet-edge), inset 0 0 0 1px rgba(255, 255, 255, .22);
-  animation: np-in .55s cubic-bezier(.2, .8, .2, 1) both;
+  -webkit-backdrop-filter: blur(36px) saturate(170%);
+  backdrop-filter: blur(36px) saturate(170%);
+  box-shadow: var(--n-lift-lg), var(--n-edge);
+  animation: np-in .5s cubic-bezier(.2, .8, .2, 1) both;
 }
 .np-bar {
   display: flex;
@@ -161,7 +181,8 @@ section.np {
   margin-left: 10px;
   padding: 2px 11px;
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   color: var(--n-mute);
   font-size: 14px;
   font-weight: 600;
@@ -169,17 +190,19 @@ section.np {
   vertical-align: 4px;
 }
 .np-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px }
+/* cặp nút: một viên kính liền, ngăn bằng khe mảnh */
 .np-pair {
   display: inline-flex;
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-card);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
   overflow: hidden;
 }
-.np-pair .btn { border-radius: 0; background: transparent }
-.np-pair .btn + .btn { box-shadow: inset 1px 0 0 var(--n-hair) }
-.np-pair .btn:hover { background: var(--n-fill) }
+.np-pair .btn { border-radius: 0 !important; background: transparent !important; box-shadow: none !important }
+.np-pair .btn + .btn { box-shadow: inset 1px 0 0 var(--n-hair) !important }
+.np-pair .btn:hover { background: var(--n-fill) !important }
 
-/* ---------- Nút (dùng chung cho trang + cửa sổ) ---------- */
+/* ---------- Nút ---------- */
 #shops .btn, #npModal .btn {
   -webkit-appearance: none;
   appearance: none;
@@ -191,32 +214,44 @@ section.np {
   min-height: 42px;
   padding: 0 18px;
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-card);
   color: var(--n-ink);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -.005em;
   text-shadow: none;
-  box-shadow: none;
+  box-shadow: var(--n-lift-sm), var(--n-edge);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background .25s ease, transform .3s cubic-bezier(.2, .8, .2, 1), filter .25s;
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s cubic-bezier(.2, .8, .2, 1), background .2s;
 }
 #shops .btn.sm, #npModal .btn.sm { min-height: 38px; padding: 0 14px; font-size: 13px }
-#shops .btn:hover, #npModal .btn:hover { background: var(--n-fill2) }
-#shops .btn:active, #npModal .btn:active { transform: scale(.965) }
-#shops .btn:focus-visible, #npModal .btn:focus-visible { outline: 2px solid var(--n-acc); outline-offset: 2px }
-#shops .btn.pri, #npModal .btn.pri { background: var(--n-acc); color: #fff }
-#shops .btn.pri:hover, #npModal .btn.pri:hover { background: var(--n-acc); filter: brightness(1.07) }
-#shops .btn.pri.red, #npModal .btn.pri.red { background: var(--n-red) }
-.np-pair .btn:hover { background: var(--n-fill2) }
+#shops .btn:hover, #npModal .btn:hover { transform: translateY(-1px); background: var(--n-card-solid) }
+#shops .btn:active, #npModal .btn:active {
+  transform: translateY(0) scale(.97);
+  box-shadow: var(--n-well);
+}
+#shops .btn:focus-visible, #npModal .btn:focus-visible { outline: 2px solid var(--n-focus); outline-offset: 2px }
+#shops .btn.pri, #npModal .btn.pri {
+  background: var(--n-pri);
+  color: #fff;
+  box-shadow: var(--n-lift-sm), var(--n-pri-edge);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #shops .btn.pri, :root:not([data-theme="light"]) #npModal .btn.pri { color: #111 }
+}
+:root[data-theme="dark"] #shops .btn.pri, :root[data-theme="dark"] #npModal .btn.pri { color: #111 }
+#shops .btn.pri:hover, #npModal .btn.pri:hover { background: var(--n-pri); filter: brightness(1.12) }
+#shops .btn.pri:active, #npModal .btn.pri:active { box-shadow: var(--n-pri-edge); filter: brightness(.95) }
+/* nút xóa xác nhận: vẫn than chì, chỉ khác biểu tượng/chữ – không đổ màu mảng lớn */
+#shops .btn.pri.red, #npModal .btn.pri.red { background: var(--n-pri) }
 
 /* ---------- Lưới thẻ cửa hàng ---------- */
 .np-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .sc {
   position: relative;
@@ -225,17 +260,20 @@ section.np {
   gap: 12px;
   padding: 16px;
   border-radius: 30px;
-  background: linear-gradient(180deg, var(--n-tile-a), var(--n-tile-b));
-  box-shadow: var(--n-raise), var(--n-hi);
-  transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s cubic-bezier(.2, .8, .2, 1);
-  animation: np-in .55s cubic-bezier(.2, .8, .2, 1) both;
-  animation-delay: calc(var(--i, 0) * 45ms + 90ms);
+  background: var(--n-card);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--n-lift), var(--n-edge);
+  transition: transform .4s cubic-bezier(.2, .8, .2, 1), box-shadow .4s cubic-bezier(.2, .8, .2, 1);
+  animation: np-in .5s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms + 80ms);
 }
 @media (hover: hover) {
-  .sc:hover { transform: translateY(-3px); box-shadow: var(--n-raise-up), var(--n-hi) }
+  .sc:hover { transform: translateY(-3px); box-shadow: var(--n-lift-lg), var(--n-edge) }
 }
 
 .sc-top { display: flex; align-items: center; gap: 12px }
+/* chữ cái đầu: một viên kính nổi nhỏ, trung tính */
 .sc-av {
   flex: none;
   display: grid;
@@ -245,37 +283,45 @@ section.np {
   border-radius: 18px;
   font-size: 21px;
   font-weight: 700;
-  color: var(--n-acc);
-  background: rgba(10, 132, 255, .12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 0 0 .5px rgba(0, 0, 0, .05), 0 1px 3px rgba(0, 0, 0, .08);
+  color: var(--n-ink);
+  background: var(--n-puck);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
 }
-.sc.st-opening .sc-av { color: var(--n-wait); background: var(--n-wait-bg) }
-.sc.st-closed .sc-av { color: var(--n-off); background: var(--n-off-bg) }
+.sc.st-opening .sc-av { color: var(--n-mute) }
+.sc.st-closed .sc-av { color: var(--n-mute); opacity: .8 }
 .sc-nm { flex: 1; min-width: 0 }
 .sc-nm b { display: block; font-size: 16.5px; font-weight: 650; letter-spacing: -.015em; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .sc-nm .code { display: block; margin-top: 2px; font-size: 11.5px; color: var(--n-mute); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+/* trạng thái: viên thuốc trung tính, phân biệt bằng độ đậm, không màu, không chấm */
 .sc-st {
   flex: none;
   padding: 4px 11px;
   border-radius: 999px;
-  background: var(--n-ok-bg);
-  color: var(--n-ok);
+  background: var(--n-puck);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
+  color: var(--n-ink);
   font-size: 11.5px;
   font-weight: 650;
   white-space: nowrap;
 }
-.sc-st i { display: none } /* bỏ chấm tròn */
-.sc.st-opening .sc-st { background: var(--n-wait-bg); color: var(--n-wait) }
-.sc.st-closed .sc-st { background: var(--n-off-bg); color: var(--n-off) }
+.sc-st i { display: none }
+.sc.st-opening .sc-st { color: var(--n-mute); font-weight: 600 }
+.sc.st-closed .sc-st {
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
+  color: var(--n-mute);
+  font-weight: 600;
+}
 
-/* khối thông tin: một ô lõm duy nhất, các dòng ngăn bằng đường mảnh */
+/* khối thông tin: một ô lõm, các dòng ngăn bằng khe mảnh trung tính */
 .sc-info {
   list-style: none;
   margin: 0;
   padding: 0;
   border-radius: 22px;
-  background: var(--n-inset);
-  box-shadow: var(--n-engrave);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   font-size: 13.5px;
   overflow: hidden;
 }
@@ -289,8 +335,8 @@ section.np {
   height: 14px;
   border-radius: 10px;
   color: var(--n-mute);
-  background: var(--n-tile-a);
-  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .07), var(--n-hi);
+  background: var(--n-puck);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
 }
 .sc-info span { min-width: 0; overflow-wrap: anywhere; line-height: 1.35 }
 .sc-info .nil { color: var(--n-mute); opacity: .75 }
@@ -322,26 +368,29 @@ section.np {
   margin: 0;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   color: var(--n-mute);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 
-/* hành động: 1 nút chính + 1 thanh phân đoạn gom Sửa / Xuất / Xóa */
-.sc-acts { display: grid; gap: 8px }
+/* hành động: 1 nút chính + 1 thanh phân đoạn liền (Sửa / Xuất / Xóa) */
+.sc-acts { display: grid; gap: 10px }
 .sc-acts > .btn { width: 100% }
 .sc-seg {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-card);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
   overflow: hidden;
 }
-.sc-seg .btn { border-radius: 0 !important; background: transparent !important; min-height: 40px }
+.sc-seg .btn { border-radius: 0 !important; background: transparent !important; box-shadow: none !important; min-height: 40px; transform: none !important }
 .sc-seg .btn + .btn { box-shadow: inset 1px 0 0 var(--n-hair) !important }
 .sc-seg .btn:hover { background: var(--n-fill) !important }
+.sc-seg .btn:active { background: var(--n-fill2) !important }
 .sc-seg .btn.red { color: var(--n-red) }
 
 /* ---------- Trạng thái trống ---------- */
@@ -352,9 +401,9 @@ section.np {
   text-align: center;
   padding: 54px 20px 50px;
   border-radius: 30px;
-  background: linear-gradient(180deg, var(--n-tile-a), var(--n-tile-b));
-  box-shadow: var(--n-raise), var(--n-hi);
-  animation: np-in .55s cubic-bezier(.2, .8, .2, 1) both;
+  background: var(--n-card);
+  box-shadow: var(--n-lift), var(--n-edge);
+  animation: np-in .5s cubic-bezier(.2, .8, .2, 1) both;
 }
 .np-empty h3 { margin: 8px 0 0; font-size: 19px; letter-spacing: -.02em }
 .np-empty p { margin: 0 0 10px; color: var(--n-mute); max-width: 360px; font-size: 14px; line-height: 1.5 }
@@ -364,13 +413,13 @@ section.np {
   width: 80px;
   height: 80px;
   border-radius: 28px;
-  color: var(--n-acc);
-  background: linear-gradient(180deg, var(--n-tile-a), var(--n-inset));
-  box-shadow: var(--n-raise), var(--n-hi);
+  color: var(--n-ink);
+  background: var(--n-puck);
+  box-shadow: var(--n-lift), var(--n-edge);
 }
 .np-empty .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center }
 
-/* ---------- Khung 3 trang còn lại (giữ đồng bộ phong cách, không shimmer) ---------- */
+/* ---------- Khung 3 trang còn lại (đồng bộ phong cách) ---------- */
 .np-head {
   display: flex;
   align-items: center;
@@ -379,24 +428,26 @@ section.np {
   padding: 20px 22px;
   border-radius: 34px;
   background: var(--n-sheet);
-  -webkit-backdrop-filter: blur(30px) saturate(190%);
-  backdrop-filter: blur(30px) saturate(190%);
-  box-shadow: var(--n-sheet-sh), inset 0 1px 0 var(--n-sheet-edge);
-  animation: np-in .55s cubic-bezier(.2, .8, .2, 1) both;
+  -webkit-backdrop-filter: blur(32px) saturate(170%);
+  backdrop-filter: blur(32px) saturate(170%);
+  box-shadow: var(--n-lift-lg), var(--n-edge);
+  animation: np-in .5s cubic-bezier(.2, .8, .2, 1) both;
 }
-.ph { margin-top: 14px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) }
+.ph { margin-top: 16px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) }
 .ph-hero, .ph-card {
   border-radius: 30px;
-  background: linear-gradient(180deg, var(--n-tile-a), var(--n-tile-b));
-  box-shadow: var(--n-raise), var(--n-hi);
-  animation: np-in .55s cubic-bezier(.2, .8, .2, 1) both;
+  background: var(--n-card);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--n-lift), var(--n-edge);
+  animation: np-in .5s cubic-bezier(.2, .8, .2, 1) both;
 }
 .ph-hero { display: grid; justify-items: start; gap: 10px; padding: 28px }
 .ph-hero h3 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.02em }
 .ph-hero p { margin: 0; color: var(--n-mute); max-width: 420px }
-.ph-tag { padding: 3px 12px; border-radius: 999px; background: var(--n-fill); color: var(--n-mute); font-size: 12px; font-weight: 600 }
+.ph-tag { padding: 3px 12px; border-radius: 999px; background: var(--n-well-bg); box-shadow: var(--n-well); color: var(--n-mute); font-size: 12px; font-weight: 600 }
 .ph-card { padding: 20px; display: grid; gap: 12px; align-content: start; animation-delay: .1s }
-.ph-sk { height: 46px; border-radius: 16px; background: var(--n-inset); box-shadow: var(--n-engrave) }
+.ph-sk { height: 46px; border-radius: 16px; background: var(--n-well-bg); box-shadow: var(--n-well) }
 .ph-sk:nth-child(2) { width: 82% }
 .ph-sk:nth-child(3) { width: 64% }
 
@@ -409,9 +460,9 @@ section.np {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0, 0, 0, .28);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, .22);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
 }
 #npModal.on { display: flex; animation: np-fade .25s both }
 @keyframes np-fade { from { opacity: 0 } to { opacity: 1 } }
@@ -426,25 +477,23 @@ section.np {
   padding: 24px;
   border-radius: 36px;
   border: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(250, 250, 253, .86));
-  -webkit-backdrop-filter: blur(40px) saturate(190%);
-  backdrop-filter: blur(40px) saturate(190%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .88), rgba(255, 255, 255, .7));
+  -webkit-backdrop-filter: blur(44px) saturate(170%);
+  backdrop-filter: blur(44px) saturate(170%);
   color: var(--n-ink);
-  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 4px 10px rgba(0, 0, 0, .06), 0 36px 90px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .95);
-  animation: np-pop .42s cubic-bezier(.2, .9, .25, 1.05) both;
+  box-shadow: var(--n-lift-lg), var(--n-edge);
+  animation: np-pop .4s cubic-bezier(.2, .9, .25, 1.04) both;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) #npModal .box.np-w {
-    background: linear-gradient(180deg, rgba(48, 48, 52, .92), rgba(38, 38, 42, .9));
-    box-shadow: 0 0 0 .5px rgba(0, 0, 0, .6), 0 36px 90px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .1);
+    background: linear-gradient(180deg, rgba(62, 62, 67, .85), rgba(44, 44, 48, .8));
   }
 }
 :root[data-theme="dark"] #npModal .box.np-w {
-  background: linear-gradient(180deg, rgba(48, 48, 52, .92), rgba(38, 38, 42, .9));
-  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .6), 0 36px 90px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .1);
+  background: linear-gradient(180deg, rgba(62, 62, 67, .85), rgba(44, 44, 48, .8));
 }
 #npModal .box.np-s { width: min(400px, 100%) }
-@keyframes np-pop { from { opacity: 0; transform: translateY(16px) scale(.97) } to { opacity: 1; transform: none } }
+@keyframes np-pop { from { opacity: 0; transform: translateY(14px) scale(.97) } to { opacity: 1; transform: none } }
 #npModal h2 { margin: 0; padding-right: 44px; font-size: 22px; letter-spacing: -.025em }
 #npModal .sub { margin: -8px 0 0; color: var(--n-mute); font-size: 13px; line-height: 1.5 }
 #npModal .x {
@@ -458,27 +507,28 @@ section.np {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--n-fill);
+  background: var(--n-puck);
   color: var(--n-mute);
   cursor: pointer;
-  box-shadow: none;
-  transition: background .2s, transform .25s cubic-bezier(.2, .8, .2, 1);
+  box-shadow: var(--n-lift-sm), var(--n-edge);
+  transition: transform .25s cubic-bezier(.2, .8, .2, 1), color .2s;
 }
-#npModal .x:hover { background: var(--n-fill2); transform: scale(1.06) }
+#npModal .x:hover { transform: scale(1.06); color: var(--n-ink) }
+#npModal .x:active { transform: scale(.94); box-shadow: var(--n-well) }
 
-/* biểu mẫu: các ô gom chung thành khối lõm bo cong, ngăn bằng đường mảnh */
+/* biểu mẫu: các ô gom thành một khối lõm, ngăn bằng khe mảnh */
 .nf { display: grid; gap: 14px }
 .nf-grp {
   border-radius: 22px;
-  background: var(--n-inset);
-  box-shadow: var(--n-engrave);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   overflow: hidden;
 }
 .nf-grp > label, .nf-grp > .g2 > label { transition: background .2s }
 .nf-grp > label + label, .nf-grp > label + .g2, .nf-grp > .g2 + label { box-shadow: inset 0 .5px 0 var(--n-hair) }
 .nf-grp .g2 > label + label { box-shadow: inset .5px 0 0 var(--n-hair) }
 .nf label { display: block; padding: 9px 14px 10px; color: var(--n-mute); font-size: 11.5px; font-weight: 600; letter-spacing: .01em }
-.nf-grp label:focus-within { background: var(--n-tile-a) }
+.nf-grp label:focus-within { background: var(--n-card-solid) }
 .nf .ctl { display: block; margin-top: 3px }
 .nf input, .nf textarea, #npText {
   width: 100%;
@@ -496,13 +546,15 @@ section.np {
 .nf input::placeholder, .nf textarea::placeholder, #npText::placeholder { color: var(--n-mute); opacity: .55; font-weight: 400 }
 .nf textarea { resize: none; line-height: 1.45 }
 .nf .g2 { display: grid; grid-template-columns: 1fr 1fr }
+/* chọn trạng thái: rãnh lõm + viên kính trượt nổi */
 .nf .seg {
   display: flex;
   margin-top: 6px;
   padding: 3px;
   gap: 2px;
   border-radius: 999px;
-  background: var(--n-fill);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
 }
 .nf .seg button {
   flex: 1;
@@ -519,7 +571,7 @@ section.np {
   box-shadow: none;
   transition: background .3s cubic-bezier(.2, .8, .2, 1), color .2s, box-shadow .3s;
 }
-.nf .seg button.on { background: var(--n-tile-a); color: var(--n-ink); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 6px rgba(0, 0, 0, .12), var(--n-hi) }
+.nf .seg button.on { background: var(--n-puck); color: var(--n-ink); box-shadow: var(--n-lift-sm), var(--n-edge) }
 .nf > div > label:first-child { padding: 0 4px 0; font-size: 11.5px }
 .nf-err { color: var(--n-red); font-size: 12.5px; min-height: 16px; padding: 0 4px }
 .np-foot { display: flex; gap: 8px; flex-wrap: wrap }
@@ -529,13 +581,14 @@ section.np {
   margin-top: 10px;
   padding: 12px 14px;
   border-radius: 20px;
-  background: var(--n-inset);
-  box-shadow: var(--n-engrave);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   font: 12px ui-monospace, monospace;
   resize: none;
 }
-#npText:focus { outline: none; background: var(--n-tile-a) }
+#npText:focus { outline: none; background: var(--n-card-solid) }
 
+/* vùng thả file: rãnh lõm, viền đứt neutral, không đổi sang màu nhấn */
 .np-drop {
   display: grid;
   justify-items: center;
@@ -543,16 +596,17 @@ section.np {
   padding: 24px 14px;
   border-radius: 24px;
   border: 1.5px dashed var(--n-fill2);
-  background: var(--n-inset);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   text-align: center;
   cursor: pointer;
   color: var(--n-mute);
   transition: background .25s, transform .3s cubic-bezier(.2, .8, .2, 1), border-color .25s;
 }
 .np-drop b { color: var(--n-ink) }
-.np-drop:hover, .np-drop.over { background: var(--n-tile-a); border-color: var(--n-acc); transform: translateY(-1px) }
+.np-drop:hover, .np-drop.over { background: var(--n-card-solid); border-color: var(--n-mute); transform: translateY(-1px) }
 .np-row { display: flex; gap: 8px; flex-wrap: wrap }
-.np-res .ok, .np-res .err { padding: 12px 14px; border-radius: 20px; background: var(--n-inset); box-shadow: var(--n-engrave); font-size: 13px; line-height: 1.55 }
+.np-res .ok, .np-res .err { padding: 12px 14px; border-radius: 20px; background: var(--n-well-bg); box-shadow: var(--n-well); font-size: 13px; line-height: 1.55 }
 .np-res .err { color: var(--n-red) }
 .np-opt {
   display: flex;
@@ -561,13 +615,13 @@ section.np {
   padding: 12px 14px;
   margin: 8px 0;
   border-radius: 20px;
-  background: var(--n-inset);
-  box-shadow: var(--n-engrave);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   color: var(--n-ink) !important;
   font-size: 13.5px !important;
   cursor: pointer;
 }
-.np-opt input { width: auto; margin-top: 3px; accent-color: var(--n-acc) }
+.np-opt input { width: auto; margin-top: 3px; accent-color: var(--n-ink) }
 .np-opt small { display: block; color: var(--n-mute); font-weight: 400 }
 #npModal select {
   width: 100%;
@@ -575,16 +629,16 @@ section.np {
   border-radius: 16px;
   padding: 11px 14px;
   margin-top: 6px;
-  background: var(--n-inset);
-  box-shadow: var(--n-engrave);
+  background: var(--n-well-bg);
+  box-shadow: var(--n-well);
   color: var(--n-ink);
   font: inherit;
   font-size: 14px;
 }
-.np-kv { background: var(--n-inset); box-shadow: var(--n-engrave); border-radius: 20px; padding: 12px 14px; margin: 4px 0 !important }
+.np-kv { background: var(--n-well-bg); box-shadow: var(--n-well); border-radius: 20px; padding: 12px 14px; margin: 4px 0 !important }
 .np-kv em { color: var(--n-mute) }
 .np-confirm { text-align: center; display: grid; justify-items: center; gap: 8px }
-.np-confirm .np-ico { width: 68px; height: 68px; border-radius: 24px; color: var(--n-red) }
+.np-confirm .np-ico { width: 68px; height: 68px; border-radius: 24px; color: var(--n-ink) }
 .np-confirm h2 { padding: 0 !important }
 .np-confirm p { margin: 0; color: var(--n-mute); font-size: 14px; line-height: 1.5 }
 

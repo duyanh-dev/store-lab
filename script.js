@@ -4802,25 +4802,10 @@ function focusItem(code) {
     ext = Math.max(it.size[0], it.size[1]),
     r = THREE.MathUtils.clamp((ext + 1.8) / (t * a), 4.5, Math.max(cam.fit, 8)),
     thF = Math.atan2(Math.cos(it.rot), -Math.sin(it.rot));
-  let best = null;
-  [
-    [0.62, 0],
-    [0.45, 1.2],
-  ].forEach(([ph, pen]) => {
-    for (let j = 0; j < 12; j++) {
-      const th = thF + (j * PI) / 6,
-        sc =
-          occlusion(it, th, ph, r) * 5 +
-          Math.abs(wrap(th - cam.th)) * 0.9 +
-          Math.abs(wrap((j * PI) / 6)) * 0.35 +
-          pen;
-      if (!best || sc < best.sc) best = { sc, th, ph };
-    }
-  });
-  cam.vth = 0;
+   cam.vth = 0;
   cam.T = {
-    th: cam.th + wrap(best.th - cam.th),
-    ph: best.ph,
+    th: cam.th + wrap(thF - cam.th) /* luôn bay tới mặt chính diện, đi theo hướng xoay ngắn nhất */,
+    ph: 0.62,
     r,
     tx: it.pos[0],
     ty: 0.8,
@@ -7848,10 +7833,7 @@ let FR = 0,
     moveCode = isMoving() ? null : selected;
   };
   elSw.onclick = () => {
-    const all = ShelfRegistry.all();
-    if (all.length < 2 || !selected) return;
-    const i = all.findIndex((s) => s.code === selected);
-    select(all[(i + 1) % all.length].code, true);
+    if (mode === "edit" && selected && window.dxOpenPick) window.dxOpenPick();
   };
   addEventListener("keydown", (e) => {
     if (e.key === "Escape") moveCode = null;
@@ -7860,7 +7842,9 @@ let FR = 0,
   /* ---------- Chặn kéo kệ tự do (giữ nguyên logic cũ) ---------- */
   const _pick = pickItem;
   pickItem = function (e) {
-    return isMoving() ? selected : null;
+    /* chỉ bắt kéo khi ngón tay / chuột nằm đúng trên kệ đang chọn; chạm chỗ khác → xoay camera như bình thường */
+    if (!isMoving()) return null;
+    return _pick(e) === selected ? selected : null;
   };
   cv.parentElement.addEventListener(
     "pointerup",
@@ -7942,6 +7926,345 @@ let FR = 0,
     _r(s, c);
     placeIcons(n);
   };
+})();
+
+/* ============ PATCH: MODAL CHỌN KỆ KHÁC (3D xoay 360° + danh sách + tìm kiếm) ============ */
+(() => {
+  ICONS.search = '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>';
+
+  const css = document.createElement("style");
+  css.textContent = `
+.dxp{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.28);
+ -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.dxp.on{opacity:1;pointer-events:auto}
+.dxp-card{position:relative;display:grid;grid-template-columns:1.1fr 1fr;gap:10px;width:min(780px,100%);height:min(520px,86vh);padding:10px;border-radius:28px;
+ color:var(--ink,#1d1d1f);background:rgba(248,248,250,.72);
+ -webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);
+ border:.5px solid rgba(255,255,255,.65);
+ box-shadow:0 24px 60px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.8);
+ transform:translateY(14px) scale(.96);transition:transform .4s cubic-bezier(.2,1.2,.4,1)}
+.dxp.on .dxp-card{transform:none}
+.dxp-x{position:absolute;top:12px;right:12px;z-index:2;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;
+ color:inherit;background:rgba(127,127,127,.18);cursor:pointer}
+.dxp-pv{position:relative;border-radius:20px;overflow:hidden;background:rgba(127,127,127,.1);min-height:0}
+.dxp-pv canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.dxp-cap{position:absolute;left:12px;right:12px;bottom:10px;display:flex;flex-direction:column;gap:1px;pointer-events:none}
+.dxp-cap b{font:600 15px/1.2 -apple-system,"Segoe UI",sans-serif}
+.dxp-cap span{font:500 12px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
+.dxp-side{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;padding:6px 4px 0 2px}
+.dxp-h{font:700 17px/1.2 -apple-system,"Segoe UI",sans-serif;padding:4px 40px 0 6px}
+.dxp-s{display:flex;align-items:center;gap:8px;padding:0 12px;height:36px;border-radius:12px;background:rgba(127,127,127,.14)}
+.dxp-s input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:inherit;font:500 14px -apple-system,"Segoe UI",sans-serif}
+.dxp-l{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px;overscroll-behavior:contain}
+.dxp-it{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 12px;border:0;border-radius:14px;
+ background:transparent;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dxp-it .n{font:600 14px/1.25 -apple-system,"Segoe UI",sans-serif}
+.dxp-it .c{font:500 11px/1.2 ui-monospace,Menlo,monospace;opacity:.55;white-space:nowrap}
+.dxp-it .t{margin-left:6px;padding:2px 7px;border-radius:999px;font:600 10px/1.4 -apple-system,sans-serif;color:#fff;background:var(--acc,#0a84ff)}
+@media (hover:hover){.dxp-it:hover{background:rgba(127,127,127,.14)}}
+.dxp-it.on{background:rgba(10,132,255,.16);box-shadow:inset 0 0 0 1px rgba(10,132,255,.45)}
+.dxp-ok{display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border:0;border-radius:14px;color:#fff;background:var(--acc,#0a84ff);
+ font:600 15px -apple-system,"Segoe UI",sans-serif;cursor:pointer;box-shadow:0 6px 16px rgba(10,132,255,.35),inset 0 1px 0 rgba(255,255,255,.3);transition:transform .15s ease,opacity .2s ease}
+.dxp-ok:active{transform:scale(.97)}
+.dxp-ok:disabled{opacity:.45;box-shadow:none;cursor:default}
+@media (max-width:720px){
+ .dxp{padding:10px;align-items:end}
+ .dxp-card{grid-template-columns:1fr;grid-template-rows:minmax(170px,34vh) 1fr;height:min(640px,92vh);border-radius:24px}
+ .dxp-ok{height:42px}
+}
+@media (prefers-color-scheme:dark){
+ .dxp-card{background:rgba(44,44,50,.62);border-color:rgba(255,255,255,.18);color:#f5f5f7;box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.18)}
+}`;
+  document.head.appendChild(css);
+
+  const ov = document.createElement("div");
+  ov.className = "dxp";
+  ov.innerHTML = `<div class="dxp-card" role="dialog" aria-label="Chọn kệ khác">
+ <button class="dxp-x" type="button" aria-label="Đóng">${IC("x", 14)}</button>
+ <div class="dxp-pv"><canvas></canvas><div class="dxp-cap"><b></b><span></span></div></div>
+ <div class="dxp-side"><div class="dxp-h">Chọn kệ khác</div>
+  <label class="dxp-s">${IC("search", 15)}<input type="text" placeholder="Tìm theo tên hoặc mã"></label>
+  <div class="dxp-l"></div><button class="dxp-ok" type="button"></button></div></div>`;
+  document.body.appendChild(ov);
+
+  const q = (s) => ov.querySelector(s),
+    cvP = q("canvas"),
+    capB = q(".dxp-cap b"),
+    capS = q(".dxp-cap span"),
+    list = q(".dxp-l"),
+    inp = q("input"),
+    okB = q(".dxp-ok");
+
+  let st = null, pivot = null, view = null, ryP = -PI / 2 + 0.5, isOpen = false, raf = 0, last = 0, Z = null;
+  
+  function init() {
+    st = mkStage(cvP);
+        Z = dxZoom({
+      cvs: cvP, cam: st.c,
+      front: -Math.PI / 2,
+      base: () => {
+        const c = st.c, t = 2 * Math.tan(THREE.MathUtils.degToRad(c.fov / 2)), d = Math.max(3.1 / t, 2.1 / (t * c.aspect));
+        return { pos: new THREE.Vector3(0, 1.2, d), tgt: new THREE.Vector3(0, 0.95, 0) };
+      },
+      obj: () => pivot,
+      rot: () => ryP,
+      setRot: (v) => { ryP = v; },
+    });
+    new ResizeObserver(size).observe(q(".dxp-pv"));
+  }
+  function size() {
+    if (!st) return;
+    const w = cvP.clientWidth, h = cvP.clientHeight;
+    if (!w || !h) return;
+    st.r.setSize(w, h, false);
+    st.c.aspect = w / h;
+    frame(st.c, w / h, 3.1, 0.95);
+    st.c.updateProjectionMatrix();
+  }
+
+  /* dựng mô hình kệ vào sân khấu, tự co để lọt khung */
+  function show(code) {
+    const it = ShelfRegistry.get(code);
+    if (!it || !st) return;
+    view = code;
+        if (Z) Z.reset();
+    if (pivot) { st.s.remove(pivot); disposeGroup(pivot); pivot = null; }
+    if (typeof BUILD[it.type] === "function") {
+      const g = new THREE.Group();
+      BUILD[it.type](it, g);
+      mergeGroup(g);
+      g.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(g), sz = b.getSize(new THREE.Vector3()), ct = b.getCenter(new THREE.Vector3());
+      const k = Math.min(2.0 / Math.max(sz.x, sz.z, 0.1), 2.4 / Math.max(sz.y, 0.1), 1.3);
+      g.position.set(-ct.x, -b.min.y, -ct.z);
+      pivot = new THREE.Group();
+      pivot.add(g);
+      pivot.scale.setScalar(k);
+      st.s.add(pivot);
+    }
+    capB.textContent = it.name;
+    capS.textContent = it.code + " · " + it.size[0] + " × " + it.size[1] + " m";
+    const same = code === selected;
+    okB.disabled = same;
+    okB.innerHTML = same ? "Đang chọn kệ này" : IC("check", 16) + "<span>Chuyển sang kệ này</span>";
+    list.querySelectorAll(".dxp-it").forEach((b) => b.classList.toggle("on", b.dataset.c === code));
+  }
+
+  function renderList() {
+    const t = inp.value.trim().toLowerCase();
+    list.innerHTML = ShelfRegistry.all()
+      .filter((s) => !t || (s.name + " " + s.code).toLowerCase().includes(t))
+      .map((s) => `<button type="button" class="dxp-it${s.code === view ? " on" : ""}" data-c="${esc(s.code)}"><span class="n">${esc(s.name)}${s.code === selected ? '<span class="t">Đang chọn</span>' : ""}</span><span class="c">${esc(s.code)}</span></button>`)
+      .join("") || '<div style="padding:14px;opacity:.55;font-size:13px">Không có kệ phù hợp</div>';
+  }
+
+  function loop(now) {
+    if (!isOpen) return;
+    raf = requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+        if (!Z.zoomed()) ryP += dt * 0.4;
+    if (pivot) pivot.rotation.y = ryP;
+    Z.apply();
+    st.r.render(st.s, st.c);
+  }
+
+  function open() {
+    if (!st) init();
+    isOpen = true;
+    inp.value = "";
+    view = selected;
+    renderList();
+    ov.classList.add("on");
+    requestAnimationFrame(() => { size(); show(selected); });
+    last = performance.now();
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(loop);
+  }
+  function close() {
+    isOpen = false;
+    ov.classList.remove("on");
+    cancelAnimationFrame(raf);
+  }
+  window.dxOpenPick = open;
+
+  list.addEventListener("click", (e) => {
+    const b = e.target.closest(".dxp-it");
+    if (b) show(b.dataset.c);
+  });
+  inp.addEventListener("input", renderList);
+  okB.addEventListener("click", () => {
+    if (!view || view === selected) return;
+    const c = view;
+    close();
+    select(c, true);
+  });
+  q(".dxp-x").addEventListener("click", close);
+  ov.addEventListener("pointerdown", (e) => { if (e.target === ov) close(); });
+
+  /* khi modal mở: chặn mọi phím lọt xuống app (Delete / R / WASD...) để không xoá hay xoay nhầm kệ; Esc để đóng */
+  addEventListener("keydown", (e) => {
+    if (!isOpen) return;
+    if (e.key === "Escape") close();
+    e.stopPropagation();
+  }, true);
+})();
+
+/* ============ PATCH: ZOOM CHI TIẾT CHO MODAL 3D (dùng chung) ============ */
+(() => {
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  ICONS.minus = ICONS.minus || '<path d="M5 12h14"/>';
+
+  const css = document.createElement("style");
+  css.textContent = `
+.dxz{position:absolute;left:10px;top:10px;z-index:3;display:flex;flex-direction:column;gap:2px;padding:3px;border-radius:999px;
+ background:rgba(255,255,255,.26);-webkit-backdrop-filter:blur(20px) saturate(190%);backdrop-filter:blur(20px) saturate(190%);
+ border:.5px solid rgba(255,255,255,.6);
+ box-shadow:0 6px 18px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.75),inset 0 -1px 0 rgba(255,255,255,.18)}
+.dxz button{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;
+ background:transparent;color:var(--ink,#1d1d1f);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+ transition:transform .2s cubic-bezier(.2,1.4,.4,1),background .18s ease}
+.dxz button::after{content:"";position:absolute;inset:-3px}
+.dxz button:active{transform:scale(.88)}
+.dxz svg{width:16px;height:16px;stroke-width:1.6}
+@media (hover:hover){.dxz button:hover{background:rgba(255,255,255,.38)}}
+@media (max-width:720px){.dxz{left:8px;top:8px}.dxz button{width:29px;height:29px}.dxz svg{width:15px;height:15px}}
+@media (prefers-color-scheme:dark){
+ .dxz{background:rgba(58,58,66,.34);border-color:rgba(255,255,255,.2);box-shadow:0 6px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.22)}
+ .dxz button{color:#f5f5f7}
+ @media (hover:hover){.dxz button:hover{background:rgba(255,255,255,.14)}}
+}`;
+  document.head.appendChild(css);
+
+  /* o: {cvs, cam, base():{pos,tgt}, obj():Object3D, rot(), setRot(v), onZoom(bool)} */
+  window.dxZoom = function (o) {
+    const cvs = o.cvs, host = o.host || cvs.parentElement, cam = o.cam;
+    if (getComputedStyle(host).position === "static") host.style.position = "relative";
+const S = { z: 1, zt: 1, fy: null, ft: null, raw: null, px: 0, t: 0, on: false },
+      rc = new THREE.Raycaster(), mv = new THREE.Vector2(), ZMIN = 0.18, ZMAX = 1.5;
+
+    const focusY = (b) => {
+      const raw = S.raw == null ? b.tgt.y : S.raw;
+      return b.tgt.y + (raw - b.tgt.y) * clamp((1 - S.zt) / 0.4, 0, 1);
+    };
+    const flag = () => {
+  const on = S.zt < 0.97;
+  if (!on) S.px = 0;
+  if (on !== S.on) { S.on = on; o.onZoom && o.onZoom(on); }
+};
+    function zoomTo(z, x, y) {
+      S.zt = clamp(z, ZMIN, ZMAX);
+      if (S.zt < 1 && x != null) {
+        const ob = o.obj && o.obj();
+        if (ob) {
+          const r = cvs.getBoundingClientRect();
+          mv.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+          rc.setFromCamera(mv, cam);
+          const h = rc.intersectObject(ob, true)[0];
+          if (h) S.raw = clamp(h.point.y, 0.05, 2.8);
+        }
+      }
+      S.ft = focusY(o.base());
+      flag();
+    }
+    function reset() {
+      S.zt = 1; S.raw = null; S.ft = null; flag();
+    }
+    const wrapA = (a) => ((((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+function apply() {
+  const b = o.base(), n = performance.now(), dt = Math.min(0.05, (n - (S.t || n)) / 1000);
+  S.t = n;
+  if (S.fy == null) S.fy = b.tgt.y;
+  if (S.ft == null) S.ft = b.tgt.y;
+  const k = 1 - Math.exp(-dt * 12);
+  S.z += (S.zt - S.z) * k;
+  S.fy += (S.ft - S.fy) * k;
+  /* đang zoom → tự xoay về mặt chính diện (đi theo hướng ngắn nhất) */
+  if (S.zt < 0.97 && !P.size && o.front != null) {
+    const c = o.rot(), d = wrapA(o.front - c);
+    if (Math.abs(d) > 0.002) o.setRot(c + d * (1 - Math.exp(-dt * 7)));
+  }
+  const off = b.pos.clone().sub(b.tgt).multiplyScalar(S.z);
+  cam.position.set(b.tgt.x + off.x + S.px, S.fy + off.y, b.tgt.z + off.z);
+  cam.lookAt(b.tgt.x + S.px, S.fy, b.tgt.z);
+}
+
+    /* ----- điều khiển: kéo = xoay (+ kéo dọc khi đã zoom = lên/xuống) · chụm / cuộn = zoom · nhấp đúp ----- */
+    const P = new Map();
+    let moved = 0, d0 = 0, z0 = 1;
+    const on = (t, f) => host.addEventListener(t, (e) => { if (e.target !== cvs) return; e.stopPropagation(); f(e); }, true);
+    on("pointerdown", (e) => {
+      cvs.setPointerCapture(e.pointerId);
+      P.set(e.pointerId, [e.clientX, e.clientY]);
+      if (P.size === 1) moved = 0;
+      else if (P.size === 2) {
+        const [a, b] = [...P.values()];
+        d0 = Math.hypot(a[0] - b[0], a[1] - b[1]); z0 = S.zt; moved = 99;
+      }
+    });
+    on("pointermove", (e) => {
+      const p = P.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p[0], dy = e.clientY - p[1];
+      moved += Math.abs(dx) + Math.abs(dy);
+      p[0] = e.clientX; p[1] = e.clientY;
+      if (P.size === 2) {
+        const [a, b] = [...P.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (d0 && d > 0) zoomTo((z0 * d0) / d, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        return;
+      }
+      if (moved > 6) {
+  if (S.zt < 0.9) {
+    /* đang zoom: giữ mặt chính diện, kéo ngang = trượt dọc kệ, kéo dọc = lên/xuống tầng */
+    S.px = clamp(S.px - dx * 0.004 * S.z, -1.3, 1.3);
+    S.raw = clamp((S.raw == null ? o.base().tgt.y : S.raw) + dy * 0.003 * S.z, 0.05, 2.8);
+    S.ft = focusY(o.base());
+  } else o.setRot(o.rot() + dx * 0.01);
+}
+    });
+    on("pointerup", (e) => P.delete(e.pointerId));
+    on("pointercancel", (e) => P.delete(e.pointerId));
+    on("dblclick", (e) => (S.zt > 0.7 ? zoomTo(0.3, e.clientX, e.clientY) : reset()));
+    cvs.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomTo(S.zt * (1 + e.deltaY * 0.0015), e.clientX, e.clientY);
+    }, { passive: false });
+
+    const bar = document.createElement("div");
+    bar.className = "dxz";
+    bar.innerHTML = `<button type="button" data-z="i" title="Phóng to">${IC("plus", 16)}</button><button type="button" data-z="o" title="Thu nhỏ">${IC("minus", 16)}</button><button type="button" data-z="r" title="Về mặc định">${IC("fit", 16)}</button>`;
+    host.appendChild(bar);
+    bar.addEventListener("pointerdown", (e) => e.stopPropagation());
+    bar.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      const z = b.dataset.z, r = cvs.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (z === "i") zoomTo(S.zt * 0.7, cx, cy);
+      if (z === "o") zoomTo(S.zt * 1.4);
+      if (z === "r") reset();
+    });
+    return { apply, reset, zoomed: () => S.zt < 0.97 };
+  };
+
+  /* ----- modal THÊM KỆ (#amodal / cv4): bọc render, giữ nguyên luồng cũ ----- */
+  const V = THREE.Vector3;
+  let prevSpin;
+  const Z4 = dxZoom({
+    cvs: $("#cv4"), cam: cam4,
+    front: -Math.PI / 2,
+    base: () => ({ pos: new V(0, 1.7, 5.4), tgt: new V(0, 0.7, 0) }),
+    obj: () => aMod,
+    rot: () => aRy,
+    setRot: (v) => { aRy = v; if (aMod) aMod.rotation.y = v; },
+    onZoom: (z) => {
+      if (z) { prevSpin = window.aSpin; window.aSpin = false; }
+      else window.aSpin = prevSpin;
+    },
+  });
+  const _r4 = ren4.render.bind(ren4);
+  ren4.render = (s, c) => { Z4.apply(); _r4(s, c); };
+  new MutationObserver(() => { if (!$("#amodal").classList.contains("on")) Z4.reset(); })
+    .observe($("#amodal"), { attributes: true, attributeFilter: ["class"] });
 })();
 
 /* ============ PATCH: CHẾ ĐỘ CHỈNH SỬA ẨN NHÂN VIÊN + KHÁCH, CHẾ ĐỘ XEM HIỆN LẠI (mượt) ============
@@ -8352,4 +8675,208 @@ let FR = 0,
     }
     _r(s, c);
   };
+})();
+
+
+/* ============ PATCH: NHÃN TÊN KỆ · LIQUID GLASS THUẦN (DOM overlay, luôn thẳng đứng, tự tránh chồng) ============ */
+(() => {
+  const css = document.createElement("style");
+  css.textContent = `
+.dxl-layer{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.dxl{--s:12px;position:absolute;left:0;top:0;opacity:0;transition:opacity .3s ease;will-change:transform}
+.dxl.v{opacity:1}
+/* hạt kính nhỏ: chỉ hiện khi nhãn đang thu gọn */
+.dxl-dot{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;
+ background:rgba(255,255,255,.55);border:.5px solid rgba(255,255,255,.95);
+ -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+ box-shadow:0 1px 4px rgba(0,0,0,.28);transition:opacity .25s ease,transform .35s cubic-bezier(.2,1.4,.4,1)}
+.dxl.p .dxl-dot{opacity:0;transform:scale(.4)}
+/* cọng nối: sợi kính mảnh */
+.dxl-st{position:absolute;left:-.5px;bottom:0;width:1px;height:var(--s);
+ background:linear-gradient(to top,rgba(255,255,255,.85),rgba(255,255,255,.1));
+ transform:scaleY(0);transform-origin:50% 100%;transition:transform .35s cubic-bezier(.2,1,.3,1),height .3s ease}
+.dxl.p .dxl-st{transform:scaleY(1)}
+/* viên kính */
+.dxl-pill{position:absolute;left:0;bottom:calc(var(--s) + 1px);margin:0;overflow:hidden;isolation:isolate;
+ display:flex;align-items:center;height:24px;padding:0 12px;border:0;border-radius:999px;
+ color:var(--ink,#1d1d1f);background:rgba(255,255,255,.3);
+ -webkit-backdrop-filter:blur(18px) saturate(210%) brightness(1.06);backdrop-filter:blur(18px) saturate(210%) brightness(1.06);
+ box-shadow:
+  inset 0 0 0 .5px rgba(255,255,255,.55),
+  inset 1.5px 1.5px 1px -1px rgba(255,255,255,.95),
+  inset -1.5px -1.5px 1px -1px rgba(255,255,255,.6),
+  0 10px 26px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+ font:600 11.5px/1 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;letter-spacing:-.005em;white-space:nowrap;
+ cursor:pointer;-webkit-tap-highlight-color:transparent;
+ opacity:0;pointer-events:none;transform:translate(-50%,10px) scale(.78);transform-origin:50% 100%;
+ transition:opacity .3s ease,transform .5s cubic-bezier(.2,1.35,.35,1),background .3s ease,box-shadow .3s ease,bottom .3s ease}
+/* ánh sáng bề mặt, chạy theo con trỏ */
+.dxl-pill::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+ background:radial-gradient(130% 160% at var(--mx,28%) var(--my,-10%),rgba(255,255,255,.7),rgba(255,255,255,0) 58%);
+ opacity:.55;transition:opacity .3s ease}
+.dxl-pill:hover::before{opacity:.95}
+.dxl.p .dxl-pill{opacity:var(--o,1);pointer-events:auto;transform:translate(-50%,0) scale(var(--sc,1))}
+.dxl-t{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.dxl-n{max-width:150px;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.dxl-m{display:none;font:500 10px/1 ui-monospace,"SF Mono",Menlo,monospace;font-style:normal;opacity:.55}
+/* kệ đang chọn: kính đậm hơn, hiện mã và kích thước; không màu, không phát sáng */
+.dxl.sel .dxl-pill{height:auto;padding:8px 14px;border-radius:18px;background:rgba(255,255,255,.52);
+ box-shadow:
+  inset 0 0 0 .5px rgba(255,255,255,.8),
+  inset 1.5px 1.5px 1px -1px #fff,
+  inset -1.5px -1.5px 1px -1px rgba(255,255,255,.7),
+  0 14px 34px rgba(0,0,0,.16),0 2px 4px rgba(0,0,0,.08)}
+.dxl.sel .dxl-m{display:block}
+.dxl.sel .dxl-n{max-width:200px}
+.dxl.sel .dxl-st{background:linear-gradient(to top,#fff,rgba(255,255,255,.25))}
+@media (max-width:720px){.dxl-pill{height:22px;padding:0 10px;font-size:11px}.dxl-n{max-width:105px}.dxl.sel .dxl-pill{height:auto;padding:7px 12px}}
+@media (prefers-color-scheme:dark){
+ .dxl-pill{color:#f5f5f7;background:rgba(40,40,46,.34);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.5),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.18),0 10px 28px rgba(0,0,0,.45)}
+ .dxl-pill::before{background:radial-gradient(130% 160% at var(--mx,28%) var(--my,-10%),rgba(255,255,255,.28),rgba(255,255,255,0) 58%)}
+ .dxl.sel .dxl-pill{background:rgba(70,70,80,.5);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.32),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.7),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.25),0 14px 34px rgba(0,0,0,.55)}
+ .dxl-dot{background:rgba(255,255,255,.4);border-color:rgba(255,255,255,.7)}
+ .dxl-st{background:linear-gradient(to top,rgba(255,255,255,.6),rgba(255,255,255,.05))}
+}`;
+  document.head.appendChild(css);
+
+  const layer = document.createElement("div");
+  layer.className = "dxl-layer";
+  $("#store").appendChild(layer);
+
+  const L = new Map(), V = new THREE.Vector3(), V2 = new THREE.Vector3();
+  let px = -1e4, py = -1e4;
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  cv.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" && e.buttons === 0) {
+      const r = layer.getBoundingClientRect();
+      px = e.clientX - r.left;
+      py = e.clientY - r.top;
+    } else px = py = -1e4;
+  });
+  cv.addEventListener("pointerleave", () => (px = py = -1e4));
+  cv.addEventListener("pointerdown", () => (px = py = -1e4));
+
+  layer.addEventListener("click", (e) => {
+    const p = e.target.closest(".dxl-pill");
+    if (!p) return;
+    const c = p.parentNode.dataset.c;
+    select(c, true);
+    if (mode !== "edit") focusItem(c);
+  });
+  /* ánh sáng trượt theo con trỏ trên mặt kính */
+  layer.addEventListener("pointermove", (e) => {
+    const p = e.target.closest(".dxl-pill");
+    if (!p) return;
+    const r = p.getBoundingClientRect();
+    p.style.setProperty("--mx", (((e.clientX - r.left) / r.width) * 100).toFixed(0) + "%");
+    p.style.setProperty("--my", (((e.clientY - r.top) / r.height) * 100).toFixed(0) + "%");
+  });
+
+  function make(code) {
+    const el = document.createElement("div");
+    el.className = "dxl";
+    el.dataset.c = code;
+    el.innerHTML = '<i class="dxl-st"></i><i class="dxl-dot"></i><button type="button" class="dxl-pill"><span class="dxl-t"><b class="dxl-n"></b><em class="dxl-m"></em></span></button>';
+    layer.appendChild(el);
+    const o = {
+      el, pill: el.querySelector(".dxl-pill"), n: el.querySelector(".dxl-n"), m: el.querySelector(".dxl-m"),
+      key: "", w: 80, h: 24, sx: 0, sy: 0, ok: false, on: false, s: 12, sp: -1, sel: false, sc: 0, dist: 0, q: "",
+    };
+    L.set(code, o);
+    return o;
+  }
+
+  function update() {
+    for (const c in labels) labels[c].visible = false;
+    const items = ShelfRegistry.all(), r = cv.getBoundingClientRect(), lo = layer.getBoundingClientRect(),
+      W = lo.width, H = lo.height, live = new Set(items.map((i) => i.code)), list = [];
+    L.forEach((v, c) => { if (!live.has(c)) { v.el.remove(); L.delete(c); } });
+
+    items.forEach((it) => {
+      const g = groups[it.code];
+      if (!g) return;
+      const a = L.get(it.code) || make(it.code),
+        sel = it.code === selected,
+        key = it.name + "|" + it.code + "|" + it.size + "|" + sel + "|" + (innerWidth > 720);
+      if (key !== a.key) {
+        a.key = key;
+        a.sel = sel;
+        a.el.classList.toggle("sel", sel);
+        a.n.textContent = it.name;
+        a.m.textContent = it.code + " · " + it.size[0] + " × " + it.size[1] + " m";
+        a.w = a.pill.offsetWidth;
+        a.h = a.pill.offsetHeight;
+      }
+      V.set(it.pos[0], 2.35 + g.position.y, it.pos[1]).project(camera);
+      a.sx = (V.x * 0.5 + 0.5) * r.width + r.left - lo.left;
+      a.sy = (-V.y * 0.5 + 0.5) * r.height + r.top - lo.top;
+      a.ok = V.z < 1 && a.sx > -30 && a.sx < W + 30 && a.sy > -10 && a.sy < H + 40;
+      a.dist = camera.position.distanceTo(V2.set(it.pos[0], 1, it.pos[1]));
+      list.push(a);
+    });
+
+    let hov = null, hd = 26;
+    list.forEach((a) => {
+      if (!a.ok) return;
+      let d = Math.hypot(a.sx - px, a.sy - py);
+      if (a.on) {
+        const y1 = a.sy - a.s - 2;
+        if (px >= a.sx - a.w / 2 && px <= a.sx + a.w / 2 && py >= y1 - a.h && py <= y1) d = 0;
+      }
+      if (d < hd) { hd = d; hov = a; }
+    });
+
+    const cx = W / 2, cy = H / 2, diag = Math.hypot(W, H);
+    list.forEach((a) => {
+      a.sc = (a.sel ? 1e6 : 0) + (a === hov ? 1e5 : 0) + (a.on ? 0.35 : 0) +
+        (1 - Math.hypot(a.sx - cx, a.sy - cy) / diag) + (1 - Math.min(1, a.dist / 120)) * 0.3;
+    });
+    list.sort((p, q) => q.sc - p.sc);
+
+    const placed = [];
+    list.forEach((a) => {
+      a.on = false;
+      if (!a.ok) return;
+      for (let k = 0; k < 3; k++) {
+        const s = 12 + k * (a.h + 6), x0 = a.sx - a.w / 2 - 4, x1 = a.sx + a.w / 2 + 4,
+          y1 = a.sy - s + 1, y0 = y1 - a.h - 6;
+        if (a.sel || !placed.some((p) => x0 < p[2] && x1 > p[0] && y0 < p[3] && y1 > p[1])) {
+          placed.push([x0, y0, x1, y1]);
+          a.on = true;
+          a.s = s;
+          break;
+        }
+      }
+      if (!a.on && a === hov) {
+        a.on = true;
+        a.s = 12;
+        placed.push([a.sx - a.w / 2 - 4, a.sy - 12 - a.h - 5, a.sx + a.w / 2 + 4, a.sy - 11]);
+      }
+    });
+
+    list.forEach((a) => {
+      const e = a.el;
+      e.style.transform = `translate(${a.sx.toFixed(1)}px,${a.sy.toFixed(1)}px)`;
+      e.classList.toggle("v", a.ok);
+      e.classList.toggle("p", a.on);
+      if (a.on && a.sp !== a.s) { e.style.setProperty("--s", a.s + "px"); a.sp = a.s; }
+      /* chiều sâu: kệ xa thì nhỏ và mờ hơn một chút, kệ đang chọn / đang trỏ luôn rõ nhất */
+      const near = a.sel || a === hov,
+        sc = near ? 1 : clampN(1.08 - (a.dist - 14) / 170, 0.84, 1),
+        op = near ? 1 : clampN(1.12 - (a.dist - 14) / 120, 0.6, 1),
+        q = sc.toFixed(2) + "|" + op.toFixed(2);
+      if (q !== a.q) {
+        a.q = q;
+        a.pill.style.setProperty("--sc", sc.toFixed(2));
+        a.pill.style.setProperty("--o", op.toFixed(2));
+      }
+      e.style.zIndex = a.sel ? 3 : a === hov ? 2 : a.on ? 1 : 0;
+    });
+  }
+
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => { _r(s, c); update(); };
 })();
