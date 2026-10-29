@@ -1,5 +1,5 @@
 /* =====================================================================
-   store-world.js v3 – "Khu phố cửa hàng" (nạp SAU store-link.js)
+   store-world.js v4 – "Khu phố cửa hàng" (nạp SAU store-link.js)
    - Mỗi cửa hàng có một Ô ĐẤT (gx, gz). Cửa hàng đang mở luôn ở gốc tọa độ; các cửa hàng khác hiện
      ở ô đất của chúng dưới dạng NGOẠI THẤT chi tiết nhưng vẫn nhẹ (mỗi khối được gộp mesh theo vật liệu).
    - Thêm cửa hàng mới → tự chọn ô trống GẦN cửa hàng đang mở nhất (ưu tiên bên phải, rồi bên trái, rồi hàng khác).
@@ -10,13 +10,22 @@
    - Không sửa logic core: chỉ thêm vào scene, bọc clampTarget / StoreLink.view / ren.render.
    - Ô đất lưu riêng trong localStorage "store-world-v1".
 
-   v3 (chỉ nâng cấp hình ảnh, logic ô đất / đồng bộ / camera / chuyển cửa hàng giữ nguyên):
-   - BẢNG HIỆU: chữ MAXIDI lớn, tên cửa hàng nhỏ phía trên.
-   - XE: 4 dòng xe chi tiết (sedan, SUV, taxi, xe buýt) + xe tải giao hàng MAXIDI; bánh xe + mâm,
-     đèn pha/đèn hậu phát sáng, vệt sáng đèn pha trên mặt đường, gương, kính, biển số, tay nắm...
-   - KẾT NỐI CỬA HÀNG: cầu kính nối 2 cửa hàng kề nhau (có toa con thoi chạy qua lại bên trong);
-     drone giao hàng bay vòng cung giữa mái các cửa hàng kề nhau (kể cả qua đường).
-   - WOW: khi chọn một cửa hàng → cột sáng + vòng sóng lan tỏa trên mặt đất.
+   v3: bảng hiệu MAXIDI, xe chi tiết, cầu kính + toa con thoi + drone nối cửa hàng, cột sáng khi chọn cửa hàng.
+   v4 (chỉ thêm hiệu ứng, logic ô đất / đồng bộ / camera / chuyển cửa hàng giữ nguyên):
+   - CHU KỲ NGÀY ĐÊM: bình minh → trưa → hoàng hôn → đêm (120 s/vòng). Ánh sáng, màu trời, sương mù đổi theo;
+     ban đêm đèn đường tỏa vệt sáng xuống mặt đường, bảng hiệu MAXIDI / đèn pha / đèn hậu / cầu kính sáng hơn,
+     có sao và trăng. Nút "Ngày đêm" trong thanh công cụ: Tự động → Ban ngày → Ban đêm.
+     Đang ở chế độ Chỉnh sửa thì tự về ban ngày để dễ thao tác.
+   - ĐÈN GIAO THÔNG: mỗi ngã tư (đường × đại lộ) có đèn xanh/vàng/đỏ thật; xe dừng vạch khi đèn đỏ,
+     xếp hàng chờ, phanh mượt, đại lộ cũng có xe chạy khi đường ngang dừng.
+   - XE TẢI MAXIDI GIAO HÀNG THẬT: xe chạy đường trước từng hàng cửa hàng, dừng đúng trước cửa, bật đèn cảnh báo,
+     mở cửa thùng, nhân viên giao hàng bê kiện đi vào cửa hàng, giao xong quay lại, xe đi tiếp sang cửa hàng kế bên.
+   v5 (sửa lỗi + chỉnh giao diện):
+   - Ban đêm KHÔNG còn động tới đèn của cảnh và không dùng chung vật liệu với core → nội thất cửa hàng luôn sáng.
+     Đêm chỉ đổi màu trời, sương mù và màu vật liệu riêng của khu phố (đường, nhà, xe...).
+   - iPhone / Safari: tự nới far-plane + sương mù khi zoom ra xem khu phố (trước đây cửa hàng bị cắt/phủ mờ hết),
+     bật chế độ nhẹ (ít xe, ít drone, texture nhỏ, không sao), mỗi khâu dựng / vẽ có try-catch riêng để 1 lỗi không làm trắng cảnh.
+   - Thanh công cụ trên điện thoại: chỉ khi thật sự bị tràn mới tự xuống dòng để hiện đủ mọi nút (UI chuẩn giữ nguyên khi vừa).
    ===================================================================== */
 (() => {
   "use strict";
@@ -31,7 +40,13 @@
     KEY = "store-world-v1",
     MAXB = 40,
     MAXDRONE = 10 /* số drone tối đa (giữ nhẹ) */,
+    CYCLE = 120 /* giây cho một ngày đêm */,
+    SIG_T = 28 /* chu kỳ đèn giao thông (s) */,
     clamp = (v, a, b) => Math.max(a, Math.min(b, v)),
+    smooth = (a, b, v) => {
+      const t = clamp((v - a) / (b - a), 0, 1);
+      return t * t * (3 - 2 * t);
+    },
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     easeIO = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2),
     easeBack = (p) => {
@@ -39,7 +54,8 @@
         c3 = c1 + 1;
       return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
     },
-    CAN_MERGE = typeof mergeGroup === "function";
+    CAN_MERGE = typeof mergeGroup === "function",
+    LITE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform)) || window.matchMedia("(max-width:720px)").matches;
 
   /* ============ 1. Ô ĐẤT ============ */
   let plots = {};
@@ -81,33 +97,61 @@
     CYL = new THREE.CylinderGeometry(1, 1, 1, 10),
     SPH = new THREE.SphereGeometry(1, 10, 8),
     PLN = new THREE.PlaneGeometry(1, 1),
+    CIR = new THREE.CircleGeometry(1, 28),
     WHL = new THREE.CylinderGeometry(1, 1, 1, 18); /* bánh xe: trục dọc theo z (xoay sẵn vào hình học, khỏi cần rotation khi gộp mesh) */
   WHL.rotateX(Math.PI / 2);
-  const wallM = M(0xfafafc, 0.7),
-    plinthM = M(0xc9ced6, 0.8),
-    corniceM = M(0xe9eaee, 0.6),
-    storeM = M(0xe3e5ea, 0.7),
-    padM = M(0xc9ced6, 1),
-    walkM = M(0xdfe1e6, 0.9),
-    parkM = M(0xf5f5f7, 0.8),
-    darkM = M(0x2b2d33, 0.5),
-    acM = M(0x9aa0ab, 0.5, 0.3),
-    dockM = M(0x8a8d94, 0.5, 0.3),
-    trunkM = M(0x8a6d4f, 0.9),
-    leafM = M(0x6fae6b, 0.9),
-    magM = M(0xa81f7f, 0.6),
-    asphM = M(0x4a4d55, 0.95),
-    sideM = M(0xd9dbe0, 0.9),
-    lineM = M(0xf2f2f4, 0.7),
-    tyreM = M(0x141518, 0.95),
-    rimM = M(0xc4c8d2, 0.3, 0.7),
-    plateM = M(0xf7f7f9, 0.6),
-    ROOF = { active: M(0xb4bac6, 0.6), opening: M(0xd3d6dc, 0.6), closed: M(0x8e929b, 0.6) },
-    GLOW = typeof glowMat === "function" ? glowMat(0xffffff, 0xfff1c4, 1.1) : M(0xfff1c4, 0.5),
-    TAIL = typeof glowMat === "function" ? glowMat(0xff2a2a, 0xff2a2a, 1.3) : M(0xc62828, 0.5),
+  CIR.rotateX(-Math.PI / 2);
+  /* vật liệu RIÊNG của khu phố: nhân bản từ M() để không chung với vật liệu nội thất (core) → đổi màu ban đêm không động tới cửa hàng */
+  const dnMats = [],
+    tintNow = new THREE.Color(1, 1, 1),
+    MM = (c, r, m) => {
+      const x = M(c, r, m).clone();
+      if (x.color) {
+        dnMats.push([x, x.color.clone()]);
+        x.color.multiply(tintNow);
+      }
+      return x;
+    };
+  const wallM = MM(0xfafafc, 0.7),
+    plinthM = MM(0xc9ced6, 0.8),
+    corniceM = MM(0xe9eaee, 0.6),
+    storeM = MM(0xe3e5ea, 0.7),
+    padM = MM(0xc9ced6, 1),
+    walkM = MM(0xdfe1e6, 0.9),
+    parkM = MM(0xf5f5f7, 0.8),
+    darkM = MM(0x2b2d33, 0.5),
+    acM = MM(0x9aa0ab, 0.5, 0.3),
+    dockM = MM(0x8a8d94, 0.5, 0.3),
+    trunkM = MM(0x8a6d4f, 0.9),
+    leafM = MM(0x6fae6b, 0.9),
+    magM = MM(0xa81f7f, 0.6),
+    asphM = MM(0x4a4d55, 0.95),
+    sideM = MM(0xd9dbe0, 0.9),
+    lineM = MM(0xf2f2f4, 0.7),
+    tyreM = MM(0x141518, 0.95),
+    rimM = MM(0xc4c8d2, 0.3, 0.7),
+    plateM = MM(0xf7f7f9, 0.6),
+    skinM = MM(0xe8bb98, 0.8),
+    pantsM = MM(0x2f3b5a, 0.8),
+    parcelM = MM(0xc9a063, 0.8),
+    ROOF = { active: MM(0xb4bac6, 0.6), opening: MM(0xd3d6dc, 0.6), closed: MM(0x8e929b, 0.6) },
+    GLOW = typeof glowMat === "function" ? glowMat(0xffffff, 0xfff1c4, 1.1).clone() : MM(0xfff1c4, 0.5),
+    TAIL = typeof glowMat === "function" ? glowMat(0xff2a2a, 0xff2a2a, 1.3).clone() : MM(0xc62828, 0.5),
     /* vệt sáng đèn pha trên mặt đường */
-    BEAM = new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0.2, depthWrite: false }),
-    CARC = [0xf5f5f7, 0xc9ced6, 0x3a3a40, 0x8a8d94, 0xe8e4dc, 0x2b4a7a, 0xb23a3a, 0x2e6b4f];
+    BEAM = new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0.14, depthWrite: false }),
+    /* đèn cảnh báo + ánh sáng cửa thùng xe tải giao hàng */
+    HAZ = new THREE.MeshBasicMaterial({ color: 0xffa21a }),
+    DOORM = new THREE.MeshBasicMaterial({ color: 0xfff1c4 }),
+    /* vệt sáng đèn đường trên mặt đất (chỉ hiện ban đêm) */
+    POOLM = new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
+    CARC = [0xf5f5f7, 0xc9ced6, 0x3a3a40, 0x8a8d94, 0xe8e4dc, 0x2b4a7a, 0xb23a3a, 0x2e6b4f],
+    CLEN = { sedan: 4.4, taxi: 4.4, suv: 4.7, bus: 9.6, truck: 7.0, dtruck: 7.0 };
+  /* đèn giao thông: [tắt, sáng] cho đỏ / vàng / xanh */
+  const SIGM = {
+    r: [new THREE.MeshBasicMaterial({ color: 0x3a1212 }), new THREE.MeshBasicMaterial({ color: 0xff3535 })],
+    y: [new THREE.MeshBasicMaterial({ color: 0x3a300c }), new THREE.MeshBasicMaterial({ color: 0xffc61a })],
+    g: [new THREE.MeshBasicMaterial({ color: 0x0f2e1b }), new THREE.MeshBasicMaterial({ color: 0x35e07c })],
+  };
   const put = (g, geo, mat, sx, sy, sz, x, y, z) => {
       const m = new THREE.Mesh(geo, mat);
       m.scale.set(sx, sy, sz);
@@ -125,17 +169,28 @@
   const root = new THREE.Group(),
     roadRoot = new THREE.Group(),
     carRoot = new THREE.Group(),
-    linkRoot = new THREE.Group();
-  scene.add(root, roadRoot, carRoot, linkRoot);
+    linkRoot = new THREE.Group(),
+    sigRoot = new THREE.Group(),
+    poolRoot = new THREE.Group();
+  scene.add(root, roadRoot, carRoot, linkRoot, sigRoot, poolRoot);
   const free = (g) => {
     if (CAN_MERGE && typeof disposeGroup === "function") disposeGroup(g); /* chỉ còn geometry gộp riêng của nhóm */
+  };
+  /* gỡ sprite (tag) khỏi cảnh và giải phóng texture */
+  const dropSprite = (sp) => {
+    if (!sp) return;
+    scene.remove(sp);
+    if (sp.material) {
+      if (sp.material.map) sp.material.map.dispose();
+      sp.material.dispose();
+    }
   };
 
   /* bảng hiệu: nền tím MAXIDI, "MAXIDI" chữ lớn ở dưới, tên cửa hàng chữ nhỏ ở trên.
      sw = bề ngang bảng (m), bảng cao 1 m → canvas giữ đúng tỉ lệ để chữ không bị méo */
   const SIGN_H = 1.0;
   function signTex(name, sw) {
-    const W = 1024,
+    const W = LITE ? 512 : 1024,
       H = Math.round((W * SIGN_H) / sw),
       c = document.createElement("canvas");
     c.width = W;
@@ -170,7 +225,7 @@
     while (x.measureText("MAXIDI").width > W * 0.8 && --f > 20);
     x.fillText("MAXIDI", W / 2, H * 0.69);
     const t = new THREE.CanvasTexture(c);
-    t.anisotropy = 4;
+    t.anisotropy = LITE ? 1 : 4;
     return t;
   }
 
@@ -255,21 +310,43 @@
     const u = g.userData;
     if (u.tex) u.tex.dispose();
     if (u.sm) u.sm.dispose();
-    const sp = u.sprite;
-    if (sp) {
-      scene.remove(sp);
-      if (sp.material) {
-        if (sp.material.map) sp.material.map.dispose();
-        sp.material.dispose();
-      }
-    }
+    dropSprite(u.sprite);
   }
 
   /* ============ 4. ĐƯỜNG LỚN + ĐẠI LỘ + ĐÈN + XE ============ */
   let roadKey = "",
     streetsZ = [],
     carList = [],
+    sigs = [],
+    rowStops = new Map() /* dz → các x của cửa hàng trong hàng đó (đích giao hàng) */,
     RX = [0, 0];
+
+  /* trạng thái đèn: 0 xanh · 1 vàng · 2 đỏ. Đường ngang xanh trước, rồi toàn đỏ 1 s, rồi đại lộ xanh */
+  const lightSt = (type, si, ai, ts) => {
+    const t = (ts + ((si * 7 + ai * 11) % SIG_T)) % SIG_T;
+    if (type === 0) return t < 11 ? 0 : t < 13 ? 1 : 2;
+    return t < 14 ? 2 : t < 25 ? 0 : t < 27 ? 1 : 2;
+  };
+  /* một cột đèn giao thông: cột + tay đòn + hộp đèn (tĩnh, gộp cùng đường) + 3 bóng đèn (đổi màu mỗi khung hình) */
+  function addSignal(g, axis, dir, stopS, lane, curb, type, si, ai) {
+    const p = stopS - dir * 0.4,
+      lamps = [];
+    if (axis === 0) {
+      cyl(g, 0.07, 4.85, darkM, p, 0, curb);
+      box(g, 0.1, 0.1, Math.abs(lane - curb), darkM, p, 4.75, (lane + curb) / 2);
+      box(g, 0.32, 1.0, 0.5, darkM, p, 3.7, lane);
+      [4.45, 4.2, 3.95].forEach((y) => lamps.push(put(sigRoot, SPH, SIGM.r[0], 0.09, 0.09, 0.09, p - dir * 0.17, y, lane)));
+    } else {
+      cyl(g, 0.07, 4.85, darkM, curb, 0, p);
+      box(g, Math.abs(lane - curb), 0.1, 0.1, darkM, (lane + curb) / 2, 4.75, p);
+      box(g, 0.5, 1.0, 0.32, darkM, lane, 3.7, p);
+      [4.45, 4.2, 3.95].forEach((y) => lamps.push(put(sigRoot, SPH, SIGM.r[0], 0.09, 0.09, 0.09, lane, y, p - dir * 0.17)));
+    }
+    lamps[1].material = SIGM.y[0];
+    lamps[2].material = SIGM.g[0];
+    sigs.push({ lamps, type, si, ai, st: -1 });
+  }
+
   function buildRoads(minDx, maxDx, minDz, maxDz) {
     const key = [minDx, maxDx, minDz, maxDz].join();
     if (key === roadKey) return;
@@ -279,9 +356,13 @@
       roadRoot.remove(o);
       free(o);
     }
+    while (sigRoot.children.length) sigRoot.remove(sigRoot.children[0]);
+    while (poolRoot.children.length) poolRoot.remove(poolRoot.children[0]);
+    sigs = [];
     carList.forEach((c) => {
       carRoot.remove(c.g);
       free(c.g);
+      if (c.cour) carRoot.remove(c.cour.g);
     });
     carList = [];
     const g = new THREE.Group(),
@@ -290,7 +371,8 @@
       x0 = xL - 45,
       x1 = xR + 45,
       zA = minDz * GZ + ROAD - 52,
-      zB = maxDz * GZ + ROAD + 52;
+      zB = maxDz * GZ + ROAD + 52,
+      lampPts = [];
     streetsZ = [];
     for (let k = minDz; k <= maxDz; k++) streetsZ.push(k * GZ + ROAD);
     RX = [x0, x1];
@@ -321,37 +403,82 @@
         cyl(g, 0.08, 5, darkM, x, -0.05, pz);
         box(g, 0.08, 0.08, 1.3, darkM, x, 4.95, pz + 0.65);
         box(g, 0.25, 0.08, 0.5, GLOW, x, 4.9, pz + 1.2);
+        lampPts.push([x, pz + 1.2]);
       }
+    });
+    /* vạch dừng + đèn giao thông ở mọi ngã tư (đường × đại lộ) */
+    const stopsOf = (axis, dir, ai) => {
+      const out = [];
+      if (axis === 0) out.push({ s: dir > 0 ? (ai ? xR - 10.4 : xL - 7.2) : ai ? xR + 7.2 : xL + 10.4, type: 0, ai });
+      return out;
+    };
+    streetsZ.forEach((zs, si) => {
+      [xL, xR].forEach((ax, ai) => {
+        addSignal(g, 0, 1, stopsOf(0, 1, ai)[0].s, zs - 2.25, zs - 4.9, 0, si, ai);
+        addSignal(g, 0, -1, stopsOf(0, -1, ai)[0].s, zs + 2.25, zs + 4.9, 0, si, ai);
+        addSignal(g, 1, 1, zs - 6.3, ax + 2.25, ax + 5.4, 1, si, ai);
+        addSignal(g, 1, -1, zs + 6.3, ax - 2.25, ax - 5.4, 1, si, ai);
+      });
+    });
+    /* vệt sáng dưới chân đèn đường (chỉ hiện ban đêm) */
+    lampPts.forEach(([x, z]) => {
+      const m = new THREE.Mesh(CIR, POOLM);
+      m.scale.set(6.5, 1, 6.5);
+      m.position.set(x, 0.012, z);
+      poolRoot.add(m);
     });
     if (CAN_MERGE) mergeGroup(g);
     flat(g);
     roadRoot.add(g);
-    /* xe chạy 2 chiều trên mỗi đường, mỗi làn cùng tốc độ nên không đè nhau */
-    const KINDS = ["sedan", "suv", "taxi", "sedan", "bus", "truck", "suv", "sedan", "taxi", "truck"];
+
+    /* xe chạy 2 chiều trên mỗi đường (và 2 làn trên mỗi đại lộ). Mỗi xe có tốc độ thật, tự phanh theo đèn và xe phía trước */
+    const KINDS = ["sedan", "suv", "taxi", "sedan", "bus", "truck", "suv", "sedan", "taxi", "truck"],
+      spawn = (kind, color, ax, dir, sp, lane, stops, lo, hi, pos, fixed, dz, deliver) => {
+        const cg = makeCar(color, kind);
+        if (ax === 0) cg.position.set(pos, 0, fixed);
+        else cg.position.set(fixed, 0, pos);
+        cg.rotation.y = ax === 0 ? (dir > 0 ? 0 : Math.PI) : dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+        carRoot.add(cg);
+        const c = { g: cg, ax, dir, sp, v: sp, len: CLEN[kind] || 4.4, lane, stops, lo, hi, p: pos, dz, deliver, st: null, served: null, kind };
+        lane.push(c);
+        carList.push(c);
+      };
     streetsZ.forEach((zs, si) => {
       [
         [zs - 2.25, 1],
         [zs + 2.25, -1],
       ].forEach(([lz, dir], li) => {
-        const n = Math.max(2, Math.round((x1 - x0) / 46)),
-          sp = 5 + ((si * 2 + li) % 3) * 1.4;
+        const n = Math.max(2, Math.round((x1 - x0) / (LITE ? 74 : 46))),
+          sp = 5 + ((si * 2 + li) % 3) * 1.4,
+          lane = [],
+          stops = [0, 1].map((ai) => ({ s: stopsOf(0, dir, ai)[0].s, type: 0, si, ai }));
         for (let i = 0; i < n; i++) {
-          const kind = KINDS[(si * 3 + li * 4 + i * 3) % KINDS.length],
-            cg = makeCar(CARC[(si + li + i) % CARC.length], kind);
-          cg.position.set(x0 + ((x1 - x0) * (i + 0.35 * ((i * 7 + li) % 3))) / n, 0, lz);
-          cg.rotation.y = dir > 0 ? 0 : Math.PI;
-          carRoot.add(cg);
-          carList.push({ g: cg, dir, sp });
+          const deliver = li === 0 && i === 0,
+            kind = deliver ? "dtruck" : KINDS[(si * 3 + li * 4 + i * 3) % KINDS.length];
+          spawn(kind, CARC[(si + li + i) % CARC.length], 0, dir, sp, lane, stops, x0, x1, x0 + ((x1 - x0) * (i + 0.35 * ((i * 7 + li) % 3))) / n, lz, minDz + si, deliver);
         }
       });
     });
+    [xL, xR].forEach((ax, ai) =>
+      [
+        [ax + 2.25, 1],
+        [ax - 2.25, -1],
+      ].forEach(([lx, dir], li) => {
+        const n = Math.max(2, Math.round((zB - zA) / (LITE ? 74 : 46))),
+          sp = 5.5 + ((ai * 2 + li) % 3) * 1.2,
+          lane = [],
+          stops = streetsZ.map((zs, si) => ({ s: dir > 0 ? zs - 6.3 : zs + 6.3, type: 1, si, ai }));
+        for (let i = 0; i < n; i++)
+          spawn(KINDS[(ai * 5 + li * 3 + i * 7 + 2) % KINDS.length] === "truck" ? "suv" : KINDS[(ai * 5 + li * 3 + i * 7 + 2) % KINDS.length], CARC[(ai + li + i + 3) % CARC.length], 1, dir, sp, lane, stops, zA, zB, zA + ((zB - zA) * (i + 0.35 * ((i * 5 + li) % 3))) / n, lx, 0, false);
+      }),
+    );
   }
 
   /* ---- XE: mũi xe hướng +x. Chi tiết bằng khối xếp tầng (không dùng rotation để mergeGroup gộp an toàn) ---- */
   const bodyMats = new Map(),
     bodyMat = (c) => {
       let m = bodyMats.get(c);
-      if (!m) bodyMats.set(c, (m = M(c, 0.35, 0.35)));
+      if (!m) bodyMats.set(c, (m = MM(c, 0.35, 0.35)));
       return m;
     };
   /* bánh xe: lốp + mâm + trục */
@@ -414,7 +541,7 @@
     box(g, 0.22, 0.24, 1.9, darkM, -2.25, 0.24, 0);
     box(g, 0.05, 0.14, 1.0, darkM, 2.26, 0.58, 0);
     box(g, 0.03, 0.13, 0.42, plateM, -2.37, 0.34, 0);
-    box(g, 0.28, 0.5, 0.1, darkM, -2.34, 0.4, 0.62 * 0); /* bánh dự phòng */
+    box(g, 0.28, 0.5, 0.1, darkM, -2.34, 0.4, 0); /* bánh dự phòng */
     lamps(g, 2.25, -2.25, 0.62, 0.68, 3.8);
   }
   function bus(g, cm) {
@@ -462,14 +589,212 @@
   }
   function makeCar(color, kind) {
     const g = new THREE.Group(),
-      cm = bodyMat(kind === "taxi" ? 0xf2b705 : kind === "bus" || kind === "truck" ? 0xf5f5f7 : color);
+      cm = bodyMat(kind === "taxi" ? 0xf2b705 : kind === "bus" || kind === "truck" || kind === "dtruck" ? 0xf5f5f7 : color);
     if (kind === "suv") suv(g, cm);
     else if (kind === "bus") bus(g, cm);
-    else if (kind === "truck") truck(g, cm);
+    else if (kind === "truck" || kind === "dtruck") truck(g, cm);
     else sedan(g, cm, kind === "taxi");
     if (CAN_MERGE) mergeGroup(g);
     flat(g);
+    if (kind === "dtruck") {
+      /* phần động (không gộp): 4 đèn cảnh báo nhấp nháy + ánh sáng cửa thùng khi mở */
+      const hz = [];
+      [
+        [3.36, 0.95],
+        [3.36, -0.95],
+        [-3.36, 0.95],
+        [-3.36, -0.95],
+      ].forEach(([x, z]) => {
+        const m = put(g, BOX, HAZ, 0.08, 0.14, 0.2, x, 0.95, z);
+        m.visible = false;
+        hz.push(m);
+      });
+      const door = put(g, BOX, DOORM, 0.06, 1.7, 1.5, -3.21, 1.55, 0);
+      door.visible = false;
+      g.userData = { hz, door };
+    }
     return g;
+  }
+
+  /* ---- NHÂN VIÊN GIAO HÀNG: chân đu đưa, tay bê kiện hàng, mũ tím MAXIDI ---- */
+  function makeCourier() {
+    const g = new THREE.Group(),
+      legs = [];
+    [-1, 1].forEach((sg) => {
+      const lg = new THREE.Group();
+      lg.position.set(0, 0.8, sg * 0.12);
+      box(lg, 0.2, 0.8, 0.18, pantsM, 0, -0.8, 0);
+      g.add(lg);
+      legs.push(lg);
+    });
+    box(g, 0.3, 0.62, 0.5, magM, 0, 0.8, 0);
+    ball(g, 0.16, skinM, 0, 1.6, 0);
+    box(g, 0.34, 0.1, 0.34, magM, 0.02, 1.68, 0);
+    box(g, 0.4, 0.12, 0.12, skinM, 0.25, 1.15, 0.25);
+    box(g, 0.4, 0.12, 0.12, skinM, 0.25, 1.15, -0.25);
+    const pk = new THREE.Group();
+    box(pk, 0.4, 0.36, 0.46, parcelM, 0, -0.18, 0);
+    box(pk, 0.42, 0.06, 0.1, lineM, 0, 0.12, 0);
+    pk.position.set(0.52, 1.18, 0);
+    g.add(pk);
+    flat(g);
+    g.visible = false;
+    carRoot.add(g);
+    return { g, legs, box: pk };
+  }
+  /* nhãn nổi "Đã giao" bay lên rồi tan */
+  const pops = [];
+  function spawnPop(x, z) {
+    const sp = tag("📦 Đã giao", x, 3.4, z, 3.2);
+    if (sp) pops.push({ sp, t0: performance.now() });
+  }
+  /* bắt đầu quy trình giao hàng: xe đã dừng đúng chỗ trước cửa cửa hàng sx */
+  function startDock(c, sx, ts) {
+    const P = c.g.position,
+      zd = c.dz * GZ + FRONT + 0.6;
+    c.st = "dock";
+    c.t0 = ts;
+    c.served = sx;
+    c.v = 0;
+    c.pop = false;
+    c.start = { x: P.x - 3.5, z: P.z };
+    c.end = { x: sx + 0.6, z: zd };
+    c.W = Math.hypot(c.end.x - c.start.x, c.end.z - c.start.z) / 1.8;
+    if (!c.cour) c.cour = makeCourier();
+  }
+  function dockStep(c, ts) {
+    const t = ts - c.t0,
+      W = c.W,
+      u = c.g.userData,
+      co = c.cour,
+      T1 = 1.3,
+      T2 = T1 + W,
+      T3 = T2 + 0.9,
+      T4 = T3 + W,
+      T6 = T4 + 1.7;
+    const blink = (ts * 3) % 1 < 0.5;
+    u.hz.forEach((m) => (m.visible = blink));
+    u.door.visible = t > 0.7 && t < T4 + 0.4;
+    if (t < T1 || t >= T4) co.g.visible = false;
+    else {
+      let x, z, yaw, walk = false;
+      co.g.visible = true;
+      if (t < T2) {
+        const k = (t - T1) / W;
+        x = c.start.x + (c.end.x - c.start.x) * k;
+        z = c.start.z + (c.end.z - c.start.z) * k;
+        yaw = Math.atan2(-(c.end.z - c.start.z), c.end.x - c.start.x);
+        walk = true;
+        co.box.visible = true;
+      } else if (t < T3) {
+        x = c.end.x;
+        z = c.end.z;
+        yaw = Math.PI / 2;
+        co.box.visible = false;
+        if (!c.pop) {
+          c.pop = true;
+          spawnPop(c.end.x, c.end.z - 0.6);
+        }
+      } else {
+        const k = (t - T3) / W;
+        x = c.end.x + (c.start.x - c.end.x) * k;
+        z = c.end.z + (c.start.z - c.end.z) * k;
+        yaw = Math.atan2(-(c.start.z - c.end.z), c.start.x - c.end.x);
+        walk = true;
+        co.box.visible = false;
+      }
+      co.g.position.set(x, walk ? Math.abs(Math.sin(ts * 8)) * 0.05 : 0, z);
+      co.g.rotation.y = yaw;
+      co.legs[0].rotation.z = walk ? Math.sin(ts * 8) * 0.6 : 0;
+      co.legs[1].rotation.z = walk ? -Math.sin(ts * 8) * 0.6 : 0;
+    }
+    if (t >= T6) {
+      c.st = null;
+      u.hz.forEach((m) => (m.visible = false));
+      u.door.visible = false;
+      co.g.visible = false;
+    }
+  }
+
+  /* mô phỏng giao thông: phanh theo đèn đỏ, giữ khoảng cách xe phía trước, xe tải dừng giao hàng */
+  function stepCars(dt, ts) {
+    for (let i = 0; i < carList.length; i++) {
+      const c = carList[i];
+      c.p = c.ax ? c.g.position.z : c.g.position.x;
+    }
+    for (let i = 0; i < carList.length; i++) {
+      const c = carList[i],
+        dir = c.dir,
+        half = c.len / 2,
+        P = c.g.position;
+      if (c.st === "dock") {
+        c.v = 0;
+        dockStep(c, ts);
+        continue;
+      }
+      let vt = c.sp;
+      const front = c.p + dir * half;
+      /* đèn giao thông */
+      for (let k = 0; k < c.stops.length; k++) {
+        const s = c.stops[k],
+          d = (s.s - front) * dir;
+        if (d < -0.4 || d > 45) continue;
+        const st = lightSt(s.type, s.si, s.ai, ts);
+        if (st === 0) continue;
+        if (st === 1 && d < (c.v * c.v) / 6 + 0.5) continue; /* đèn vàng mà không kịp phanh thì đi tiếp */
+        vt = Math.min(vt, Math.sqrt(6 * Math.max(0, d - 0.4)));
+      }
+      /* giữ khoảng cách với xe phía trước cùng làn */
+      let gap = 99;
+      for (let k = 0; k < c.lane.length; k++) {
+        const o = c.lane[k];
+        if (o === c) continue;
+        const gp = (o.p - c.p) * dir - (half + o.len / 2) - 1.4;
+        if (gp > -2 && gp < gap) gap = gp;
+      }
+      if (gap < 30) vt = Math.min(vt, Math.sqrt(6 * Math.max(0, gap - 0.3)));
+      /* xe tải giao hàng: dừng đúng chỗ trước cửa từng cửa hàng trong hàng */
+      if (c.deliver) {
+        const list = rowStops.get(c.dz);
+        if (list)
+          for (let k = 0; k < list.length; k++) {
+            const sx = list[k];
+            if (c.served === sx) continue;
+            const stp = sx + 5.8,
+              d = (stp - c.p) * dir;
+            if (d > -1.2 && d < 50) {
+              vt = Math.min(vt, Math.sqrt(6 * Math.max(0, d)));
+              if (d < 0.6 && c.v < 0.6) {
+                P.x = stp;
+                startDock(c, sx, ts);
+              }
+              break;
+            }
+          }
+        if (c.st === "dock") continue;
+      }
+      if (c.v < vt) c.v = Math.min(vt, c.v + 3.5 * dt);
+      else c.v = Math.max(vt, c.v - 9 * dt);
+      let p = c.p + dir * c.v * dt;
+      if (dir > 0 && p > c.hi) {
+        p = c.lo;
+        c.served = null;
+      } else if (dir < 0 && p < c.lo) p = c.hi;
+      if (c.ax) P.z = p;
+      else P.x = p;
+    }
+  }
+  /* cập nhật màu đèn giao thông */
+  function stepSignals(ts) {
+    for (let i = 0; i < sigs.length; i++) {
+      const s = sigs[i],
+        st = lightSt(s.type, s.si, s.ai, ts);
+      if (st === s.st) continue;
+      s.st = st;
+      s.lamps[0].material = SIGM.r[st === 2 ? 1 : 0];
+      s.lamps[1].material = SIGM.y[st === 1 ? 1 : 0];
+      s.lamps[2].material = SIGM.g[st === 0 ? 1 : 0];
+    }
   }
 
   /* ============ 4b. KẾT NỐI GIỮA CÁC CỬA HÀNG: cầu kính + toa con thoi + drone giao hàng ============ */
@@ -527,7 +852,7 @@
   function makeDrone() {
     const g = new THREE.Group(),
       rotors = [];
-    box(g, 0.9, 0.24, 0.9, darkM, -0.0, 0, 0);
+    box(g, 0.9, 0.24, 0.9, darkM, 0, 0, 0);
     box(g, 2.1, 0.06, 0.1, darkM, 0, 0.1, 0);
     box(g, 0.1, 0.06, 2.1, darkM, 0, 0.1, 0);
     [
@@ -569,7 +894,7 @@
     let nd = 0;
     list.forEach((p, i) => {
       const { a, b } = p,
-        l = { h: p.h, ph: ((i * 0.37) % 1 + 1) % 1 },
+        l = { h: p.h, ph: (((i * 0.37) % 1) + 1) % 1 },
         ta = [a.g && a.g.userData.anim, b.g && b.g.userData.anim].filter(Boolean);
       l.t0 = ta.length ? Math.max(...ta.map((x) => x.t0)) + 350 : null;
       if (p.h) {
@@ -596,7 +921,7 @@
           }
         }
       }
-      if (nd < MAXDRONE) {
+      if (nd < (LITE ? 4 : MAXDRONE)) {
         nd++;
         const A = { x: a.dx * GX, z: a.dz * GZ + FRONT - a.d / 2 },
           B = { x: b.dx * GX, z: b.dz * GZ + FRONT - b.d / 2 },
@@ -631,9 +956,101 @@
       scene.add(m);
       return m;
     });
-  ringGeo.rotateX(0);
   beam.visible = false;
   scene.add(beam);
+
+  /* ============ 4c. CHU KỲ NGÀY ĐÊM ============ */
+  /* Ban đêm CHỈ đổi: màu trời, sương mù, màu vật liệu riêng của khu phố (đường, nhà, xe...) và độ sáng vật liệu phát sáng.
+     KHÔNG đụng vào bất kỳ đèn nào của cảnh và không dùng chung vật liệu với core → nội thất cửa hàng luôn sáng như ban ngày. */
+  const DN = { mode: 0 /* 0 tự động · 1 ban ngày · 2 ban đêm */, dl: 1, w: 0, lastN: -1, lastW: -1 },
+    NIGHT_T = new THREE.Color(0.2, 0.25, 0.42),
+    WARM_T = new THREE.Color(1, 0.78, 0.62),
+    NIGHT_BG = new THREE.Color(0x070b1a),
+    DUSK_BG = new THREE.Color(0xf19a6b),
+    tmpC = new THREE.Color(),
+    BGS = { base: null, clr: null, a: 1, fog: null },
+    GB = GLOW.emissiveIntensity != null ? GLOW.emissiveIntensity : 1,
+    TB = TAIL.emissiveIntensity != null ? TAIL.emissiveIntensity : 1;
+  const mixBg = (out, base, n, w) => out.copy(base).lerp(DUSK_BG, w * 0.5).lerp(NIGHT_BG, n * 0.96);
+  /* sao + trăng (đi theo camera nên luôn ở rất xa) */
+  const starGeo = new THREE.BufferGeometry(),
+    SN = 380,
+    sp = new Float32Array(SN * 3);
+  for (let i = 0; i < SN; i++) {
+    const a = ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1,
+      b = ((Math.sin(i * 78.233 + 3.1) * 12345.678) % 1 + 1) % 1,
+      th = a * Math.PI * 2,
+      el = 0.06 + b * 1.2,
+      r = Math.cos(el);
+    sp[i * 3] = Math.cos(th) * r;
+    sp[i * 3 + 1] = Math.sin(el);
+    sp[i * 3 + 2] = Math.sin(th) * r;
+  }
+  starGeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false })),
+    moon = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf1f4ff, transparent: true, opacity: 0, depthWrite: false, fog: false })),
+    sky = new THREE.Group();
+  stars.frustumCulled = false;
+  stars.renderOrder = -2;
+  moon.renderOrder = -1;
+  sky.add(stars, moon);
+  sky.visible = false;
+  scene.add(sky);
+  function applyDayNight(dt, ts) {
+    let tgt, wt;
+    const forced = mode === "edit"; /* đang chỉnh sửa → trời luôn sáng cho dễ nhìn */
+    if (forced) {
+      tgt = 1;
+      wt = 0;
+    } else if (DN.mode === 0) {
+      const e = Math.sin(Math.PI * 2 * (ts / CYCLE + 0.25)); /* bắt đầu từ giữa trưa */
+      tgt = smooth(-0.12, 0.3, e);
+      wt = Math.exp(-Math.pow((e - 0.06) / 0.22, 2));
+    } else {
+      tgt = DN.mode === 1 ? 1 : 0;
+      wt = 0;
+    }
+    const kk = Math.min(1, dt * (DN.mode === 0 && !forced ? 12 : 2.5));
+    DN.dl += (tgt - DN.dl) * kk;
+    DN.w += (wt - DN.w) * kk;
+    const n = 1 - DN.dl,
+      w = DN.w;
+    if (Math.abs(n - DN.lastN) < 0.002 && Math.abs(w - DN.lastW) < 0.002) return;
+    DN.lastN = n;
+    DN.lastW = w;
+    /* màu vật liệu riêng của khu phố: nhân với tông đêm (xanh tối) / hoàng hôn (cam ấm) */
+    tintNow.setRGB(1, 1, 1).lerp(NIGHT_T, n * 0.92).lerp(WARM_T, w * 0.35);
+    for (let i = 0; i < dnMats.length; i++) dnMats[i][0].color.copy(dnMats[i][1]).multiply(tintNow);
+    /* trời + sương mù */
+    const bg = scene.background;
+    if (bg && bg.isColor) {
+      if (!BGS.base) BGS.base = bg.clone();
+      mixBg(bg, BGS.base, n, w);
+    } else if (!bg && ren.getClearColor) {
+      if (!BGS.clr) {
+        BGS.clr = new THREE.Color();
+        ren.getClearColor(BGS.clr);
+        BGS.a = ren.getClearAlpha();
+      }
+      if (BGS.a > 0) ren.setClearColor(mixBg(tmpC, BGS.clr, n, w), BGS.a);
+    }
+    if (scene.fog && scene.fog.color) {
+      if (!BGS.fog) BGS.fog = scene.fog.color.clone();
+      mixBg(scene.fog.color, BGS.fog, n, w);
+    }
+    /* vật liệu phát sáng + vệt sáng */
+    GLOW.emissiveIntensity = GB * (1 + n * 1.6);
+    TAIL.emissiveIntensity = TB * (1 + n * 0.8);
+    BEAM.opacity = 0.14 + n * 0.34;
+    POOLM.opacity = n * 0.5;
+    poolRoot.visible = n > 0.02;
+    blocks.forEach((g) => {
+      if (g.userData.sm) g.userData.sm.emissiveIntensity = 0.3 + n * 0.9;
+    });
+    stars.material.opacity = n;
+    moon.material.opacity = Math.min(1, n * 1.4);
+    sky.visible = !LITE && n > 0.02;
+  }
 
   /* ============ 5. ĐỒNG BỘ DANH SÁCH ⇄ Ô ĐẤT ⇄ CẢNH ============ */
   let sig = "",
@@ -716,7 +1133,13 @@
       oD = typeof STORE !== "undefined" && isFinite(STORE.D) ? STORE.D : 30;
     cells.set("0,0", { dx: 0, dz: 0, w: oW, d: oD, g: null });
     cand.slice(0, MAXB).forEach(([s, dx, dz]) => {
-      const g = makeBlock(s, dx, dz);
+      let g;
+      try {
+        g = makeBlock(s, dx, dz);
+      } catch (e) {
+        console.error("store-world: makeBlock", e);
+        return;
+      }
       root.add(g);
       blocks.set(s.id, g);
       cells.set(dx + "," + dz, { dx, dz, w: g.userData.w, d: g.userData.d, g });
@@ -732,11 +1155,28 @@
     });
     EXTR = { minDx: mnx, maxDx: mxx, minDz: mnz, maxDz: mxz };
     EXT = { x0: mnx * GX - 26, x1: mxx * GX + 26, z0: mnz * GZ - 6, z1: mxz * GZ + 16 };
-    buildRoads(mnx, mxx, mnz, mxz);
-    buildLinks(cells);
+    /* đích giao hàng của từng hàng: x của mọi cửa hàng (gồm cả cửa hàng đang mở ở gốc) */
+    rowStops = new Map();
+    cells.forEach((c) => {
+      if (!rowStops.has(c.dz)) rowStops.set(c.dz, []);
+      rowStops.get(c.dz).push(c.dx * GX);
+    });
+    rowStops.forEach((a) => a.sort((p, q) => p - q));
+    try {
+      buildRoads(mnx, mxx, mnz, mxz);
+    } catch (e) {
+      roadKey = "";
+      console.error("store-world: buildRoads", e);
+    }
+    try {
+      buildLinks(cells);
+    } catch (e) {
+      console.error("store-world: buildLinks", e);
+    }
     prevIds = new Set(blocks.keys());
     lastAct = act;
     built = true;
+    DN.lastN = -1; /* ép áp lại ánh sáng ban đêm cho khối mới */
     if (selId && !blocks.has(selId)) hidePill();
   }
   setInterval(() => !document.hidden && !going && sync(), 400);
@@ -843,7 +1283,13 @@
  #swVeil .sw-c{color:#f5f5f7;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));
   box-shadow:0 1px 2px rgba(0,0,0,.5),0 24px 54px -14px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.4)}}
 @media (max-width:720px){#swPill{top:calc(var(--sl-top,14px) + 66px + env(safe-area-inset-top,0px))}}
-@media (prefers-reduced-motion:reduce){#swVeil,#swVeil .sw-c{transition-duration:.01s!important}}`;
+@media (prefers-reduced-motion:reduce){#swVeil,#swVeil .sw-c{transition-duration:.01s!important}}
+/* thanh công cụ bị tràn trên điện thoại → xuống dòng để hiện đủ mọi nút (class chỉ được gắn khi thật sự tràn) */
+#tools.sw-wrap{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-content:flex-start!important;gap:6px!important;
+ max-width:calc(100vw - 16px)!important;width:auto!important;height:auto!important;max-height:none!important;overflow:visible!important;box-sizing:border-box}
+#tools.sw-wrapc{display:flex!important;flex-direction:column!important;flex-wrap:wrap!important;align-content:flex-start!important;gap:6px!important;
+ max-height:var(--sw-mh,70vh)!important;height:auto!important;overflow:visible!important;box-sizing:border-box}
+#tools.sw-wrap>*,#tools.sw-wrapc>*{flex:0 0 auto!important}`;
   document.head.appendChild(css);
 
   const pill = document.createElement("div");
@@ -896,6 +1342,59 @@
   bt.innerHTML = IC("shops", 17) + "<span>Khu phố</span>";
   bt.onclick = fitAll;
   $("#tools").appendChild(bt);
+
+  /* nút Ngày đêm: Tự động → Ban ngày → Ban đêm */
+  const DN_LBL = [
+      ["🌗", "Ngày đêm"],
+      ["☀️", "Ban ngày"],
+      ["🌙", "Ban đêm"],
+    ],
+    dnBtn = document.createElement("button");
+  dnBtn.id = "swDN";
+  dnBtn.className = "sx-lb";
+  const dnPaint = () => {
+    dnBtn.innerHTML = "<span>" + DN_LBL[DN.mode][0] + " " + DN_LBL[DN.mode][1] + "</span>";
+    dnBtn.title = "Chu kỳ ngày đêm: " + ["tự động", "luôn ban ngày", "luôn ban đêm"][DN.mode] + " (bấm để đổi)";
+  };
+  dnBtn.onclick = () => {
+    DN.mode = (DN.mode + 1) % 3;
+    dnPaint();
+  };
+  dnPaint();
+  $("#tools").appendChild(dnBtn);
+
+  /* thanh công cụ trên điện thoại: chỉ khi thật sự tràn khỏi màn hình mới cho xuống dòng, còn vừa thì giữ nguyên UI chuẩn */
+  const mqPhone = window.matchMedia("(max-width:720px), (max-height:520px)");
+  let fitBusy = false;
+  function fitTools() {
+    const t = $("#tools");
+    if (!t || fitBusy) return;
+    fitBusy = true;
+    try {
+      t.classList.remove("sw-wrap", "sw-wrapc");
+      t.style.removeProperty("--sw-mh");
+      if (!mqPhone.matches) return;
+      const r = t.getBoundingClientRect(),
+        vw = window.innerWidth,
+        vh = window.innerHeight,
+        overW = t.scrollWidth > t.clientWidth + 2 || r.left < -1 || r.right > vw + 1,
+        overH = t.scrollHeight > t.clientHeight + 2 || r.top < -1 || r.bottom > vh + 1;
+      if (!overW && !overH) return;
+      if (getComputedStyle(t).flexDirection === "column") {
+        t.style.setProperty("--sw-mh", Math.max(120, vh - Math.max(0, r.top) - 90) + "px");
+        t.classList.add("sw-wrapc");
+      } else t.classList.add("sw-wrap");
+    } finally {
+      fitBusy = false;
+    }
+  }
+  window.addEventListener("resize", fitTools);
+  window.addEventListener("orientationchange", () => setTimeout(fitTools, 250));
+  try {
+    new MutationObserver(() => setTimeout(fitTools, 0)).observe($("#tools"), { childList: true });
+  } catch (e) {}
+  setInterval(fitTools, 1500);
+  setTimeout(fitTools, 300);
 
   /* ============ 8. CHUYỂN CỬA HÀNG (bọc StoreLink.view: mọi nơi gọi đều có animation) ============ */
   const _view = StoreLink.view;
@@ -967,14 +1466,50 @@
   });
   setInterval(() => mode === "edit" && selId && hidePill(), 500);
 
-  /* ============ 10. MỖI KHUNG HÌNH: khối trồi lên + xe chạy + toa con thoi + drone + cột sáng ============ */
+  /* ============ 10. MỖI KHUNG HÌNH: khối trồi lên + giao thông + đèn + giao hàng + drone + ngày đêm ============ */
   const _render = ren.render.bind(ren);
+  const safe = (f) => {
+    try {
+      f();
+    } catch (e) {
+      if (!safe.err) {
+        safe.err = 1;
+        console.error("store-world:", e);
+      }
+    }
+  };
+  /* zoom ra xem cả khu phố (nhất là màn hình dọc điện thoại): nới far-plane + giảm sương mù để cửa hàng không bị cắt / phủ mờ.
+     Chỉ nới thêm, không bao giờ thu hẹp lại mức gốc của core. */
+  const camBase = { fn: null, ff: null, fd: null };
+  function adaptView() {
+    const r = cam.r || 0,
+      need = Math.ceil((r * 3 + 300) / 50) * 50;
+    if (camera.far < need) {
+      camera.far = need;
+      camera.updateProjectionMatrix();
+    }
+    const f = scene.fog;
+    if (!f) return;
+    const k = blocks.size ? clamp((r - cam.fit * 1.1) / (cam.fit * 0.5 + 1), 0, 1) : 0;
+    if (f.isFog) {
+      if (camBase.fn == null) {
+        camBase.fn = f.near;
+        camBase.ff = f.far;
+      }
+      f.near = camBase.fn + (Math.max(camBase.fn, r * 0.8) - camBase.fn) * k;
+      f.far = camBase.ff + (Math.max(camBase.ff, r * 2.6) - camBase.ff) * k;
+    } else if (f.isFogExp2) {
+      if (camBase.fd == null) camBase.fd = f.density;
+      f.density = camBase.fd + (Math.min(camBase.fd, 0.9 / Math.max(r, 1)) - camBase.fd) * k;
+    }
+  }
   let last = performance.now();
-  ren.render = (s, c) => {
+  function frame() {
     const now = performance.now(),
       dt = Math.min(0.05, (now - last) / 1000),
       ts = now / 1000;
     last = now;
+    safe(adaptView);
     blocks.forEach((g) => {
       const a = g.userData.anim;
       if (!a) return;
@@ -988,12 +1523,22 @@
         g.userData.sprite.visible = p > 0.75;
       }
     });
-    for (let i = 0; i < carList.length; i++) {
-      const c = carList[i],
-        p = c.g.position;
-      p.x += c.dir * c.sp * dt;
-      if (c.dir > 0 && p.x > RX[1]) p.x = RX[0];
-      else if (c.dir < 0 && p.x < RX[0]) p.x = RX[1];
+    /* giao thông: đèn + xe + xe tải giao hàng */
+    safe(() => {
+      stepSignals(ts);
+      stepCars(dt, ts);
+    });
+    /* nhãn "Đã giao" bay lên rồi tan */
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const q = pops[i],
+        age = (now - q.t0) / 1000;
+      if (age > 2.6) {
+        dropSprite(q.sp);
+        pops.splice(i, 1);
+      } else {
+        q.sp.position.y = 3.4 + age * 0.6;
+        if (q.sp.material) q.sp.material.opacity = age > 1.9 ? Math.max(0, 1 - (age - 1.9) / 0.7) : 1;
+      }
     }
     /* cầu kính mọc cùng khối, toa con thoi chạy qua lại, drone mang kiện hàng bay vòng cung giữa các mái */
     for (let i = 0; i < links.length; i++) {
@@ -1056,8 +1601,37 @@
       beam.visible = false;
       rings.forEach((r) => (r.visible = false));
     }
+    /* ngày đêm (sao + trăng đi theo camera) */
+    safe(() => applyDayNight(dt, ts));
+    if (sky.visible) {
+      const R = Math.min((camera.far || 2000) * 0.45, 900);
+      sky.position.copy(camera.position);
+      stars.scale.setScalar(R);
+      moon.scale.setScalar(R * 0.035);
+      moon.position.set(-0.45 * R, 0.62 * R, -0.64 * R);
+    }
+  }
+  ren.render = (s, c) => {
+    try {
+      frame();
+    } catch (e) {
+      if (!frame.err) {
+        frame.err = 1;
+        console.error("store-world:", e);
+      }
+    }
     _render(s, c);
   };
 
-  window.StoreWorld = { fitAll, go, plots: () => ({ ...plots }), rebuild: () => sync(true) };
+  window.StoreWorld = {
+    fitAll,
+    go,
+    plots: () => ({ ...plots }),
+    rebuild: () => sync(true),
+    fitTools,
+    dayNight: (m) => {
+      DN.mode = clamp(m | 0, 0, 2);
+      dnPaint();
+    },
+  };
 })();

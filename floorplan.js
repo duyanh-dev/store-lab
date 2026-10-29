@@ -376,21 +376,40 @@
     }
   }
 
-  /* --- Sơ đồ xem trước (SVG nhìn từ trên xuống, phía dưới = cửa vào) --- */
+    /* --- Sơ đồ xem trước (SVG nhìn từ trên xuống, phía dưới = cửa vào) · tông xám trung tính --- */
+  const ZF = { shop: ".10", kho: ".30", cold: ".16" };
+  const wrapZ = (t) => {
+    const i = t.indexOf(" ("),
+      main = i < 0 ? t : t.slice(0, i),
+      par = i < 0 ? "" : t.slice(i + 1),
+      out = [];
+    let cur = "";
+    main.split(" ").forEach((w) => {
+      if (cur && (cur + " " + w).length > 10) { out.push(cur); cur = w; }
+      else cur = cur ? cur + " " + w : w;
+    });
+    if (cur) out.push(cur);
+    if (par) out.push(par);
+    return out;
+  };
+  const HALO = 'style="paint-order:stroke;stroke:var(--g-halo);stroke-width:.3;stroke-linejoin:round"';
+
   function svg(P) {
     const pts = (a) => a.map((p) => p[0] + "," + p[1]).join(" ");
     let s =
-      '<svg viewBox="-9 -22 18 40" preserveAspectRatio="xMidYMid meet" style="color:var(--ink)" xmlns="http://www.w3.org/2000/svg">';
+      '<svg viewBox="-9 -22 18 40" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sơ đồ mặt bằng nhìn từ trên xuống" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><pattern id="fph" width=".7" height=".7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2=".7" stroke="currentColor" stroke-width=".14" stroke-opacity=".4"/></pattern></defs>';
     P.zones.forEach((z) => {
-      s += `<polygon points="${pts(z.poly)}" fill="${z.k === "kho" ? "rgba(120,120,128,.38)" : z.k === "cold" ? "rgba(48,168,216,.32)" : "rgba(10,132,255,.17)"}"/>`;
+      s += `<polygon points="${pts(z.poly)}" fill="currentColor" fill-opacity="${ZF[z.k] || ".10"}"/>`;
+      if (z.k === "cold") s += `<polygon points="${pts(z.poly)}" fill="url(#fph)"/>`;
     });
     P.walls.forEach((w) => {
       const hz = Math.abs(w.a[1] - w.b[1]) < 1e-6,
         s0 = hz ? Math.min(w.a[0], w.b[0]) : Math.min(w.a[1], w.b[1]),
         s1 = hz ? Math.max(w.a[0], w.b[0]) : Math.max(w.a[1], w.b[1]),
         c0 = hz ? w.a[1] : w.a[0],
-        L = (a, b, col, wd, cap) =>
-          `<line ${hz ? `x1="${a}" x2="${b}" y1="${c0}" y2="${c0}"` : `x1="${c0}" x2="${c0}" y1="${a}" y2="${b}"`} stroke="${col}" stroke-width="${wd}" stroke-linecap="${cap || "butt"}"/>`;
+        L = (a, b, col, wd, cap, ex) =>
+          `<line ${hz ? `x1="${a}" x2="${b}" y1="${c0}" y2="${c0}"` : `x1="${c0}" x2="${c0}" y1="${a}" y2="${b}"`} stroke="${col}" stroke-width="${wd}" stroke-linecap="${cap || "butt"}" ${ex || ""}/>`;
       let cur = s0;
       (w.open || [])
         .slice()
@@ -401,30 +420,92 @@
           if (o0 > cur) s += L(cur, o0, "currentColor", 0.36, "square");
           if (o.kind === "shutter")
             s += L(o0, o1, "#4a4d55", 0.62) + L(o0, o1, "#ffffff", 0.4);
-          else s += L(o0, o1, "#34c759", 0.36);
+          else
+            s += L(o0, o1, "currentColor", 0.36, "butt", 'stroke-opacity=".55" stroke-dasharray=".55 .4"');
           cur = o1;
         });
       if (s1 > cur) s += L(cur, s1, "currentColor", 0.36, "square");
     });
     P.zones.forEach((z) => {
-      s += `<text x="${z.lp[0]}" y="${z.lp[1]}" font-size="1.25" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="currentColor" opacity=".75">${z.n}</text>`;
+      const ls = wrapZ(z.n),
+        y0 = z.lp[1] - ((ls.length - 1) * 1.4) / 2;
+      s +=
+        `<text text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-weight="650" ${HALO}>` +
+        ls
+          .map((l, i) => {
+            const sm = l[0] === "(";
+            return `<tspan x="${z.lp[0]}" y="${(y0 + i * 1.4).toFixed(2)}" font-size="${sm ? 0.95 : 1.2}"${sm ? ' font-weight="500" fill-opacity=".7"' : ""}>${esc(l)}</tspan>`;
+          })
+          .join("") +
+        "</text>";
     });
-    s += `<text x="0" y="17" font-size="1.1" text-anchor="middle" fill="currentColor" opacity=".55">▲ MẶT TIỀN / LỐI VÀO</text></svg>`;
+    s += `<text x="0" y="17" font-size="1.1" font-weight="600" text-anchor="middle" fill="currentColor" fill-opacity=".6" ${HALO}>▲ MẶT TIỀN / LỐI VÀO</text></svg>`;
     return s;
   }
 
-  /* --- Giao diện --- */
+  /* --- Giao diện: Liquid Glass trung tính (không viền màu, không gradient, không chấm phát sáng) --- */
   const css = document.createElement("style");
   css.textContent = `
 #fpBtn{left:12px;bottom:14px;padding:5px;border-radius:999px;display:none}
-#fmodal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;z-index:9;background:rgba(20,20,34,.3);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#fmodal{--g-ink:#1c1c1e;--g-sub:rgba(60,60,67,.7);--g-glass:rgba(255,255,255,.58);--g-card:rgba(255,255,255,.4);--g-card-on:rgba(255,255,255,.92);--g-fill:rgba(120,120,128,.16);--g-hi:rgba(255,255,255,.85);--g-halo:rgba(255,255,255,.9);--g-btn:#1c1c1e;--g-btn-t:#fff;--g-grab:rgba(60,60,67,.3);
+position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:20px;z-index:9;background:rgba(0,0,0,.26);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);color:var(--g-ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+@media(prefers-color-scheme:dark){#fmodal{--g-ink:#f5f5f7;--g-sub:rgba(235,235,245,.64);--g-glass:rgba(44,44,48,.58);--g-card:rgba(255,255,255,.07);--g-card-on:rgba(255,255,255,.18);--g-fill:rgba(255,255,255,.13);--g-hi:rgba(255,255,255,.2);--g-halo:rgba(30,30,34,.85);--g-btn:#f5f5f7;--g-btn-t:#1c1c1e;--g-grab:rgba(235,235,245,.35);background:rgba(0,0,0,.45)}}
 #fmodal.on{display:flex}
-#fmodal .pv{width:min(400px,44%)}
-#fmodal .pv svg{position:absolute;inset:0;width:100%;height:100%}
-#fmodal .pvb{white-space:normal;width:94%;text-align:center;line-height:1.5}
-#flist{flex:1;min-width:0;overflow:auto}
-#flist .ai small{white-space:normal}
-@media(max-width:720px){#fpBtn{:8px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}#fmodal{align-items:flex-end;padding:0}#fmodal .pv{width:100%;height:40dvh;min-height:220px}}`;
+#fmodal *{box-sizing:border-box}
+.fp-sheet{position:relative;display:flex;flex-direction:column;width:min(940px,100%);height:min(660px,100%);max-height:100%;border-radius:34px;background:var(--g-glass);-webkit-backdrop-filter:blur(44px) saturate(1.8);backdrop-filter:blur(44px) saturate(1.8);box-shadow:0 30px 80px rgba(0,0,0,.28),0 2px 10px rgba(0,0,0,.08),inset 0 1px 0 var(--g-hi),inset 0 -1px 0 rgba(255,255,255,.12);overflow:hidden;animation:fpIn .3s cubic-bezier(.2,.8,.2,1)}
+.fp-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 24px 8px}
+.fp-head h2{margin:0;font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.01em}
+.fp-x{flex:none;width:34px;height:34px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--g-fill);color:var(--g-ink);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
+.fp-x:active{transform:scale(.92)}
+.fp-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:16px;padding:8px 20px 16px}
+.fp-pv{min-height:0;display:flex;flex-direction:column;padding:14px;border-radius:26px;background:var(--g-card);box-shadow:inset 0 1px 0 var(--g-hi)}
+.fp-map{position:relative;flex:1;min-height:0}
+.fp-map svg{position:absolute;inset:0;width:100%;height:100%;color:var(--g-ink)}
+.fp-leg{flex:none;display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;line-height:1.3;font-weight:500}
+.fp-li{display:inline-flex;align-items:center;gap:6px;white-space:normal}
+.fp-sw{flex:none;width:22px;height:12px;color:var(--g-ink)}
+.fp-list{min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:10px;padding:2px}
+.fp-it{appearance:none;-webkit-appearance:none;border:0;margin:0;text-align:left;font:inherit;color:inherit;display:flex;align-items:flex-start;gap:12px;width:100%;padding:14px 16px;border-radius:22px;background:var(--g-card);box-shadow:inset 0 1px 0 var(--g-hi);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .2s,box-shadow .2s,transform .15s}
+.fp-it:active{transform:scale(.985)}
+.fp-it.on{background:var(--g-card-on);box-shadow:0 8px 24px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08),inset 0 1px 0 var(--g-hi)}
+.fp-tx{flex:1;min-width:0;display:block}
+.fp-tx b{font-size:15px;line-height:1.35;font-weight:650}
+.fp-tx em{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;font-style:normal;font-size:11px;font-weight:600;line-height:1.4;color:var(--g-sub);background:var(--g-fill);white-space:nowrap;vertical-align:1px}
+.fp-tx small{display:block;margin-top:5px;font-size:13px;line-height:1.5;color:var(--g-sub);white-space:normal}
+.fp-ck{flex:none;width:24px;height:24px;margin-top:1px;border-radius:50%;display:grid;place-items:center;background:var(--g-btn);color:var(--g-btn-t);opacity:0;transform:scale(.6);transition:opacity .2s,transform .2s}
+.fp-it.on .fp-ck{opacity:1;transform:none}
+.fp-foot{flex:none;padding:12px 20px calc(16px + env(safe-area-inset-bottom,0px))}
+.fp-ok{appearance:none;-webkit-appearance:none;width:100%;height:50px;border:0;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--g-btn);color:var(--g-btn-t);font:inherit;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s,opacity .15s}
+.fp-ok:active{transform:scale(.98);opacity:.9}
+.fp-it:focus-visible,.fp-x:focus-visible,.fp-ok:focus-visible{outline:2px solid var(--g-ink);outline-offset:2px}
+@keyframes fpIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes fpUp{from{opacity:.4;transform:translateY(60px)}to{opacity:1;transform:none}}
+@media(max-width:720px){
+#fpBtn{left:8px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+#fmodal{align-items:flex-end;padding:0}
+.fp-sheet{width:100%;height:92vh;height:92dvh;max-height:760px;border-radius:30px 30px 0 0;animation-name:fpUp}
+.fp-sheet::before{content:"";position:absolute;top:7px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--g-grab)}
+.fp-head{padding:22px 16px 6px}
+.fp-head h2{font-size:18px}
+.fp-body{display:flex;flex-direction:column;gap:10px;padding:6px 12px 10px}
+.fp-pv{flex:none;height:clamp(210px,36dvh,320px);padding:12px;border-radius:22px}
+.fp-leg{gap:4px 12px;margin-top:8px;font-size:11.5px}
+.fp-list{flex:1}
+.fp-it{padding:12px 14px;border-radius:20px}
+.fp-foot{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:720px) and (max-height:480px){
+#fmodal{align-items:center;padding:6px}
+.fp-sheet{height:100%;max-height:none;border-radius:26px;animation-name:fpIn}
+.fp-sheet::before{display:none}
+.fp-head{padding:12px 16px 4px}
+.fp-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.fp-pv{height:auto}
+.fp-foot{padding:8px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+.fp-ok{height:44px}
+}
+@media(min-width:721px) and (max-height:520px){#fmodal{padding:8px}.fp-head{padding-top:14px}.fp-ok{height:44px}}
+@media(prefers-reduced-motion:reduce){.fp-sheet{animation:none}.fp-it,.fp-ck,.fp-ok,.fp-x{transition:none}}`;
   document.head.appendChild(css);
 
   const fpBtn = document.createElement("div");
@@ -435,22 +516,39 @@
 
   const fm = document.createElement("div");
   fm.id = "fmodal";
-  fm.innerHTML = `<div class="box wide"><button class="x" id="fx">${IC("x", 14)}</button>
-<div class="mh"><h2>Kiểu mặt bằng cửa hàng</h2></div>
-<div class="ed"><div class="pv" id="fpv"></div><div id="flist"></div></div>
-<div class="foot" style="justify-content:flex-end"><button class="btn pri" id="fok" style="flex:1 1 auto">${IC("check", 15)}<span>Áp dụng mặt bằng này</span></button></div></div>`;
+  fm.setAttribute("role", "dialog");
+  fm.setAttribute("aria-modal", "true");
+  fm.setAttribute("aria-labelledby", "fptitle");
+  fm.innerHTML = `<div class="fp-sheet">
+<div class="fp-head"><h2 id="fptitle">Kiểu mặt bằng cửa hàng</h2><button type="button" class="fp-x" id="fx" aria-label="Đóng">${IC("x", 14)}</button></div>
+<div class="fp-body">
+  <div class="fp-pv"><div class="fp-map" id="fpv"></div><div class="fp-leg" id="fpleg"></div></div>
+  <div class="fp-list" id="flist"></div>
+</div>
+<div class="fp-foot"><button type="button" class="fp-ok" id="fok">${IC("check", 15)}<span>Áp dụng mặt bằng này</span></button></div></div>`;
   document.body.appendChild(fm);
+
+  const sw = (x) => `<svg class="fp-sw" viewBox="0 0 22 12" aria-hidden="true">${x}</svg>`,
+    LEG = [
+      [sw('<rect x="1" y="1" width="20" height="10" rx="3" fill="currentColor" fill-opacity=".10"/>'), "Trưng bày"],
+      [sw('<rect x="1" y="1" width="20" height="10" rx="3" fill="currentColor" fill-opacity=".30"/>'), "Kho"],
+      [sw('<rect x="1" y="1" width="20" height="10" rx="3" fill="currentColor" fill-opacity=".16"/><path d="M5 11L11 1M10 11L16 1M15 11L21 1M0 8L3 4" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/>'), "Khu đồ lạnh"],
+      [sw('<rect x="1" y="3" width="20" height="6" rx="3" fill="#4a4d55"/><rect x="2.5" y="4.4" width="17" height="3.2" rx="1.6" fill="#fff"/>'), "Cửa sắt trắng (đóng)"],
+      [sw('<line x1="2" y1="6" x2="20" y2="6" stroke="currentColor" stroke-opacity=".6" stroke-width="3" stroke-dasharray="4 3"/>'), "Cửa vào"],
+    ];
 
   let sel = "default";
   function render() {
-    const P = PLANS.find((p) => p.id === sel);
-    $("#fpv").innerHTML =
-      svg(P) +
-      '<div class="pvb txt"><span style="color:#0a84ff">■</span> Trưng bày · <span style="color:#8a8a90">■</span> Kho · <span style="color:#30a8d8">■</span> Khu đồ lạnh ·<b>▬</b> Cửa sắt trắng (đóng) · <span style="color:#34c759">▬</span> Cửa vào</div>';
-    $("#flist").innerHTML = PLANS.map(
+    const P = PLANS.find((p) => p.id === sel),
+      ls = $("#flist"),
+      top = ls.scrollTop;
+    $("#fpv").innerHTML = svg(P);
+    $("#fpleg").innerHTML = LEG.map((l) => `<span class="fp-li">${l[0]}<span>${l[1]}</span></span>`).join("");
+    ls.innerHTML = PLANS.map(
       (p) =>
-        `<button class="ai${p.id === sel ? " on" : ""}" data-p="${p.id}"><b>${esc(p.name)}</b>${p.id === curId ? " · đang dùng" : ""}<small>${esc(p.desc)}</small></button>`,
+        `<button type="button" class="fp-it${p.id === sel ? " on" : ""}" data-p="${p.id}" aria-pressed="${p.id === sel}"><span class="fp-tx"><b>${esc(p.name)}</b>${p.id === curId ? "<em>đang dùng</em>" : ""}<small>${esc(p.desc)}</small></span><i class="fp-ck">${IC("check", 13)}</i></button>`,
     ).join("");
+    ls.scrollTop = top; /* giữ vị trí cuộn khi chọn mặt bằng (quan trọng trên điện thoại) */
   }
   const open = () => {
     sel = curId;
