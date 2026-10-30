@@ -41,7 +41,7 @@
     MAXB = 40,
     MAXDRONE = 10 /* số drone tối đa (giữ nhẹ) */,
     CYCLE = 120 /* giây cho một ngày đêm */,
-    SIG_T = 28 /* chu kỳ đèn giao thông (s) */,
+    SIG_T = 40 /* chu kỳ đèn giao thông (s) */,
     clamp = (v, a, b) => Math.max(a, Math.min(b, v)),
     smooth = (a, b, v) => {
       const t = clamp((v - a) / (b - a), 0, 1);
@@ -321,11 +321,23 @@
     rowStops = new Map() /* dz → các x của cửa hàng trong hàng đó (đích giao hàng) */,
     RX = [0, 0];
 
-  /* trạng thái đèn: 0 xanh · 1 vàng · 2 đỏ. Đường ngang xanh trước, rồi toàn đỏ 1 s, rồi đại lộ xanh */
+  /* ───────────────────────── [B] ───────────────────────── */
+ 
+  /* ---- GIAO THÔNG: lái bên PHẢI (đổi RHT = false nếu muốn lái bên trái) ---- */
+  const RHT = true,
+    S = RHT ? 1 : -1,
+    LN = 2.25 /* tim làn cách tim đường */,
+    laneZ = (zs, dir) => zs + S * dir * LN /* đường ngang: xe +x đi nửa z lớn khi lái phải */,
+    laneX = (ax, dir) => ax - S * dir * LN /* đại lộ: xe +z đi nửa x nhỏ khi lái phải */,
+    /* vạch dừng của xe chạy dọc đường ngang tại đại lộ ai (tính theo đầu xe) */
+    stopX = (dir, ai, xL, xR) => (dir > 0 ? (ai ? xR - 10.4 : xL - 7.2) : ai ? xR + 7.2 : xL + 10.4);
+ 
+  /* trạng thái đèn: 0 xanh · 1 vàng · 2 đỏ.
+     Chu kỳ 40 s: đường ngang xanh 14 s + vàng 2 s → TOÀN ĐỎ 4 s (xe dọn sạch ngã tư) → đại lộ xanh 14 s + vàng 2 s → toàn đỏ 4 s */
   const lightSt = (type, si, ai, ts) => {
     const t = (ts + ((si * 7 + ai * 11) % SIG_T)) % SIG_T;
-    if (type === 0) return t < 11 ? 0 : t < 13 ? 1 : 2;
-    return t < 14 ? 2 : t < 25 ? 0 : t < 27 ? 1 : 2;
+    if (type === 0) return t < 14 ? 0 : t < 16 ? 1 : 2;
+    return t >= 20 && t < 34 ? 0 : t >= 34 && t < 36 ? 1 : 2;
   };
   /* một cột đèn giao thông: cột + tay đòn + hộp đèn (tĩnh, gộp cùng đường) + 3 bóng đèn (đổi màu mỗi khung hình) */
   function addSignal(g, axis, dir, stopS, lane, curb, type, si, ai) {
@@ -346,7 +358,7 @@
     lamps[2].material = SIGM.g[0];
     sigs.push({ lamps, type, si, ai, st: -1 });
   }
-
+ 
   function buildRoads(minDx, maxDx, minDz, maxDz) {
     const key = [minDx, maxDx, minDz, maxDz].join();
     if (key === roadKey) return;
@@ -406,20 +418,23 @@
         lampPts.push([x, pz + 1.2]);
       }
     });
-    /* vạch dừng + đèn giao thông ở mọi ngã tư (đường × đại lộ) */
-    const stopsOf = (axis, dir, ai) => {
-      const out = [];
-      if (axis === 0) out.push({ s: dir > 0 ? (ai ? xR - 10.4 : xL - 7.2) : ai ? xR + 7.2 : xL + 10.4, type: 0, ai });
-      return out;
-    };
-    streetsZ.forEach((zs, si) => {
-      [xL, xR].forEach((ax, ai) => {
-        addSignal(g, 0, 1, stopsOf(0, 1, ai)[0].s, zs - 2.25, zs - 4.9, 0, si, ai);
-        addSignal(g, 0, -1, stopsOf(0, -1, ai)[0].s, zs + 2.25, zs + 4.9, 0, si, ai);
-        addSignal(g, 1, 1, zs - 6.3, ax + 2.25, ax + 5.4, 1, si, ai);
-        addSignal(g, 1, -1, zs + 6.3, ax - 2.25, ax - 5.4, 1, si, ai);
-      });
-    });
+    /* vạch dừng + đèn giao thông cho TỪNG làn ở mọi ngã tư (đường × đại lộ) */
+    streetsZ.forEach((zs, si) =>
+      [xL, xR].forEach((ax, ai) =>
+        [1, -1].forEach((dir) => {
+          /* xe chạy dọc đường ngang */
+          const lz = laneZ(zs, dir),
+            sx = stopX(dir, ai, xL, xR);
+          addSignal(g, 0, dir, sx, lz, zs + S * dir * 4.9, 0, si, ai);
+          box(g, 0.4, 0.02, 4.0, lineM, sx, -0.07, lz);
+          /* xe chạy dọc đại lộ */
+          const lx = laneX(ax, dir),
+            sz = dir > 0 ? zs - 6.3 : zs + 6.3;
+          addSignal(g, 1, dir, sz, lx, ax - S * dir * 5.4, 1, si, ai);
+          box(g, 4.0, 0.02, 0.4, lineM, lx, -0.05, sz);
+        }),
+      ),
+    );
     /* vệt sáng dưới chân đèn đường (chỉ hiện ban đêm) */
     lampPts.forEach(([x, z]) => {
       const m = new THREE.Mesh(CIR, POOLM);
@@ -430,46 +445,61 @@
     if (CAN_MERGE) mergeGroup(g);
     flat(g);
     roadRoot.add(g);
-
-    /* xe chạy 2 chiều trên mỗi đường (và 2 làn trên mỗi đại lộ). Mỗi xe có tốc độ thật, tự phanh theo đèn và xe phía trước */
+ 
+    /* XE: mỗi làn là một VÒNG KÍN (ring). Xe bám theo xe phía trước theo khoảng cách trên vòng (kể cả khi vòng lại đầu đường)
+       nên không bao giờ chồng nhau; xe chồng sẵn sẽ tự dừng chờ xe trước đi khỏi. */
+    let carId = 0;
     const KINDS = ["sedan", "suv", "taxi", "sedan", "bus", "truck", "suv", "sedan", "taxi", "truck"],
+      /* đẩy vị trí ban đầu ra khỏi vùng ngã tư */
+      nudge = (pos, centers, zone) => {
+        for (const c of centers) if (Math.abs(pos - c) < zone) pos = pos >= c ? c + zone : c - zone;
+        return pos;
+      },
       spawn = (kind, color, ax, dir, sp, lane, stops, lo, hi, pos, fixed, dz, deliver) => {
         const cg = makeCar(color, kind);
         if (ax === 0) cg.position.set(pos, 0, fixed);
         else cg.position.set(fixed, 0, pos);
         cg.rotation.y = ax === 0 ? (dir > 0 ? 0 : Math.PI) : dir > 0 ? -Math.PI / 2 : Math.PI / 2;
         carRoot.add(cg);
-        const c = { g: cg, ax, dir, sp, v: sp, len: CLEN[kind] || 4.4, lane, stops, lo, hi, p: pos, dz, deliver, st: null, served: null, kind };
+        const c = { id: ++carId, g: cg, ax, dir, sp, v: sp, len: CLEN[kind] || 4.4, lane, stops, lo, hi, p: pos, s: 0, dz, deliver, st: null, served: null, kind };
         lane.push(c);
         carList.push(c);
       };
-    streetsZ.forEach((zs, si) => {
-      [
-        [zs - 2.25, 1],
-        [zs + 2.25, -1],
-      ].forEach(([lz, dir], li) => {
-        const n = Math.max(2, Math.round((x1 - x0) / (LITE ? 74 : 46))),
+    /* đường ngang: mỗi chiều một làn riêng; xe tải giao hàng đi làn sát dãy cửa hàng (z nhỏ hơn tim đường) */
+    streetsZ.forEach((zs, si) =>
+      [1, -1].forEach((dir, li) => {
+        const lz = laneZ(zs, dir),
+          L = x1 - x0,
+          n = Math.max(2, Math.round(L / (LITE ? 74 : 46))),
           sp = 5 + ((si * 2 + li) % 3) * 1.4,
           lane = [],
-          stops = [0, 1].map((ai) => ({ s: stopsOf(0, dir, ai)[0].s, type: 0, si, ai }));
+          stops = [0, 1].map((ai) => ({ s: stopX(dir, ai, xL, xR), type: 0, si, ai })),
+          storeSide = lz < zs;
         for (let i = 0; i < n; i++) {
-          const deliver = li === 0 && i === 0,
-            kind = deliver ? "dtruck" : KINDS[(si * 3 + li * 4 + i * 3) % KINDS.length];
-          spawn(kind, CARC[(si + li + i) % CARC.length], 0, dir, sp, lane, stops, x0, x1, x0 + ((x1 - x0) * (i + 0.35 * ((i * 7 + li) % 3))) / n, lz, minDz + si, deliver);
+          const deliver = storeSide && i === 0,
+            kind = deliver ? "dtruck" : KINDS[(si * 3 + li * 4 + i * 3) % KINDS.length],
+            len = CLEN[kind] || 4.4,
+            pos = nudge(x0 + (L * (i + 0.5 + 0.18 * Math.sin(i * 2.7 + si * 1.3 + li * 0.9))) / n, [xL, xR], 7.5 + len / 2);
+          spawn(kind, CARC[(si + li + i) % CARC.length], 0, dir, sp, lane, stops, x0, x1, pos, lz, minDz + si, deliver);
         }
-      });
-    });
+      }),
+    );
+    /* đại lộ: 2 làn mỗi đại lộ */
     [xL, xR].forEach((ax, ai) =>
-      [
-        [ax + 2.25, 1],
-        [ax - 2.25, -1],
-      ].forEach(([lx, dir], li) => {
-        const n = Math.max(2, Math.round((zB - zA) / (LITE ? 74 : 46))),
+      [1, -1].forEach((dir, li) => {
+        const lx = laneX(ax, dir),
+          L = zB - zA,
+          n = Math.max(2, Math.round(L / (LITE ? 74 : 46))),
           sp = 5.5 + ((ai * 2 + li) % 3) * 1.2,
           lane = [],
           stops = streetsZ.map((zs, si) => ({ s: dir > 0 ? zs - 6.3 : zs + 6.3, type: 1, si, ai }));
-        for (let i = 0; i < n; i++)
-          spawn(KINDS[(ai * 5 + li * 3 + i * 7 + 2) % KINDS.length] === "truck" ? "suv" : KINDS[(ai * 5 + li * 3 + i * 7 + 2) % KINDS.length], CARC[(ai + li + i + 3) % CARC.length], 1, dir, sp, lane, stops, zA, zB, zA + ((zB - zA) * (i + 0.35 * ((i * 5 + li) % 3))) / n, lx, 0, false);
+        for (let i = 0; i < n; i++) {
+          let kind = KINDS[(ai * 5 + li * 3 + i * 7 + 2) % KINDS.length];
+          if (kind === "truck") kind = "suv";
+          const len = CLEN[kind] || 4.4,
+            pos = nudge(zA + (L * (i + 0.5 + 0.18 * Math.sin(i * 2.3 + ai * 1.7 + li * 1.1))) / n, streetsZ, 5.5 + len / 2);
+          spawn(kind, CARC[(ai + li + i + 3) % CARC.length], 1, dir, sp, lane, stops, zA, zB, pos, lx, 0, false);
+        }
       }),
     );
   }
@@ -648,7 +678,9 @@
     const sp = tag("📦 Đã giao", x, 3.4, z, 3.2);
     if (sp) pops.push({ sp, t0: performance.now() });
   }
-  /* bắt đầu quy trình giao hàng: xe đã dừng đúng chỗ trước cửa cửa hàng sx */
+  /* ───────────────────────── [C] ───────────────────────── */
+ 
+  /* bắt đầu quy trình giao hàng: xe đã dừng đúng chỗ trước cửa cửa hàng sx (xe chạy chiều nào cũng được) */
   function startDock(c, sx, ts) {
     const P = c.g.position,
       zd = c.dz * GZ + FRONT + 0.6;
@@ -657,8 +689,8 @@
     c.served = sx;
     c.v = 0;
     c.pop = false;
-    c.start = { x: P.x - 3.5, z: P.z };
-    c.end = { x: sx + 0.6, z: zd };
+    c.start = { x: P.x - c.dir * 3.5, z: P.z } /* cửa thùng ở đuôi xe */;
+    c.end = { x: sx + c.dir * 0.6, z: zd };
     c.W = Math.hypot(c.end.x - c.start.x, c.end.z - c.start.z) / 1.8;
     if (!c.cour) c.cour = makeCourier();
   }
@@ -715,18 +747,28 @@
       co.g.visible = false;
     }
   }
-
-  /* mô phỏng giao thông: phanh theo đèn đỏ, giữ khoảng cách xe phía trước, xe tải dừng giao hàng */
+ 
+  /* mô phỏng giao thông.
+     - Mỗi làn là vòng kín dài R: s = quãng đường xe đã đi theo chiều chạy (0..R). Xe phía trước = xe có s lớn hơn gần nhất (có xoay vòng).
+     - Khoảng cách tới xe trước = khoảng s − nửa thân hai xe − khoảng hở tối thiểu. Âm (đang chồng) → xe dừng chờ, tự gỡ.
+     - Đèn: dừng trước vạch khi đỏ; vàng chỉ đi tiếp nếu thật sự không kịp phanh. */
+  const ACC = 3.5 /* tăng tốc */,
+    DEC = 9 /* phanh gấp tối đa */,
+    BRK = 4 /* gia tốc phanh dùng để tính điểm bắt đầu giảm tốc */,
+    MINGAP = 1.6;
   function stepCars(dt, ts) {
     for (let i = 0; i < carList.length; i++) {
-      const c = carList[i];
-      c.p = c.ax ? c.g.position.z : c.g.position.x;
+      const c = carList[i],
+        P = c.g.position;
+      c.p = c.ax ? P.z : P.x;
+      c.s = c.dir > 0 ? c.p - c.lo : c.hi - c.p;
     }
     for (let i = 0; i < carList.length; i++) {
       const c = carList[i],
         dir = c.dir,
         half = c.len / 2,
-        P = c.g.position;
+        P = c.g.position,
+        R = c.hi - c.lo;
       if (c.st === "dock") {
         c.v = 0;
         dockStep(c, ts);
@@ -734,52 +776,62 @@
       }
       let vt = c.sp;
       const front = c.p + dir * half;
-      /* đèn giao thông */
+      /* 1) đèn giao thông */
       for (let k = 0; k < c.stops.length; k++) {
         const s = c.stops[k],
           d = (s.s - front) * dir;
         if (d < -0.4 || d > 45) continue;
         const st = lightSt(s.type, s.si, s.ai, ts);
         if (st === 0) continue;
-        if (st === 1 && d < (c.v * c.v) / 6 + 0.5) continue; /* đèn vàng mà không kịp phanh thì đi tiếp */
-        vt = Math.min(vt, Math.sqrt(6 * Math.max(0, d - 0.4)));
+        if (st === 1 && c.v > 1.5 && d < (c.v * c.v) / 14 + 0.3) continue; /* vàng mà không kịp phanh thì đi tiếp */
+        vt = Math.min(vt, Math.sqrt(2 * BRK * Math.max(0, d - 0.4)));
       }
-      /* giữ khoảng cách với xe phía trước cùng làn */
-      let gap = 99;
+      /* 2) giữ khoảng cách với xe phía trước cùng làn (trên vòng kín) */
+      let gap = 1e9;
       for (let k = 0; k < c.lane.length; k++) {
         const o = c.lane[k];
         if (o === c) continue;
-        const gp = (o.p - c.p) * dir - (half + o.len / 2) - 1.4;
-        if (gp > -2 && gp < gap) gap = gp;
+        let ds = o.s - c.s;
+        if (Math.abs(ds) < 0.01) ds = o.id > c.id ? 0.01 : R; /* trùng khít: phân định theo id để không kẹt cả hai */
+        else if (ds < 0) ds += R;
+        const gp = ds - half - o.len / 2 - MINGAP;
+        if (gp < gap) gap = gp;
       }
-      if (gap < 30) vt = Math.min(vt, Math.sqrt(6 * Math.max(0, gap - 0.3)));
-      /* xe tải giao hàng: dừng đúng chỗ trước cửa từng cửa hàng trong hàng */
+      if (gap < 40) vt = Math.min(vt, Math.sqrt(2 * BRK * Math.max(0, gap)));
+      /* 3) xe tải giao hàng: dừng đúng chỗ trước cửa cửa hàng gần nhất chưa giao (theo chiều xe chạy) */
       if (c.deliver) {
         const list = rowStops.get(c.dz);
-        if (list)
+        if (list) {
+          let bd = 1e9,
+            bx = null;
           for (let k = 0; k < list.length; k++) {
             const sx = list[k];
             if (c.served === sx) continue;
-            const stp = sx + 5.8,
-              d = (stp - c.p) * dir;
-            if (d > -1.2 && d < 50) {
-              vt = Math.min(vt, Math.sqrt(6 * Math.max(0, d)));
-              if (d < 0.6 && c.v < 0.6) {
-                P.x = stp;
-                startDock(c, sx, ts);
-              }
-              break;
+            const d = (sx + dir * 5.8 - c.p) * dir; /* điểm dừng: cửa thùng (đuôi xe) ngang cửa hàng */
+            if (d > -1.2 && d < bd) {
+              bd = d;
+              bx = sx;
             }
           }
-        if (c.st === "dock") continue;
+          if (bx != null && bd < 50) {
+            vt = Math.min(vt, Math.sqrt(2 * BRK * Math.max(0, bd)));
+            if (bd < 0.6 && c.v < 0.6) {
+              startDock(c, bx, ts);
+              continue;
+            }
+          }
+        }
       }
-      if (c.v < vt) c.v = Math.min(vt, c.v + 3.5 * dt);
-      else c.v = Math.max(vt, c.v - 9 * dt);
+      if (c.v < vt) c.v = Math.min(vt, c.v + ACC * dt);
+      else c.v = Math.max(vt, c.v - DEC * dt);
       let p = c.p + dir * c.v * dt;
       if (dir > 0 && p > c.hi) {
-        p = c.lo;
+        p -= R;
         c.served = null;
-      } else if (dir < 0 && p < c.lo) p = c.hi;
+      } else if (dir < 0 && p < c.lo) {
+        p += R;
+        c.served = null;
+      }
       if (c.ax) P.z = p;
       else P.x = p;
     }
