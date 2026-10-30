@@ -10184,3 +10184,40 @@ function apply() {
   const _r = ren.render.bind(ren);
   ren.render = (s, c) => { _r(s, c); update(); };
 })();
+
+/* ===== Đồng bộ Tab "Process Card" trên Nav (Không bị văng khi bấm bên trong #plu) ===== */
+(() => {
+  const norm = (s) => String(s || "").toLowerCase().replace(/[\s_-]+/g, "");
+  const isPC = (el) =>
+    /processcard/.test(
+      norm(el.dataset.t || el.dataset.page || el.dataset.tab || el.dataset.go || el.id) +
+      "|" + norm(el.textContent)
+    );
+
+  document.addEventListener(
+    "click",
+    (e) => {
+      /* 1. QUAN TRỌNG: Nếu bấm vào bất kỳ nút nào BÊN TRONG #plu thì bỏ qua hoàn toàn */
+      if (e.target.closest("#plu")) return;
+
+      const el = e.target.closest("button, a, [role=tab], [data-page], [data-t], [data-tab], li");
+      if (!el) return;
+
+      if (isPC(el)) {
+        /* 2. Bấm vào nút Process Card trên Nav -> Mở bảng PLUTraining */
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.PLUTraining && PLUTraining.open();
+      } else if (
+        window.PLUTraining &&
+        window.PLUTraining.isOpen &&
+        window.PLUTraining.isOpen() &&
+        el.closest("nav, header, .nav, .tabs, .sidebar, .menu, [role=tablist]")
+      ) {
+        /* 3. Chỉ tự đóng khi người dùng thực sự bấm sang một Tab khác trên thanh điều hướng */
+        PLUTraining.close();
+      }
+    },
+    true
+  );
+})();
