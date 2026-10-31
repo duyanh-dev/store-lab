@@ -372,6 +372,7 @@ ${warns.length ? `<ul class="sch-warn sch-wk-warn">${warns.map((w) => `<li>${esc
      - Chỉ người có ca đang diễn ra mới có mặt trong cửa hàng; hết ca thì đi ra cửa rồi biến mất,
        đến ca thì đi từ cửa vào (đi vòng quầy nhờ dxNav nếu có).
      - 3 chế độ ở bảng "Giờ cửa hàng": Giờ thực · Chọn giờ (xem trước theo tuần đang mở ở tab Lịch) · Tất cả (như cũ).
+     - Bảng "Giờ cửa hàng" chỉ hiện là 1 icon đồng hồ ở mép phải (cách đáy 30%), bấm mới mở bảng.
      - Không sửa core: chỉ bọc stepNpc / goal (cùng cách các patch cũ đang làm).
      ===================================================================== */
   (function live() {
@@ -446,29 +447,35 @@ ${warns.length ? `<ul class="sch-warn sch-wk-warn">${warns.map((w) => `<li>${esc
       _step(n, dt, t);
     };
 
-    /* ---------- bảng "Giờ cửa hàng" trong tab Cửa hàng ---------- */
+    /* ---------- nút đồng hồ nổi + bảng "Giờ cửa hàng" trong tab Cửa hàng ---------- */
     const pn = document.createElement("div");
-    pn.className = "panel sch-clock" + (innerWidth <= 720 ? " min" : "");
     pn.id = "schClock";
-    pn.innerHTML = `<div class="sch-ck-h"><div class="seg"><button data-m="live">Giờ thực</button><button data-m="manual">Chọn giờ</button><button data-m="all">Tất cả</button></div><button class="sch-ck-t" data-ck="tog" aria-label="Thu gọn / mở rộng">▾</button></div>
+    pn.className = "sch-clock";
+    pn.innerHTML = `<div class="panel sch-ck-card" role="dialog" aria-label="Giờ cửa hàng">
+<div class="seg"><button data-m="live">Giờ thực</button><button data-m="manual">Chọn giờ</button><button data-m="all">Tất cả</button></div>
 <div class="sch-ck-man"><div class="seg">${DAYS.map((d, i) => `<button data-d="${i}">${i === 6 ? "CN" : "T" + (i + 2)}</button>`).join("")}</div><div class="sch-ck-sl"><input type="range" min="${m2(CFG.open)}" max="${m2(CFG.close) - 15}" step="15"><b></b></div></div>
-<div class="sch-ck-st"></div>`;
+<div class="sch-ck-st"></div></div>
+<button class="sch-ck-fab" data-ck="tog" aria-label="Giờ cửa hàng" aria-expanded="false" title="Giờ cửa hàng"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button>`;
     document.querySelector("#store").appendChild(pn);
-    const rng = pn.querySelector("input"), tb = pn.querySelector(".sch-ck-sl b"), stx = pn.querySelector(".sch-ck-st");
+    const rng = pn.querySelector("input"), tb = pn.querySelector(".sch-ck-sl b"), stx = pn.querySelector(".sch-ck-st"), fab = pn.querySelector(".sch-ck-fab");
+    const setOpen = (v) => { pn.classList.toggle("open", v); fab.setAttribute("aria-expanded", v ? "true" : "false"); };
     function upd() {
-      pn.style.display = typeof mode !== "undefined" && mode === "edit" ? "none" : "";
+      const edit = typeof mode !== "undefined" && mode === "edit";
+      pn.style.display = edit ? "none" : "";
+      if (edit && pn.classList.contains("open")) setOpen(false);
       if (document.activeElement !== rng) rng.value = ck.min;
       tb.textContent = t2(ck.min);
       pn.querySelectorAll("[data-m]").forEach((b) => b.classList.toggle("on", b.dataset.m === ck.mode));
       pn.querySelectorAll("[data-d]").forEach((b) => b.classList.toggle("on", +b.dataset.d === ck.day));
       pn.classList.toggle("man", ck.mode === "manual");
+      fab.classList.toggle("on", ck.mode !== "live"); /* icon đổi màu khi không ở Giờ thực */
       const w = when(), who = staffAll().filter((s) => onDuty(s, w)), name = (s) => esc(s.nick || s.name);
       let h;
       if (ck.mode === "all") h = "Đang hiện <b>tất cả</b> nhân viên, không theo lịch.";
       else {
         const head = `<b>${esc(ck.mode === "manual" ? w.lb + " · " + t2(ck.min) : w.lb)}</b><br>`;
         h = !w.k ? head + "Không có lịch: cửa hàng không có nhân viên."
-          : who.length ? head + `● ${who.length} người đang làm: ${who.slice(0, 5).map(name).join(", ")}${who.length > 5 ? " +" + (who.length - 5) : ""}`
+          : who.length ? head + `${who.length} người đang làm: ${who.slice(0, 5).map(name).join(", ")}${who.length > 5 ? " +" + (who.length - 5) : ""}`
           : head + "Chưa có ai trong ca này.";
       }
       if (stx.innerHTML !== h) stx.innerHTML = h;
@@ -476,11 +483,14 @@ ${warns.length ? `<ul class="sch-warn sch-wk-warn">${warns.map((w) => `<li>${esc
     pn.addEventListener("pointerdown", (e) => e.stopPropagation());
     pn.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
-      if (b.dataset.ck) pn.classList.toggle("min");
+      if (b.dataset.ck) { setOpen(!pn.classList.contains("open")); return; }
       if (b.dataset.m) { ck.mode = b.dataset.m; ck.v++; saveCk(); }
       if (b.dataset.d) { ck.day = +b.dataset.d; ck.v++; }
       upd();
     });
+    /* bấm ra ngoài hoặc Esc thì thu bảng lại */
+    document.addEventListener("pointerdown", (e) => { if (pn.classList.contains("open") && !pn.contains(e.target)) setOpen(false); }, true);
+    addEventListener("keydown", (e) => { if (e.key === "Escape" && pn.classList.contains("open")) setOpen(false); });
     rng.addEventListener("input", () => { ck.min = +rng.value; ck.v++; upd(); });
     upd();
     setInterval(upd, 500);

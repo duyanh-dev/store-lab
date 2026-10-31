@@ -122,13 +122,27 @@
 }
 @media (prefers-reduced-motion:reduce){.sch-c{transition:none}}
 
-/* ===== Bảng "Giờ cửa hàng" trong tab Cửa hàng (nhân viên 3D chạy theo lịch) ===== */
-#schClock.sch-clock{left:12px;bottom:14px;top:auto;right:auto;width:292px;max-width:calc(100% - 24px);padding:10px 12px;border-radius:22px;z-index:4;display:flex;flex-direction:column;gap:8px}
-.sch-ck-h{display:flex;align-items:center;gap:6px}
-.sch-clock .seg{flex:1;display:flex}
+/* ===== Giờ cửa hàng: chỉ 1 icon ở mép phải (cách đáy 30%), bấm mới mở bảng ===== */
+#schClock.sch-clock{position:absolute;right:10px;bottom:30%;top:auto;left:auto;width:44px;height:44px;z-index:4;padding:0;background:none;border:0;box-shadow:none;
+ -webkit-backdrop-filter:none;backdrop-filter:none;margin-bottom:env(safe-area-inset-bottom,0px)}
+
+.sch-ck-fab{position:absolute;inset:0;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;color:var(--ink);cursor:pointer;touch-action:manipulation;
+ background:var(--glass2);-webkit-backdrop-filter:blur(26px) saturate(185%);backdrop-filter:blur(26px) saturate(185%);
+ box-shadow:0 8px 20px rgba(0,0,0,.16),inset 0 1.5px 1px var(--edge),inset 0 -1.5px 2px rgba(0,0,0,.12);
+ transition:transform .2s cubic-bezier(.16,1,.3,1),color .2s,background .2s}
+.sch-ck-fab:hover{transform:translateY(-1px)}
+.sch-ck-fab:active{transform:scale(.93)}
+.sch-ck-fab.on{color:var(--acc)} /* đang xem giờ chọn / tất cả: icon đổi màu để nhận ra */
+.sch-clock.open .sch-ck-fab{background:var(--ink);color:var(--bg)}
+
+/* bảng mở sang trái của icon, mọc lên từ đáy icon */
+.sch-ck-card{position:absolute;right:54px;bottom:0;width:min(280px,calc(100vw - 78px));display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:22px;
+ transform-origin:100% 100%;opacity:0;transform:translateX(10px) scale(.94);pointer-events:none;visibility:hidden;
+ transition:opacity .2s,transform .28s cubic-bezier(.16,1,.3,1),visibility 0s linear .28s}
+.sch-clock.open .sch-ck-card{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .2s,transform .28s cubic-bezier(.16,1,.3,1),visibility 0s}
+
+.sch-clock .seg{display:flex}
 .sch-clock .seg button{flex:1;padding:5px 6px;font-size:12px}
-.sch-ck-t{flex:none;width:28px;height:28px;border:0;border-radius:50%;background:var(--btn);color:var(--ink);cursor:pointer;transition:transform .2s}
-.sch-clock.min .sch-ck-t{transform:rotate(180deg)}
 .sch-ck-man{display:none;flex-direction:column;gap:6px}
 .sch-clock.man .sch-ck-man{display:flex}
 .sch-ck-sl{display:flex;align-items:center;gap:10px}
@@ -136,10 +150,8 @@
 .sch-ck-sl b{min-width:44px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
 .sch-ck-st{font-size:12px;line-height:1.5;color:var(--mute)}
 .sch-ck-st b{color:var(--ink)}
-.sch-clock.min .sch-ck-man,.sch-clock.min .sch-ck-h .seg{display:none}
-@media (max-width:720px){
- #schClock.sch-clock{left:8px;right:8px;width:auto;max-width:none;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
-}
+
+@media (prefers-reduced-motion:reduce){.sch-ck-card,.sch-ck-fab{transition:none}}
 
 /* STM/ASM/FT: nghỉ tuần tối đa 1, AL tính riêng */
 .sch-hr small{display:block;color:var(--mute);font-size:10.5px;font-weight:500;line-height:1.3}

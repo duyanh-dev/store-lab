@@ -10431,3 +10431,449 @@ function apply() {
     _r(s, c);
   };
 })();
+
+
+/* ============ PATCH: GÓC NHÌN THỨ NHẤT (FPV) v2 · xem bằng mắt nhân viên / làm khách hàng ============
+   v2: nút nâng lên ~20% đáy trên SP · joystick NỔI (chạm đâu hiện đó) · lướt ngón tay để quay camera */
+(() => {
+  const clampN = THREE.MathUtils.clamp,
+    EYE = 1.62,        /* độ cao mắt khách (m) */
+    WALK = 1.9, RUN = 3.2, /* tốc độ đi / chạy (m/s) */
+    FOV = 72, NEAR = 0.05,
+    LOOK = 0.005,      /* độ nhạy chuột (PC) */
+    TLOOK = 0.0034,    /* độ nhạy lướt ngón tay (SP): rad / px */
+    JR = 44;           /* bán kính joystick (px) */
+  const ACT = {
+    idle: "Đang đứng", walk: "Đang đi bộ", wave: "Đang vẫy tay", scan: "Đang thu ngân",
+    stock: "Đang xếp hàng", mop: "Đang lau nhà", check: "Đang kiểm kho",
+    load: "Đang lấy hàng ở kho", fill: "Đang fill hàng", box: "Đang bê hàng", pallet: "Đang kéo pallet",
+  };
+
+  Object.assign(ICONS, {
+    eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+    walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M13 8l-2 4.5 3 2.5 1 5M11 12.5L8 13.5M11 12.5l-1.5 4L7 20M13 8l3 2.5 2.5.5"/>',
+  });
+
+  /* ---------- CSS ---------- */
+  const css = document.createElement("style");
+  css.textContent = `
+body.fpv-on #tools,body.fpv-on #legend,body.fpv-on #add,body.fpv-on #insp,body.fpv-on #signp{display:none!important}
+#store.fpv .dxl-layer,#store.fpv .dxd-layer,#store.fpv .dx-layer{display:none!important}
+.fp-ov{position:absolute;inset:0;z-index:1;display:none;touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#store.fpv .fp-ov{display:block}
+.fp-ov.g{cursor:grabbing}
+.fp-gl{background:rgba(255,255,255,.3);-webkit-backdrop-filter:blur(20px) saturate(200%);backdrop-filter:blur(20px) saturate(200%);
+ box-shadow:inset 0 0 0 .5px rgba(255,255,255,.55),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.95),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.6),0 10px 28px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06)}
+.fp-btn{position:absolute;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px 0 11px;border:0;border-radius:999px;
+ color:var(--ink,#1d1d1f);font:600 13px/1 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;
+ opacity:0;pointer-events:none;transform:translateY(8px) scale(.95);transition:opacity .25s ease,transform .4s cubic-bezier(.2,1.3,.4,1)}
+.fp-btn.on{opacity:1;pointer-events:auto;transform:none}
+.fp-btn:active{transform:scale(.95)}
+.fp-btn svg{width:18px;height:18px}
+.fp-pick{position:absolute;right:12px;bottom:calc(60px + env(safe-area-inset-bottom,0px));z-index:6;width:min(310px,calc(100% - 24px));max-height:min(62%,430px);display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:22px;
+ color:var(--ink,#1d1d1f);opacity:0;pointer-events:none;transform:translateY(10px) scale(.96);transform-origin:100% 100%;transition:opacity .22s ease,transform .38s cubic-bezier(.2,1.25,.4,1)}
+.fp-pick.on{opacity:1;pointer-events:auto;transform:none}
+.fp-h{padding:6px 10px 4px;font:700 13px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.65}
+.fp-list{overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px}
+.fp-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:14px;background:transparent;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+@media (hover:hover){.fp-row:hover{background:rgba(127,127,127,.16)}}
+.fp-row:active{background:rgba(127,127,127,.24)}
+.fp-row svg{flex:none;opacity:.5}
+.fp-nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.fp-nm b{font:600 14px/1.2 -apple-system,"Segoe UI",sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-nm small{font:500 11.5px/1.25 -apple-system,"Segoe UI",sans-serif;opacity:.6}
+.fp-av{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:#fff;font:700 14px/1 -apple-system,sans-serif}
+.fp-av.gray{background:#9a9aa0}.fp-av.pink{background:#ff8fb1}
+.fp-row.cust .fp-av{background:var(--acc,#0a84ff)}
+.fp-row.cust .fp-av svg{opacity:1;width:18px;height:18px}
+.fp-sep{height:1px;margin:4px 8px;background:rgba(127,127,127,.22)}
+.fp-hud{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:4px;max-width:calc(100% - 20px);padding:4px;border-radius:999px;color:var(--ink,#1d1d1f)}
+#store.fpv .fp-hud{display:flex;animation:fpIn .4s cubic-bezier(.2,1.3,.4,1)}
+@keyframes fpIn{from{opacity:0;transform:translate(-50%,-10px) scale(.95)}}
+.fp-t{display:flex;flex-direction:column;gap:2px;min-width:0;padding:2px 8px;text-align:center}
+.fp-t b{font:600 13px/1.15 -apple-system,"Segoe UI",sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+.fp-t span{font:500 11px/1.15 -apple-system,"Segoe UI",sans-serif;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.fp-hb{display:grid;place-items:center;height:32px;min-width:32px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font:600 12.5px/1 -apple-system,"Segoe UI",sans-serif;cursor:pointer;gap:5px;-webkit-tap-highlight-color:transparent}
+@media (hover:hover){.fp-hb:hover{background:rgba(127,127,127,.18)}}
+.fp-hb:active{background:rgba(127,127,127,.28)}
+.fp-hb.x{display:flex;align-items:center;background:rgba(255,59,48,.9);color:#fff}
+.fp-hb svg{width:16px;height:16px}
+#store.fpc .fp-hb.n{display:none}
+/* joystick nổi: xuất hiện đúng chỗ ngón tay chạm, không nhận chuột (cảm ứng đi qua lớp phủ) */
+.fp-joy{position:absolute;left:0;top:0;z-index:2;width:116px;height:116px;margin:-58px 0 0 -58px;border-radius:50%;display:grid;place-items:center;pointer-events:none;
+ opacity:0;transform:scale(.7);transition:opacity .18s ease,transform .32s cubic-bezier(.2,1.3,.4,1)}
+.fp-joy.on{opacity:1;transform:scale(1)}
+.fp-knob{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 4px 12px rgba(0,0,0,.2)}
+@media (max-width:720px){.fp-btn{width:40px;padding:0;justify-content:center}.fp-btn span{display:none}}
+/* SP / màn cảm ứng: nút nâng lên ~20% chiều cao, danh sách chọn nâng theo */
+@media (max-width:720px),(pointer:coarse){.fp-btn{bottom:20%}.fp-pick{bottom:calc(20% + 48px)}}
+@media (prefers-color-scheme:dark){
+ .fp-gl{background:rgba(40,40,46,.4);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.45),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.16),0 10px 28px rgba(0,0,0,.5)}
+ .fp-btn,.fp-pick,.fp-hud{color:#f5f5f7}
+ .fp-knob{background:rgba(255,255,255,.32)}
+}`;
+  document.head.appendChild(css);
+
+  /* ---------- DOM ---------- */
+  const store = $("#store"),
+    mk = (tag, cls, html) => { const e = document.createElement(tag); e.className = cls; if (html != null) e.innerHTML = html; store.appendChild(e); return e; };
+  const ov = mk("div", "fp-ov"),
+    btn = mk("button", "fp-btn fp-gl", IC("eye", 18) + "<span>Góc nhìn thứ nhất</span>"),
+    pick = mk("div", "fp-pick fp-gl", '<div class="fp-h">Chọn góc nhìn</div><div class="fp-list"></div>'),
+    hud = mk("div", "fp-hud fp-gl",
+      `<button class="fp-hb n" data-a="prev" title="Nhân viên trước">${IC("chev", 16).replace("<svg", '<svg style="transform:rotate(90deg)"')}</button>
+       <div class="fp-t"><b></b><span></span></div>
+       <button class="fp-hb n" data-a="next" title="Nhân viên kế tiếp">${IC("chev", 16).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</button>
+       <button class="fp-hb x" data-a="exit">${IC("x", 14)}<span>Thoát</span></button>`),
+    joy = mk("div", "fp-joy fp-gl", '<div class="fp-knob"></div>'),
+    knob = joy.firstChild, hTitle = hud.querySelector("b"), hSub = hud.querySelector(".fp-t span"),
+    list = pick.querySelector(".fp-list");
+  btn.type = "button";
+
+    const autoB = document.createElement("button");
+  autoB.type = "button"; autoB.className = "fp-hb a"; autoB.dataset.a = "auto"; autoB.textContent = "Trả việc";
+  autoB.title = "Trả nhân viên về công việc";
+  hud.insertBefore(autoB, hud.querySelector(".x"));
+  const css2 = document.createElement("style");
+  css2.textContent = ".fp-hb.a{display:none;background:rgba(10,132,255,.9);color:#fff}#store.fpk .fp-hb.a{display:flex;align-items:center}";
+  document.head.appendChild(css2);
+  function release() { fp.ctrl = false; store.classList.remove("fpk"); hudKey = ""; resetLook(); fp.jx = fp.jy = 0; }
+
+  /* ---------- Trạng thái ---------- */
+  const fp = {
+    on: false, kind: null, code: null, t: 0, saved: null, fov: 0, near: 0,
+    yaw: PI, pitch: 0, pos: { x: 0, z: 0 }, bob: 0, jx: 0, jy: 0,
+    oy: 0, op: 0, idle: 0, sy: null, sp: null, run: false, ctrl: false,
+    };
+  const keys = new Set(),
+    KM = { w: "f", arrowup: "f", s: "b", arrowdown: "b", a: "l", arrowleft: "l", d: "r", arrowright: "r", q: "ql", e: "qr" };
+  const P = new THREE.Vector3(), D = new THREE.Vector3(), Q = new THREE.Quaternion();
+  let hudKey = "", btnOn = false;
+
+  /* ---------- Điều khiển chạm: joystick nổi + lướt để nhìn (khai báo trước để dùng ở dưới) ---------- */
+  const tp = new Map(); /* pointerId → {role:'joy'|'look', ...} */
+  const has = (r) => { for (const p of tp.values()) if (p.role === r) return true; return false; };
+  const lookOn = () => has("look");
+  function endTouch() {
+    tp.clear();
+    fp.jx = fp.jy = 0;
+    knob.style.transform = "";
+    joy.classList.remove("on");
+    ov.classList.remove("g");
+  }
+
+  /* ---------- Danh sách chọn ---------- */
+  function renderPick() {
+    list.innerHTML =
+      `<button class="fp-row cust" data-c="1"><span class="fp-av">${IC("walk", 18)}</span><span class="fp-nm"><b>Làm khách hàng</b><small>Tự đi mua sắm trong cửa hàng</small></span>${IC("chev", 14)}</button><div class="fp-sep"></div>` +
+      StaffRegistry.all().map((s) => {
+        const r = ROLES[s.role] || ROLES.staff;
+        return `<button class="fp-row" data-s="${esc(s.code)}"><span class="fp-av ${r[1]}">${ini(s)}</span><span class="fp-nm"><b>${esc(s.name)}</b><small>${esc(r[0])}${s.shift ? " · " + esc(s.shift) : ""}</small></span>${IC("chev", 14)}</button>`;
+      }).join("");
+  }
+  const openPick = () => { renderPick(); pick.classList.add("on"); };
+  const closePick = () => pick.classList.remove("on");
+  btn.addEventListener("click", () => (pick.classList.contains("on") ? closePick() : openPick()));
+  pick.addEventListener("click", (e) => {
+    const b = e.target.closest(".fp-row");
+    if (!b) return;
+    closePick();
+    b.dataset.c ? enter("cust") : enter("staff", b.dataset.s);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (pick.classList.contains("on") && !pick.contains(e.target) && !btn.contains(e.target)) closePick();
+  });
+
+  /* ---------- Vào / ra FPV ---------- */
+  function resetLook() { fp.oy = fp.op = 0; fp.idle = 0; fp.sy = fp.sp = null; }
+  function setKind(kind, code) {
+    fp.kind = kind; fp.code = code || null; hudKey = ""; resetLook(); endTouch();
+    fp.ctrl = false; store.classList.remove("fpk");    store.classList.toggle("fpc", kind === "cust");
+  }
+  function enter(kind, code) {
+    if (mode === "edit") { const v = document.querySelector('#tools [data-m="view"]'); if (v) v.click(); }
+    if (!fp.on) {
+      fp.saved = { th: cam.th, ph: cam.ph, r: cam.r, fit: cam.fit, tx: cam.tx, ty: cam.ty, tz: cam.tz };
+      fp.fov = camera.fov; fp.near = camera.near;
+      camera.fov = FOV; camera.near = NEAR; camera.updateProjectionMatrix();
+      fp.on = true;
+      document.body.classList.add("fpv-on");
+      store.classList.add("fpv");
+      store.classList.toggle("fpt", matchMedia("(pointer:coarse)").matches || innerWidth <= 720);
+      keysDown.clear();
+    }
+    cam.T = null; cam.vth = 0;
+    setKind(kind, code);
+    if (kind === "cust") {
+      const dx = (STORE.door[0] + STORE.door[1]) / 2;
+      fp.pos.x = dx; fp.pos.z = STORE.D / 2 - 1.3;
+      fp.yaw = PI; fp.pitch = 0; fp.bob = 0;
+    }
+    fp.t = performance.now();
+    const touch = store.classList.contains("fpt");
+    toast(kind === "cust"
+      ? (touch ? "Chạm giữ để hiện joystick đi · lướt ngón tay để nhìn" : "Bạn là khách hàng · WASD để đi, kéo chuột để nhìn")
+      : (touch ? "Lướt ngón tay để nhìn quanh" : "Kéo để nhìn quanh · Esc để thoát"));
+  }
+  function exit() {
+    if (!fp.on) return;
+    fp.on = false;
+    camera.fov = fp.fov; camera.near = fp.near; camera.updateProjectionMatrix();
+    fit();
+    const s = fp.saved;
+    Object.assign(cam, { th: s.th, ph: s.ph, tx: s.tx, ty: s.ty, tz: s.tz });
+    cam.r = Math.abs(s.r - s.fit) < 0.01 ? cam.fit : s.r;
+    cam.T = null; cam.vth = 0;
+    document.body.classList.remove("fpv-on");
+    fp.ctrl = false;
+    store.classList.remove("fpv", "fpc", "fpt", "fpk");
+        keys.clear(); endTouch();
+    closePick();
+  }
+  function cycle(d) {
+    const all = StaffRegistry.all();
+    if (!all.length) return;
+    let i = all.findIndex((s) => s.code === fp.code);
+    i = ((i < 0 ? 0 : i) + d + all.length) % all.length;
+    setKind("staff", all[i].code);
+  }
+  hud.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-a]");
+    if (!b) return;
+    const a = b.dataset.a;
+    if (a === "exit") exit();
+        if (a === "auto") release();
+    if (a === "prev") cycle(-1);
+    if (a === "next") cycle(1);
+  });
+  hud.addEventListener("pointerdown", (e) => e.stopPropagation());
+  $("#tabs").addEventListener("click", () => { if (fp.on) exit(); }, true);
+
+  /* ---------- Chạm: ngón đầu nửa TRÁI = joystick nổi, nửa PHẢI = quay camera; ngón thứ hai nhận vai còn lại ---------- */
+  const joyPlace = (p) => { joy.style.left = p.cx + "px"; joy.style.top = p.cy + "px"; };
+  ov.addEventListener("pointerdown", (e) => {
+    if (tp.has(e.pointerId)) return;
+    const touch = e.pointerType !== "mouse",
+      r = ov.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    let role = "look";
+    /* khách hàng + cảm ứng: chưa có joystick và (chạm nửa trái hoặc đã có ngón đang quay) → làm joystick */
+    if (touch && !has("joy") && (x < r.width * 0.5 || has("look"))) role = "joy";
+        if (role === "look" && has("look")) return; /* đã đủ 2 vai, bỏ qua ngón thứ ba */
+    ov.setPointerCapture(e.pointerId);
+    const p = { role, touch, x: e.clientX, y: e.clientY, ox: e.clientX, oy: e.clientY, cx: x, cy: y };
+    tp.set(e.pointerId, p);
+    if (role === "joy") { joyPlace(p); knob.style.transform = ""; joy.classList.add("on"); }
+    else { fp.idle = 0; ov.classList.add("g"); }
+  });
+  ov.addEventListener("pointermove", (e) => {
+    const p = tp.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+        if (p.role === "joy") {
+      /* đế joystick đứng yên tại điểm chạm; núm chỉ trượt trong vòng bán kính JR */
+      let jx = p.x - p.ox, jy = p.y - p.oy;
+      const len = Math.hypot(jx, jy);
+      if (len > JR) { jx = (jx / len) * JR; jy = (jy / len) * JR; }
+      knob.style.transform = `translate(${jx}px,${jy}px)`;
+      fp.jx = jx / JR; fp.jy = -jy / JR;
+      return;
+    }
+    /* quay camera: cảm ứng = cảnh trượt theo ngón tay; chuột (PC) = kiểu FPS như trước.
+       Muốn vuốt phải = quay phải trên SP: đổi "p.touch ? 1 : -1" thành "-1". */
+    fp.idle = 0;
+    const s = p.touch ? TLOOK : LOOK, g = p.touch ? 1 : -1;
+        if (fp.kind === "cust" || fp.ctrl) { fp.yaw += g * dx * s; fp.pitch = clampN(fp.pitch + g * dy * s, -1.35, 1.35); }
+    else { fp.oy = clampN(fp.oy + g * dx * s, -1.7, 1.7); fp.op = clampN(fp.op + g * dy * s, -1.1, 1.1); }
+  });
+  const endP = (e) => {
+    const p = tp.get(e.pointerId);
+    if (!p) return;
+    tp.delete(e.pointerId);
+    if (p.role === "joy") { fp.jx = fp.jy = 0; knob.style.transform = ""; joy.classList.remove("on"); }
+    if (!has("look")) ov.classList.remove("g");
+  };
+  ov.addEventListener("pointerup", endP);
+  ov.addEventListener("pointercancel", endP);
+  ov.addEventListener("dblclick", resetLook);
+  ov.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+  ov.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  /* ---------- Bàn phím (chặn phím cũ chỉ khi đang ở FPV) ---------- */
+  const typing = (e) => ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
+  addEventListener("keydown", (e) => {
+    if (!fp.on || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); exit(); return; }
+    const k = KM[e.key.toLowerCase()];
+    if (!k) return;
+    e.stopPropagation(); e.preventDefault();
+    fp.run = e.shiftKey;
+    keys.add(k);
+  }, true);
+  addEventListener("keyup", (e) => { const k = KM[e.key.toLowerCase()]; if (k) keys.delete(k); fp.run = e.shiftKey; }, true);
+  addEventListener("blur", () => keys.clear());
+
+  /* ---------- Camera mỗi khung hình (thay updCam khi đang ở FPV) ---------- */
+  const _upd = updCam;
+  const npcOf = () => npcs.find((n) => n.s.code === fp.code);
+
+  function frame() {
+    const now = performance.now(), dt = Math.min(0.05, Math.max(0, (now - fp.t) / 1000));
+    fp.t = now;
+    let ey, yaw, pitch;
+
+        if (fp.kind === "staff") {
+      const n = npcOf();
+      if (!n) return false;
+      n.g.updateMatrixWorld(true);
+      n.head.getWorldPosition(P);
+      n.head.getWorldQuaternion(Q);
+      D.set(0, 0, 1).applyQuaternion(Q);
+      const sc = n.sc || 1,
+        yaw0 = Math.atan2(D.x, D.z), p0 = Math.asin(clampN(D.y, -1, 1)),
+        k = 1 - Math.exp(-dt * 14),
+        mvIn = Math.hypot((keys.has("f") ? 1 : 0) - (keys.has("b") ? 1 : 0) + fp.jy,
+                          (keys.has("r") ? 1 : 0) - (keys.has("l") ? 1 : 0) + fp.jx);
+      /* chạm joystick / bấm WASD → tiếp quản nhân viên này */
+      if (!fp.ctrl && mvIn > 0.2) {
+        fp.ctrl = true;
+        fp.yaw = (fp.sy == null ? yaw0 : fp.sy) + fp.oy;
+        fp.pitch = clampN((fp.sp == null ? p0 : fp.sp) + fp.op, -1.35, 1.35);
+        store.classList.add("fpk"); hudKey = "";
+      }
+      if (fp.ctrl) {
+        if (keys.has("ql")) fp.yaw += 1.6 * dt;
+        if (keys.has("qr")) fp.yaw -= 1.6 * dt;
+        yaw = fp.yaw; pitch = fp.pitch;
+        camera.position.set(P.x + Math.sin(yaw) * 0.11 * sc, P.y + 0.03 * sc, P.z + Math.cos(yaw) * 0.11 * sc);
+      } else {
+        fp.sy = fp.sy == null ? yaw0 : turn(fp.sy, yaw0, k);
+        fp.sp = fp.sp == null ? p0 : fp.sp + (p0 - fp.sp) * k;
+        if (!lookOn()) { /* nhả tay ~2,5 giây thì tự trở về hướng nhìn của nhân viên */
+          fp.idle += dt;
+          if (fp.idle > 2.5) { const r = 1 - Math.exp(-dt * 1.6); fp.oy *= 1 - r; fp.op *= 1 - r; }
+        }
+        yaw = fp.sy + fp.oy; pitch = clampN(fp.sp + fp.op, -1.4, 1.4);
+        camera.position.set(P.x + Math.sin(fp.sy) * 0.11 * sc, P.y + 0.03 * sc, P.z + Math.cos(fp.sy) * 0.11 * sc);
+      }
+      const key = n.s.code + "|" + n.mode + "|" + n.s.name + "|" + fp.ctrl;
+      if (key !== hudKey) {
+        hudKey = key;
+        const r = ROLES[n.s.role] || ROLES.staff;
+        hTitle.textContent = n.s.name;
+        hSub.textContent = r[0] + " · " + (fp.ctrl ? "Bạn đang điều khiển" : (ACT[n.mode] || "Đang làm việc"));
+      }
+    } else {
+      /* khách hàng: tự điều khiển */
+      if (keys.has("ql")) fp.yaw += 1.6 * dt;
+      if (keys.has("qr")) fp.yaw -= 1.6 * dt;
+      let f = (keys.has("f") ? 1 : 0) - (keys.has("b") ? 1 : 0) + fp.jy,
+        s = (keys.has("r") ? 1 : 0) - (keys.has("l") ? 1 : 0) + fp.jx;
+      const len = Math.hypot(f, s);
+      if (len > 1) { f /= len; s /= len; }
+      const sp = fp.run ? RUN : WALK, sy = Math.sin(fp.yaw), cy = Math.cos(fp.yaw);
+      fp.pos.x += (sy * f - cy * s) * sp * dt;
+      fp.pos.z += (cy * f + sy * s) * sp * dt;
+      if (window.dxNav) dxNav.pushOut(fp.pos, 0.3);
+      else {
+        fp.pos.x = clampN(fp.pos.x, -STORE.W / 2 + 0.3, STORE.W / 2 - 0.3);
+        fp.pos.z = clampN(fp.pos.z, -STORE.D / 2 + 0.3, STORE.D / 2 - 0.3);
+      }
+      npcs.forEach((n) => {   /* không đi xuyên nhân viên */
+        const dx = fp.pos.x - n.g.position.x, dz = fp.pos.z - n.g.position.z, d = Math.hypot(dx, dz);
+        if (d < 0.55 && d > 1e-4) { fp.pos.x = n.g.position.x + (dx / d) * 0.55; fp.pos.z = n.g.position.z + (dz / d) * 0.55; }
+      });
+      fp.bob += Math.min(1, len) * sp * dt * 2.6;
+      ey = EYE + (len > 0.05 ? Math.abs(Math.sin(fp.bob)) * 0.03 : 0);
+      yaw = fp.yaw; pitch = fp.pitch;
+      camera.position.set(fp.pos.x, ey, fp.pos.z);
+      if (hudKey !== "cust") {
+        hudKey = "cust";
+        hTitle.textContent = "Bạn là khách hàng";
+        hSub.textContent = store.classList.contains("fpt")
+          ? "Chạm giữ để đi · lướt ngón tay để nhìn"
+          : "WASD để đi · kéo để nhìn · Shift để chạy";
+      }
+    }
+
+    const cp = Math.cos(pitch);
+    camera.lookAt(camera.position.x + Math.sin(yaw) * cp, camera.position.y + Math.sin(pitch), camera.position.z + Math.cos(yaw) * cp);
+    camera.updateMatrixWorld(true);
+    return true;
+  }
+
+    /* nhân viên đang được điều khiển: bỏ qua routine, đi theo joystick / WASD, va chạm kệ như NPC thường */
+  const _stepNpc = stepNpc;
+  stepNpc = function (n, dt, t) {
+    if (!(fp.on && fp.kind === "staff" && fp.ctrl && n.s.code === fp.code)) return _stepNpc.apply(this, arguments);
+    let f = (keys.has("f") ? 1 : 0) - (keys.has("b") ? 1 : 0) + fp.jy,
+      s = (keys.has("r") ? 1 : 0) - (keys.has("l") ? 1 : 0) + fp.jx;
+    const len = Math.hypot(f, s);
+    if (len > 1) { f /= len; s /= len; }
+    const sp = fp.run ? RUN : WALK, sy = Math.sin(fp.yaw), cy = Math.cos(fp.yaw), p = n.g.position;
+    p.x += (sy * f - cy * s) * sp * dt;
+    p.z += (cy * f + sy * s) * sp * dt;
+    if (window.dxNav) dxNav.pushOut(p, 0.2);
+    n.g.rotation.y = fp.yaw;
+    n.job = null;
+    n.mode = len > 0.05 ? "walk" : "idle";
+    pose(n, dt, t);
+  };
+
+  updCam = function () {
+    if (!fp.on) return _upd.apply(this, arguments);
+    if (mode === "edit" || tab !== "store" || !frame()) { exit(); return _upd.apply(this, arguments); }
+  };
+
+  /* ---------- Ẩn đầu nhân viên đang xem (tránh nhìn xuyên tóc / mũ); bật nút khi phù hợp ---------- */
+  const _r = ren.render.bind(ren);
+  ren.render = (s, c) => {
+    const vis = tab === "store" && mode !== "edit" && !fp.on;
+    if (vis !== btnOn) { btnOn = vis; btn.classList.toggle("on", vis); if (!vis) closePick(); }
+    let h = null;
+    if (fp.on && fp.kind === "staff") { const n = npcOf(); if (n) { h = n.head; h.visible = false; } }
+    _r(s, c);
+    if (h) h.visible = true;
+  };
+})();
+
+
+/* ============ PATCH: THOÁT FPV TRÊN SP · nút X nổi góc phải + phím Back của điện thoại ============ */
+(() => {
+  const store = $("#store"),
+    css = document.createElement("style");
+  css.textContent = `
+.fp-exit{position:absolute;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:7;display:none;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;
+ color:#fff;background:rgba(255,59,48,.88);-webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 6px 18px rgba(0,0,0,.25);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+ transition:transform .2s cubic-bezier(.2,1.4,.4,1)}
+.fp-exit:active{transform:scale(.9)}
+.fp-exit svg{width:20px;height:20px}
+#store.fpv .fp-exit{display:grid}
+@media (max-width:720px){
+ .fp-hb.x{display:none}                      /* SP: dùng nút X nổi thay cho nút Thoát trong thanh */
+ .fp-hud{max-width:calc(100% - 140px)}       /* chừa chỗ cho nút X ở góc phải */
+}`;
+  document.head.appendChild(css);
+
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "fp-exit";
+  b.title = b.ariaLabel = "Thoát góc nhìn thứ nhất";
+  b.innerHTML = IC("x", 20);
+  store.appendChild(b);
+  b.addEventListener("pointerdown", (e) => e.stopPropagation());
+  const doExit = () => { const x = store.querySelector('.fp-hud [data-a="exit"]'); if (x) x.click(); };
+  b.addEventListener("click", doExit);
+
+  /* phím Back của điện thoại: vào FPV thì thêm 1 bước lịch sử, bấm Back = thoát FPV (không thoát trang) */
+  let was = false;
+  new MutationObserver(() => {
+    const on = store.classList.contains("fpv");
+    if (on === was) return;
+    was = on;
+    if (on) history.pushState({ fpv: 1 }, "");
+    else if (history.state && history.state.fpv) history.back();
+  }).observe(store, { attributes: true, attributeFilter: ["class"] });
+  addEventListener("popstate", () => { if (store.classList.contains("fpv")) doExit(); });
+})();
