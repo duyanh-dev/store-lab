@@ -10221,3 +10221,213 @@ function apply() {
     true
   );
 })();
+
+
+/* ============ PATCH: ĐIỀU KHIỂN CAMERA v2 (IIFE, chỉ thêm mới) ============
+   - Xoay quanh đúng điểm sàn dưới ngón tay / con trỏ (không còn tâm xa)
+   - Zoom vào chỗ con trỏ / tâm 2 ngón; lướt dính sàn 1:1
+   - 2 ngón: chụm + lướt + vặn xoay cùng lúc; quán tính xoay mượt
+   Cách làm: các listener gốc của cv vẫn chạy; patch tính lại camera trước (capture),
+   rồi khôi phục (listener sau) để kết quả cũ của handler gốc không đè lên. */
+(() => {
+  const host = cv.parentElement,
+    gp = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    rc = new THREE.Raycaster(),
+    nd = new THREE.Vector2(),
+    clampN = THREE.MathUtils.clamp,
+    P = new Map(); /* id → {x,y} các ngón / chuột đang nhấn */
+  let moved = 0, pivot = null, g2 = null, tw = 0, twOn = false,
+    guard = null, vel = 0, lastT = 0, inertia = null, lx = 0, ly = 0;
+  const TWIST_DEAD = 0.14; /* ~8°: vặn quá mức này mới xoay bằng 2 ngón */
+  cv.style.touchAction = "none";
+
+  /* ---------- tiện ích ---------- */
+  const sync = () => { updCam(); camera.updateMatrixWorld(true); };
+  const center = () => new THREE.Vector3(cam.tx, cam.ty, cam.tz);
+  const snap = () => (guard = { th: cam.th, ph: cam.ph, r: cam.r, tx: cam.tx, ty: cam.ty, tz: cam.tz });
+
+  /* điểm trên sàn (y=0) dưới toạ độ màn hình (x,y); null nếu chạm trời / quá xa */
+  function ground(x, y) {
+    const r = cv.getBoundingClientRect();
+    nd.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    rc.setFromCamera(nd, camera);
+    const p = rc.ray.intersectPlane(gp, new THREE.Vector3());
+    return p && p.distanceTo(camera.position) < cam.r * 3 ? p : null;
+  }
+  const pivotAt = (x, y) => { sync(); return ground(x, y) || center(); };
+
+  /* xoay ngang quanh điểm H: camera và điểm nhìn cùng quay → H đứng yên trên màn hình */
+  function yawAbout(H, d) {
+    const c = Math.cos(d), s = Math.sin(d), vx = cam.tx - H.x, vz = cam.tz - H.z;
+    cam.tx = H.x + vx * c + vz * s;
+    cam.tz = H.z + vz * c - vx * s;
+    cam.th += d;
+    clampTarget();
+  }
+  /* nghiêng (đổi góc ph) quanh điểm H */
+  function pitchAbout(H, nph) {
+    const e = nph - cam.ph;
+    if (!e) return;
+    const u0 = Math.sin(cam.th), u1 = Math.cos(cam.th),
+      vx = cam.tx - H.x, vy = cam.ty - H.y, vz = cam.tz - H.z,
+      h = vx * u0 + vz * u1, px = vx - h * u0, pz = vz - h * u1,
+      c = Math.cos(e), s = Math.sin(e),
+      h2 = h * c + vy * s, y2 = vy * c - h * s;
+    cam.tx = H.x + px + h2 * u0;
+    cam.ty = H.y + y2;
+    cam.tz = H.z + pz + h2 * u1;
+    cam.ph = nph;
+    clampTarget();
+  }
+  /* đưa điểm nhìn về sàn dọc theo tia nhìn (camera giữ nguyên → góc nhìn không đổi) */
+  function regroundTarget() {
+    if (Math.abs(cam.ty) < 0.02) return;
+    const s = Math.sin(cam.ph), c = Math.cos(cam.ph),
+      C = new THREE.Vector3(cam.tx + cam.r * s * Math.sin(cam.th), cam.ty + cam.r * c, cam.tz + cam.r * s * Math.cos(cam.th)),
+      d = center().sub(C);
+    if (d.y > -0.05 * d.length()) return;
+    const N = C.clone().addScaledVector(d, -C.y / d.y), o = C.clone().sub(N), r = o.length();
+    cam.tx = N.x; cam.ty = 0; cam.tz = N.z; cam.r = r;
+    cam.ph = Math.acos(clampN(o.y / r, -1, 1));
+    cam.th += wrap(Math.atan2(o.x, o.z) - cam.th);
+  }
+  /* zoom hệ số k (<1 = lại gần) co về điểm W0 */
+  function zoomAt(k, W0) {
+    const nr = clampN(cam.r * clampN(k, 0.7, 1.4), 3, cam.fit * 1.3), q = nr / cam.r;
+    if (Math.abs(q - 1) < 1e-5) return;
+    cam.tx = W0.x + (cam.tx - W0.x) * q;
+    cam.ty = W0.y + (cam.ty - W0.y) * q;
+    cam.tz = W0.z + (cam.tz - W0.z) * q;
+    cam.r = nr;
+    clampTarget();
+  }
+  const pair = () => {
+    const [a, b] = [...P.values()];
+    return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), a: Math.atan2(b.y - a.y, b.x - a.x) };
+  };
+
+  /* ---------- lướt dính sàn (thay panPx gốc; chuột phải / Shift dùng hàm này) ---------- */
+  const _pan = panPx;
+  panPx = function (dx, dy) {
+    cam.T = null; cam.vth = 0; inertia = null;
+    sync();
+    const a = ground(lx - dx, ly - dy), b = ground(lx, ly);
+    if (a && b) { cam.tx += a.x - b.x; cam.tz += a.z - b.z; clampTarget(); }
+    else _pan(dx, dy);
+  };
+
+  /* ---------- con trỏ (capture: chạy trước handler gốc) ---------- */
+  const on = (t, f) => host.addEventListener(t, (e) => { if (e.target === cv) f(e); }, true);
+
+  on("pointerdown", (e) => {
+    inertia = null; vel = 0;
+    P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    lx = e.clientX; ly = e.clientY;
+    if (P.size === 1) { moved = 0; pivot = pivotAt(e.clientX, e.clientY); }
+    else if (P.size === 2) { g2 = pair(); tw = 0; twOn = false; }
+  });
+
+  on("pointermove", (e) => {
+    const p = P.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = lx = e.clientX; p.y = ly = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    guard = null;
+
+    /* 2 ngón: chụm + lướt + vặn, tất cả quanh điểm sàn dưới tâm 2 ngón */
+    if (P.size >= 2) {
+      const g = pair();
+      if (g2 && g2.d > 8 && g.d > 8) {
+        cam.T = null; cam.vth = 0;
+        sync();
+        const W0 = ground(g2.cx, g2.cy) || center();
+        zoomAt(g2.d / g.d, W0);
+        let da = g.a - g2.a;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        tw += da;
+        if (!twOn && Math.abs(tw) > TWIST_DEAD) twOn = true;
+        if (twOn && g.d > 40) yawAbout(W0, da);
+        sync();
+        const W1 = ground(g.cx, g.cy);
+        if (W1) { cam.tx += W0.x - W1.x; cam.tz += W0.z - W1.z; clampTarget(); }
+        regroundTarget();
+        snap();
+      }
+      g2 = g; vel = 0;
+      return;
+    }
+
+    /* 1 ngón / chuột trái: xoay quanh điểm dưới ngón (không đụng khi đang kéo kệ hoặc đang trượt) */
+    if (panning || drag || moved <= 3) return;
+    cam.T = null; cam.vth = 0;
+    sync();
+    const H = pivot || center(), dth = -dx * 0.006;
+    pitchAbout(H, clampN(cam.ph - dy * 0.004, 0.25, 1.3));
+    yawAbout(H, dth);
+    regroundTarget();
+    snap();
+    const now = performance.now(), dt = Math.max(8, now - (lastT || now - 16)) / 1000;
+    vel = vel * 0.5 + (dth / dt) * 0.5;
+    lastT = now;
+  });
+
+  /* listener gốc chạy xong → khôi phục camera mà patch đã tính */
+  cv.addEventListener("pointermove", () => {
+    if (!guard) return;
+    Object.assign(cam, guard);
+    cam.vth = 0;
+    guard = null;
+  });
+
+  const up = (e) => {
+    if (e.target !== cv) return;
+    const had = P.delete(e.pointerId);
+    if (!had) return;
+    if (P.size === 1) { /* còn 1 ngón: tiếp tục xoay, tâm xoay mới = dưới ngón còn lại */
+      const q = [...P.values()][0];
+      moved = 99; vel = 0; g2 = null; pivot = pivotAt(q.x, q.y);
+    } else if (!P.size) {
+      if (e.type === "pointerup" && pivot && moved > 6 && !drag && !panning &&
+          Math.abs(vel) > 0.35 && performance.now() - lastT < 80)
+        inertia = { H: pivot, v: clampN(vel, -5, 5) };
+      vel = 0; g2 = null;
+    }
+  };
+  host.addEventListener("pointerup", up, true);
+  host.addEventListener("pointercancel", up, true);
+
+  /* ---------- lăn chuột / pinch trackpad: zoom vào chỗ con trỏ ---------- */
+  host.addEventListener("wheel", (e) => {
+    if (e.target !== cv) return;
+    e.preventDefault();
+    e.stopPropagation(); /* chặn handler wheel gốc */
+    inertia = null; cam.T = null; cam.vth = 0;
+    const d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+    sync();
+    zoomAt(Math.exp(d * (e.ctrlKey ? 0.012 : 0.0011)), ground(e.clientX, e.clientY) || center());
+    sync();
+  }, { capture: true, passive: false });
+
+  addEventListener("keydown", () => { inertia = null; }, true);
+
+  /* ---------- quán tính xoay: quanh đúng điểm đã xoay ---------- */
+  const _r = ren.render.bind(ren);
+  let t0 = performance.now();
+  ren.render = (s, c) => {
+    const n = performance.now(), dt = Math.min(0.05, (n - t0) / 1000);
+    t0 = n;
+    if (inertia) {
+      if (P.size || cam.T) inertia = null;
+      else {
+        sync();
+        yawAbout(inertia.H, inertia.v * dt);
+        regroundTarget();
+        inertia.v *= Math.exp(-dt * 3.2);
+        if (Math.abs(inertia.v) < 0.05) inertia = null;
+        sync();
+      }
+    }
+    _r(s, c);
+  };
+})();

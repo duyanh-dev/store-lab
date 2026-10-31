@@ -18,7 +18,7 @@
   /* ---------- Cấu hình ---------- */
   const CFG = {
     /* nơi đặt tab: lấy phần tử đầu tiên khớp. Nếu tab "Làm việc" của nav-pages có id khác, thêm selector vào đây */
-    containers: ["#workPage", "#page-work", "#schedulePage", "#work", '[data-page="work"]', '[data-page="schedule"]'],
+    containers: ["#sched .np-wrap", "#workPage", "#page-work", "#schedulePage", "#work", '[data-page="work"]', '[data-page="schedule"]'],
     open: "05:30", close: "21:30",
     AM: ["05:30", "13:30"], PM: ["13:30", "21:30"],
     maxPT: 8, /* PT tối đa giờ / ngày */
@@ -30,7 +30,7 @@
     FT: { n: "Nhân viên Full-time", o: 2, fixed: true },
     PT: { n: "Nhân viên Part-time", o: 3, fixed: false },
   };
-  const DAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"];
+  const DAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 
   /* ---------- Tiện ích ---------- */
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -68,6 +68,9 @@
   }
   const hoursOf = (e) => { const t = times(e); return t ? (m2(t[1]) - m2(t[0])) / 60 : 0; };
   const weekKeys = (wk) => DAYS.map((_, i) => ymd(addDays(wk, i)));
+  const offCount = (s, keys, except) => keys.filter((k) => k !== except && (entry(s, k) || {}).t === "OFF").length;
+  const alCount = (s, keys) => keys.filter((k) => (entry(s, k) || {}).t === "AL").length;
+  const MAXOFF = 1; /* STM / ASM / FT: tối đa 1 ngày nghỉ tuần (AL tính riêng) */
   const weekHours = (s, keys) => keys.reduce((a, k) => a + hoursOf(entry(s, k)), 0);
   /* ca ưa thích để "Áp mẫu": STM sáng, ASM chiều, FT xen kẽ */
   function prefOf(s, idx) {
@@ -101,7 +104,7 @@
   }
 
   /* ---------- Trạng thái UI ---------- */
-  const st = { wk: (() => { const n = new Date(), w = mondayOf(n); return n.getDay() === 0 || n.getDay() === 6 ? addDays(w, 7) : w; })(), m: null, sig: "" };
+  const st = { wk: mondayOf(new Date()), m: null, sig: "" };
   const root = document.createElement("div");
   root.className = "sch-root";
   root.innerHTML = '<div class="sch-main"></div><div class="sch-ov" hidden></div>';
@@ -135,46 +138,56 @@
 
   /* ---------- Vẽ giao diện ---------- */
   function render() {
-    const keys = weekKeys(st.wk), sh = shop(), todayK = ymd(new Date()), all = staffAll();
+    const keys = weekKeys(st.wk), sh = shop(), todayK = ymd(new Date()), all = staffAll(),
+      tIdx = keys.indexOf(todayK), mob = innerWidth <= 720;
+    /* thứ tự cột: trên điện thoại, ngày hôm nay được đưa lên đầu (sát cột tên) để xem ngay */
+    let ord = keys.map((_, i) => i);
+    if (mob && tIdx > 0) ord = [...ord.slice(tIdx), ...ord.slice(0, tIdx)];
     const list = [...all].sort((a, b) => POS[posOf(a)].o - POS[posOf(b)].o || a.code.localeCompare(b.code));
     const stm = all.filter((s) => posOf(s) === "STM").length, asm = all.filter((s) => posOf(s) === "ASM").length;
-    let body = "", last = "", fi = 0;
+    let body = "", last = "", fi = 0; const warns = [];
     list.forEach((s) => {
       const p = posOf(s);
-      if (p !== last) { last = p; body += `<tr class="sch-g"><td colspan="7">${POS[p].n} · ${all.filter((x) => posOf(x) === p).length}</td></tr>`; }
-      const cells = keys.map((k, i) => {
-        const e = entry(s, k), t = times(e);
-        const c = !e ? "" : e.t === "OFF" ? "off" : e.t === "AM" ? "am" : e.t === "PM" ? "pm" : "cu";
-        const lb = !e ? "+" : e.t === "OFF" ? "Nghỉ" : e.t === "AM" ? "Sáng" : e.t === "PM" ? "Chiều" : hoursOf(e) + " giờ";
-        return `<td><button class="sch-c ${c}" data-act="cell" data-c="${esc(s.code)}" data-d="${i}">${lb}${t ? `<small>${t[0]}–${t[1]}</small>` : ""}</button></td>`;
+      if (p !== last) { last = p; body += `<tr class="sch-g"><td colspan="9">${POS[p].n} · ${all.filter((x) => posOf(x) === p).length}</td></tr>`; }
+      const cells = ord.map((i) => {
+        const k = keys[i], e = entry(s, k), t = times(e);
+        const c = !e ? "" : e.t === "OFF" ? "off" : e.t === "AL" ? "al" : e.t === "AM" ? "am" : e.t === "PM" ? "pm" : "cu";
+        const lb = !e ? "+" : e.t === "OFF" ? "Nghỉ" : e.t === "AL" ? "AL" : e.t === "AM" ? "Sáng" : e.t === "PM" ? "Chiều" : hoursOf(e) + " giờ";
+        return `<td class="${i === tIdx ? "today" : ""}"><button class="sch-c ${c}" data-act="cell" data-c="${esc(s.code)}" data-d="${i}">${lb}${t ? `<small>${t[0]}–${t[1]}</small>` : ""}</button></td>`;
       }).join("");
-      const h = weekHours(s, keys);
-      body += `<tr><td class="sch-nm"><button class="sch-who" data-act="edit" data-c="${esc(s.code)}"><span class="av rg-${(ROLES[s.role] || ROLES.staff)[1]}">${esc((s.nick || s.name || "?").trim().charAt(0).toUpperCase())}</span><span><b>${esc(s.name)}</b><small><span class="sch-pos">${p}</span>${esc(s.code)}</small></span></button></td>${cells}<td class="sch-hr"><b>${h}</b> giờ</td></tr>`;
+      const h = weekHours(s, keys), fx = POS[p].fixed, oc = offCount(s, keys), ac = alCount(s, keys),
+        sub = (fx ? `<small class="${oc > MAXOFF ? "bad" : ""}">Nghỉ ${oc}/${MAXOFF}</small>` : "") + (ac ? `<small>AL ${ac}</small>` : "");
+      if (fx) { if (oc > MAXOFF) warns.push(`${s.name}: nghỉ ${oc} ngày (tối đa ${MAXOFF})`); const free = keys.filter((k) => !entry(s, k)).length; if (free) warns.push(`${s.name}: còn ${free} ngày chưa xếp`); }
+      body += `<tr><td class="sch-nm"><button class="sch-who" data-act="edit" data-c="${esc(s.code)}"><span class="av rg-${(ROLES[s.role] || ROLES.staff)[1]}">${esc((s.nick || s.name || "?").trim().charAt(0).toUpperCase())}</span><span><b>${esc(s.name)}</b><small><span class="sch-pos">${p}</span>${esc(s.code)}</small></span></button></td>${cells}<td class="sch-hr"><b>${h}</b> giờ${sub}</td></tr>`;
       fi++;
     });
-    const cov = keys.map((k, i) => {
+    const cov = ord.map((i) => {
+      const k = keys[i];
       const d = dayInfo(k), cells = d.cnt.map((n, j) => `<i class="${n === 0 ? "z" : d.kh[j] === 0 ? "k" : ""}" style="--n:${Math.min(n, 6) / 6}" title="${slotT(j)} · ${n} người"></i>`).join("");
-      return `<div class="sch-day"><h4>${DAYS[i]} <small>${dm(addDays(st.wk, i))}</small></h4><div class="sch-strip">${cells}</div>
+      return `<div class="sch-day${i === tIdx ? " today" : ""}"><h4>${DAYS[i]}${i === tIdx ? ' <em class="sch-tg">Hôm nay</em>' : ""} <small>${dm(addDays(st.wk, i))}</small></h4><div class="sch-strip">${cells}</div>
 <div class="sch-axis"><span>${CFG.open}</span><span>${CFG.PM[0]}</span><span>${CFG.close}</span></div>
 <div class="sch-sum"><span class="mt">Sáng ${d.am}</span><span class="mt">Chiều ${d.pm}</span><span class="mt">Tổng ${d.n}</span></div>
 <ul class="sch-warn">${d.w.length ? d.w.map((w) => `<li class="${w[0]}">${esc(w[1])}</li>`).join("") : '<li class="good">Đủ người, luôn có STM/ASM</li>'}</ul></div>`;
     }).join("");
-    const rangeLb = `${dm(st.wk)} – ${dm(addDays(st.wk, 4))}/${addDays(st.wk, 4).getFullYear()}`;
+    const rangeLb = `${dm(st.wk)} – ${dm(addDays(st.wk, 6))}/${addDays(st.wk, 6).getFullYear()}`;
     main.innerHTML = `<div class="sch-top"><h2>Lịch làm việc</h2>
 <span class="sch-store${sh.name ? "" : " none"}">${sh.name ? "Cửa hàng: <span>" + esc(sh.name) + "</span>" : "<span>Chưa chọn cửa hàng · đang xem mô hình hiện tại</span>"}</span>
 <span class="sch-dirty${sh.dirty ? " on" : ""}">● Chưa lưu cửa hàng</span><span class="sch-sp"></span>
 <div class="sch-bar"><button class="btn sm" data-act="tpl">Áp mẫu ca</button><button class="btn sm" data-act="copy">Chép tuần trước</button><button class="btn sm red" data-act="clear">Xóa lịch tuần</button><button class="btn sm" data-act="save">Lưu cửa hàng</button><button class="btn pri sm" data-act="add">+ Thêm nhân viên</button></div></div>
 <div class="sch-wk"><button class="btn" data-act="prev" title="Tuần trước">‹</button><b>${rangeLb}</b><button class="btn" data-act="next" title="Tuần sau">›</button><button class="btn sm" data-act="today">Tuần này</button></div>
-${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="sch-nm">Nhân viên</th>${keys.map((k, i) => `<th class="${k === todayK ? "today" : ""}">${DAYS[i]}<small>${dm(addDays(st.wk, i))}</small></th>`).join("")}<th class="sch-hr">Giờ/tuần</th></tr></thead><tbody>${body}</tbody></table></div>` : '<div class="sch-tw sch-empty">Cửa hàng này chưa có nhân viên. Bấm “+ Thêm nhân viên”.</div>'}
+${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="sch-nm">Nhân viên</th>${ord.map((i) => `<th class="${i === tIdx ? "today" : ""}">${DAYS[i]}<small>${i === tIdx ? "Hôm nay · " : ""}${dm(addDays(st.wk, i))}</small></th>`).join("")}<th class="sch-hr">Giờ/tuần</th></tr></thead><tbody>${body}</tbody></table></div>` : '<div class="sch-tw sch-empty">Cửa hàng này chưa có nhân viên. Bấm “+ Thêm nhân viên”.</div>'}
+${warns.length ? `<ul class="sch-warn sch-wk-warn">${warns.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
 <h3 class="sch-h3">Độ phủ ca trong tuần</h3><div class="sch-cov">${cov}</div>
-<p class="sch-note">STM / ASM / FT làm 8 giờ: ca sáng ${CFG.AM[0]}–${CFG.AM[1]}, ca chiều ${CFG.PM[0]}–${CFG.PM[1]}. PT xếp giờ tự do trong ${CFG.open}–${CFG.close}, tối đa ${CFG.maxPT} giờ/ngày. Lịch từ thứ 2 đến thứ 6.${stm > 1 ? " <b>Cảnh báo: có hơn 1 STM.</b>" : ""}${asm > 1 ? " <b>Có hơn 1 ASM.</b>" : ""}${!stm ? " Chưa có STM." : ""} Lịch và nhân viên được lưu cùng cửa hàng khi bấm “Lưu cửa hàng”.</p>`;
+<p class="sch-note">STM / ASM / FT làm 8 giờ: ca sáng ${CFG.AM[0]}–${CFG.AM[1]}, ca chiều ${CFG.PM[0]}–${CFG.PM[1]}. PT xếp giờ tự do trong ${CFG.open}–${CFG.close}, tối đa ${CFG.maxPT} giờ/ngày. STM/ASM/FT nghỉ tối đa 1 ngày/tuần (còn lại làm đủ 8 giờ), ngày phép năm đánh dấu AL tính riêng. Lịch từ thứ 2 đến Chủ nhật.${stm > 1 ? " <b>Cảnh báo: có hơn 1 STM.</b>" : ""}${asm > 1 ? " <b>Có hơn 1 ASM.</b>" : ""}${!stm ? " Chưa có STM." : ""} Lịch và nhân viên được lưu cùng cửa hàng khi bấm “Lưu cửa hàng”.</p>`;
     st.sig = signature();
+    if (mob) { const tw = main.querySelector(".sch-tw"); if (tw && st.lastWk !== keys[0]) tw.scrollLeft = 0; }
+    st.lastWk = keys[0];
   }
   function signature() {
     let j = "";
     try { j = JSON.stringify(staffAll().map((s) => [s.code, s.name, s.nick, s.role, s.ext])); } catch (e) {}
     const sh = shop();
-    return (sh.id || "") + "|" + sh.name + "|" + sh.dirty + "|" + j;
+    return (innerWidth <= 720 ? "m" : "d") + ymd(new Date()) + "|" + (sh.id || "") + "|" + sh.name + "|" + sh.dirty + "|" + j;
   }
 
   /* ---------- Hộp thoại ---------- */
@@ -186,18 +199,18 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
     const s = StaffRegistry.get(code); if (!s) return;
     const k = weekKeys(st.wk)[di], e = entry(s, k), p = posOf(s), fixed = POS[p].fixed;
     st.m = { type: "cell", code, di };
-    const chk = '<label class="sch-chk"><input type="checkbox" id="schAll"> Áp dụng cho cả tuần (T2–T6)</label>';
+    const chk = '<label class="sch-chk"><input type="checkbox" id="schAll"> Áp dụng cho cả tuần (T2–CN)</label>';
     const base = `<button class="btn sm x" data-act="close" aria-label="Đóng">${X}</button><h3>${esc(s.name)}</h3><p class="sub">${p} · ${DAYS[di]} ${dm(addDays(st.wk, di))}</p>`;
     if (fixed) {
       openOv(`${base}<div class="sch-opts"><button class="btn am${e && e.t === "AM" ? " on" : ""}" data-act="set" data-t="AM">Ca sáng<small>${CFG.AM[0]}–${CFG.AM[1]} · 8 giờ</small></button>
 <button class="btn pm${e && e.t === "PM" ? " on" : ""}" data-act="set" data-t="PM">Ca chiều<small>${CFG.PM[0]}–${CFG.PM[1]} · 8 giờ</small></button>
-<button class="btn" data-act="set" data-t="OFF">Nghỉ</button><button class="btn" data-act="set" data-t="NONE">Xóa ca</button></div>${chk}`);
+<button class="btn" data-act="set" data-t="OFF">Nghỉ tuần (tối đa 1)</button><button class="btn al" data-act="set" data-t="AL">AL – phép năm</button><button class="btn" data-act="set" data-t="NONE" style="grid-column:1/-1">Xóa ca</button></div><div class="sch-err" id="schE"></div>${chk}`);
     } else {
       const a = e && e.t === "C" ? e.a : "08:00", b = e && e.t === "C" ? e.b : "16:00";
       openOv(`${base}<div class="chips"><button class="chip" data-act="pre" data-a="05:30" data-b="09:30">Sáng sớm 4h</button><button class="chip" data-act="pre" data-a="09:30" data-b="13:30">Sáng 4h</button><button class="chip" data-act="pre" data-a="10:00" data-b="16:00">Giữa ngày 6h</button><button class="chip" data-act="pre" data-a="13:30" data-b="17:30">Chiều 4h</button><button class="chip" data-act="pre" data-a="17:30" data-b="21:30">Tối 4h</button></div>
 <div class="sch-row2"><label>Bắt đầu<select id="schA">${timeOpts(CFG.open, t2(m2(CFG.close) - 30), a)}</select></label><label>Kết thúc<select id="schB">${timeOpts(t2(m2(CFG.open) + 30), CFG.close, b)}</select></label></div>
 <div class="sch-hrs" id="schH"></div><div class="sch-err" id="schE"></div>${chk}
-<div class="sch-foot"><button class="btn" data-act="set" data-t="OFF">Nghỉ</button><button class="btn" data-act="set" data-t="NONE">Xóa ca</button><button class="btn pri" data-act="set" data-t="C">Lưu giờ</button></div>`);
+<div class="sch-foot" style="flex-wrap:wrap"><button class="btn" data-act="set" data-t="OFF">Nghỉ</button><button class="btn al" data-act="set" data-t="AL">AL</button><button class="btn" data-act="set" data-t="NONE">Xóa ca</button><button class="btn pri" data-act="set" data-t="C">Lưu giờ</button></div>`);
       ptHint();
     }
   }
@@ -212,14 +225,23 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
     const m = st.m; if (!m) return;
     const s = StaffRegistry.get(m.code); if (!s) return closeOv();
     let e = null;
-    if (t === "AM" || t === "PM" || t === "OFF") e = { t };
+    if (t === "AM" || t === "PM" || t === "OFF" || t === "AL") e = { t };
     else if (t === "C") {
       if (!ptHint()) return;
       e = { t: "C", a: ov.querySelector("#schA").value, b: ov.querySelector("#schB").value };
     }
     if (e && e.t !== "OFF" && e.t !== "C" && !POS[posOf(s)].fixed) e = null;
     const all = ov.querySelector("#schAll").checked, keys = weekKeys(st.wk);
-    (all ? keys : [keys[m.di]]).forEach((k) => setEntry(s, k, e));
+    const fx = POS[posOf(s)].fixed, errEl = ov.querySelector("#schE");
+    if (fx && e && e.t === "OFF" && (all || offCount(s, keys, keys[m.di]) >= MAXOFF)) {
+      if (errEl) errEl.textContent = `${posOf(s)} chỉ được nghỉ ${MAXOFF} ngày/tuần. Dùng AL nếu là ngày phép năm.`;
+      return;
+    }
+    (all ? keys : [keys[m.di]]).forEach((k) => {
+      const cur = entry(s, k);
+      if (all && fx && e && (e.t === "AM" || e.t === "PM") && cur && (cur.t === "OFF" || cur.t === "AL")) return; /* giữ ngày nghỉ / AL */
+      setEntry(s, k, e);
+    });
     if (all && (t === "AM" || t === "PM")) { s.ext.pref = t; }
     persist(); closeOv(); render();
   }
@@ -258,14 +280,19 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
   function applyTemplate() {
     const keys = weekKeys(st.wk); let n = 0, idx = 0;
     staffAll().filter((s) => POS[posOf(s)].fixed).sort((a, b) => POS[posOf(a)].o - POS[posOf(b)].o || a.code.localeCompare(b.code)).forEach((s) => {
-      const p = prefOf(s, idx++);
-      keys.forEach((k) => { if (!entry(s, k)) { setEntry(s, k, { t: p }); n++; } });
+      const p = prefOf(s, idx);
+      /* 6 ngày làm + 1 ngày nghỉ tuần, ngày nghỉ xoay vòng giữa các người; không đụng AL / ca đã xếp */
+      let needOff = offCount(s, keys) < MAXOFF;
+      const pref = (6 + idx) % 7, empty = keys.map((k, i) => (entry(s, k) ? -1 : i)).filter((i) => i >= 0);
+      const offI = needOff && empty.length ? (empty.includes(pref) ? pref : empty[empty.length - 1]) : -1;
+      idx++;
+      keys.forEach((k, i) => { if (!entry(s, k)) { setEntry(s, k, i === offI ? { t: "OFF" } : { t: p }); n++; } });
     });
-    persist(); render(); toast2(n ? `Đã điền ${n} ca cho STM/ASM/FT (chỉ ô trống)` : "Không còn ô trống để điền");
+    persist(); render(); toast2(n ? `Đã điền ${n} ô cho STM/ASM/FT: 6 ngày làm + 1 ngày nghỉ (chỉ ô trống, giữ nguyên AL)` : "Không còn ô trống để điền");
   }
   function copyPrev() {
     const cur2 = weekKeys(st.wk), prev = weekKeys(addDays(st.wk, -7)); let n = 0;
-    staffAll().forEach((s) => cur2.forEach((k, i) => { const e = entry(s, prev[i]); if (e && !entry(s, k)) { setEntry(s, k, { ...e }); n++; } }));
+    staffAll().forEach((s) => cur2.forEach((k, i) => { const e = entry(s, prev[i]); if (e && !entry(s, k)) { if (e.t === "OFF" && POS[posOf(s)].fixed && offCount(s, cur2) >= MAXOFF) return; setEntry(s, k, { ...e }); n++; } }));
     persist(); render(); toast2(n ? `Đã chép ${n} ca từ tuần trước` : "Tuần trước không có ca nào để chép");
   }
   let clearArm = 0;
@@ -287,7 +314,7 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
     else if (a === "add") staffDialog(null);
     else if (a === "prev") { st.wk = addDays(st.wk, -7); render(); }
     else if (a === "next") { st.wk = addDays(st.wk, 7); render(); }
-    else if (a === "today") { const n = new Date(), w = mondayOf(n); st.wk = n.getDay() === 0 || n.getDay() === 6 ? addDays(w, 7) : w; render(); }
+    else if (a === "today") { st.wk = mondayOf(new Date()); render(); }
     else if (a === "tpl") applyTemplate();
     else if (a === "copy") copyPrev();
     else if (a === "clear") clearWeek(b);
@@ -311,8 +338,9 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
   function mount() {
     const h = host();
     if (h) {
-      if (!h.contains(root)) h.appendChild(root);
+      if (!h.contains(root)) h.replaceChildren(root); /* thay khung placeholder của nav-pages.js */
       root.classList.remove("sch-float");
+      root.classList.add("sch-in");
       if (fbBtn) { fbBtn.remove(); fbBtn = null; }
       return true;
     }
@@ -338,6 +366,126 @@ ${list.length ? `<div class="sch-tw"><table class="sch-t"><thead><tr><th class="
   render();
   setInterval(poll, 600);
   document.addEventListener("storelink:change", () => root.isConnected && ov.hidden && render());
+
+  /* =====================================================================
+     NHÂN VIÊN TRONG CỬA HÀNG 3D CHẠY THEO LỊCH
+     - Chỉ người có ca đang diễn ra mới có mặt trong cửa hàng; hết ca thì đi ra cửa rồi biến mất,
+       đến ca thì đi từ cửa vào (đi vòng quầy nhờ dxNav nếu có).
+     - 3 chế độ ở bảng "Giờ cửa hàng": Giờ thực · Chọn giờ (xem trước theo tuần đang mở ở tab Lịch) · Tất cả (như cũ).
+     - Không sửa core: chỉ bọc stepNpc / goal (cùng cách các patch cũ đang làm).
+     ===================================================================== */
+  (function live() {
+    if (typeof npcs === "undefined" || typeof stepNpc !== "function" || typeof goal !== "function" || typeof scene === "undefined") return;
+    const KEY = "store-clock-v1", LONG = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+    const ck = { mode: "live", day: 0, min: 480, v: 0 };
+    try { const o = JSON.parse(localStorage.getItem(KEY)); if (o && ["live", "manual", "all"].includes(o.mode)) ck.mode = o.mode; } catch (e) {}
+    const saveCk = () => { try { localStorage.setItem(KEY, JSON.stringify({ mode: ck.mode })); } catch (e) {} };
+
+    /* thời điểm đang xét: k = khóa ngày có lịch (null = cuối tuần), m = số phút trong ngày */
+    function when() {
+      if (ck.mode === "manual") return { k: ymd(addDays(st.wk, ck.day)), m: ck.min, lb: LONG[ck.day] + " " + dm(addDays(st.wk, ck.day)) };
+      const d = new Date(), wd = (d.getDay() + 6) % 7;
+      return { k: ymd(d), m: d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60, lb: LONG[wd] + " " + dm(d) + " · " + pad(d.getHours()) + ":" + pad(d.getMinutes()) };
+    }
+    function onDuty(s, w) {
+      if (ck.mode === "all") return true;
+      if (!w.k) return false;
+      const t = times(entry(s, w.k));
+      return !!t && w.m >= m2(t[0]) && w.m < m2(t[1]);
+    }
+    const door = () => [(STORE.door[0] + STORE.door[1]) / 2, STORE.D / 2 - 0.5];
+    function putAtDoor(n) {
+      const d = door();
+      n.g.position.set(d[0], 0, d[1]);
+      n.g.rotation.y = Math.PI; /* quay mặt vào trong */
+      n.rs = null; n.nv = null; n.mi = undefined; /* reset trạng thái việc đang làm (lấy hàng, lau nhà…) */
+      if (n.g.parent !== scene) scene.add(n.g);
+    }
+    function exitPath(n) {
+      const p = n.g.position, d = door();
+      let path = null;
+      try { path = window.dxNav && dxNav.path(p.x, p.z, d[0], d[1]); } catch (e) {}
+      path = path && path.length ? path.slice() : [];
+      path.push(d);
+      return path;
+    }
+
+    /* goal: đang ra về thì đích là các điểm trên đường ra cửa */
+    const _goal = goal;
+    goal = function (n) {
+      if (n.dst === "exit" && n.ex) {
+        const w = n.ex.path[Math.min(n.ex.i, n.ex.path.length - 1)];
+        return { x: w[0], z: w[1], act: "walk" };
+      }
+      return _goal(n);
+    };
+
+    /* stepNpc: quyết định có mặt / vào ca / ra về trước khi chạy logic cũ */
+    const _step = stepNpc;
+    stepNpc = function (n, dt, t) {
+      const on = onDuty(n.s, when());
+      if (n.dst === undefined) { /* lần đầu thấy NPC này: khớp ngay, không đi */
+        n.dst = on ? "in" : "out"; n.sv = ck.v;
+        if (!on && n.g.parent === scene) scene.remove(n.g);
+      } else if (n.sv !== ck.v) { /* người dùng đổi chế độ / giờ: khớp ngay */
+        n.sv = ck.v; n.ex = null;
+        if (on) { if (n.dst === "out") putAtDoor(n); n.dst = "in"; }
+        else { if (n.g.parent === scene) scene.remove(n.g); n.dst = "out"; }
+      } else if (n.dst === "out" && on) { putAtDoor(n); n.dst = "in"; }
+      else if (n.dst === "in" && !on) { n.ex = { path: exitPath(n), i: 0 }; n.dst = "exit"; }
+      else if (n.dst === "exit" && on) { n.ex = null; n.dst = "in"; }
+
+      if (n.dst === "out") return;
+      if (n.dst === "exit" && n.ex) {
+        const w = n.ex.path[Math.min(n.ex.i, n.ex.path.length - 1)];
+        if (Math.hypot(w[0] - n.g.position.x, w[1] - n.g.position.z) < 0.3) {
+          if (n.ex.i < n.ex.path.length - 1) n.ex.i++;
+          else { scene.remove(n.g); n.dst = "out"; n.ex = null; return; }
+        }
+      }
+      _step(n, dt, t);
+    };
+
+    /* ---------- bảng "Giờ cửa hàng" trong tab Cửa hàng ---------- */
+    const pn = document.createElement("div");
+    pn.className = "panel sch-clock" + (innerWidth <= 720 ? " min" : "");
+    pn.id = "schClock";
+    pn.innerHTML = `<div class="sch-ck-h"><div class="seg"><button data-m="live">Giờ thực</button><button data-m="manual">Chọn giờ</button><button data-m="all">Tất cả</button></div><button class="sch-ck-t" data-ck="tog" aria-label="Thu gọn / mở rộng">▾</button></div>
+<div class="sch-ck-man"><div class="seg">${DAYS.map((d, i) => `<button data-d="${i}">${i === 6 ? "CN" : "T" + (i + 2)}</button>`).join("")}</div><div class="sch-ck-sl"><input type="range" min="${m2(CFG.open)}" max="${m2(CFG.close) - 15}" step="15"><b></b></div></div>
+<div class="sch-ck-st"></div>`;
+    document.querySelector("#store").appendChild(pn);
+    const rng = pn.querySelector("input"), tb = pn.querySelector(".sch-ck-sl b"), stx = pn.querySelector(".sch-ck-st");
+    function upd() {
+      pn.style.display = typeof mode !== "undefined" && mode === "edit" ? "none" : "";
+      if (document.activeElement !== rng) rng.value = ck.min;
+      tb.textContent = t2(ck.min);
+      pn.querySelectorAll("[data-m]").forEach((b) => b.classList.toggle("on", b.dataset.m === ck.mode));
+      pn.querySelectorAll("[data-d]").forEach((b) => b.classList.toggle("on", +b.dataset.d === ck.day));
+      pn.classList.toggle("man", ck.mode === "manual");
+      const w = when(), who = staffAll().filter((s) => onDuty(s, w)), name = (s) => esc(s.nick || s.name);
+      let h;
+      if (ck.mode === "all") h = "Đang hiện <b>tất cả</b> nhân viên, không theo lịch.";
+      else {
+        const head = `<b>${esc(ck.mode === "manual" ? w.lb + " · " + t2(ck.min) : w.lb)}</b><br>`;
+        h = !w.k ? head + "Không có lịch: cửa hàng không có nhân viên."
+          : who.length ? head + `● ${who.length} người đang làm: ${who.slice(0, 5).map(name).join(", ")}${who.length > 5 ? " +" + (who.length - 5) : ""}`
+          : head + "Chưa có ai trong ca này.";
+      }
+      if (stx.innerHTML !== h) stx.innerHTML = h;
+    }
+    pn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    pn.addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.ck) pn.classList.toggle("min");
+      if (b.dataset.m) { ck.mode = b.dataset.m; ck.v++; saveCk(); }
+      if (b.dataset.d) { ck.day = +b.dataset.d; ck.v++; }
+      upd();
+    });
+    rng.addEventListener("input", () => { ck.min = +rng.value; ck.v++; upd(); });
+    upd();
+    setInterval(upd, 500);
+    window.StoreClock = ck;
+  })();
 
   window.Schedule = { render, mount, root, posOf, entry, times, weekKeys, el: root };
 })();
