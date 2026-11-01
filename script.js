@@ -10433,45 +10433,134 @@ function apply() {
 })();
 
 
-/* ============ PATCH: GÓC NHÌN THỨ NHẤT (FPV) v2 · xem bằng mắt nhân viên / làm khách hàng ============
-   v2: nút nâng lên ~20% đáy trên SP · joystick NỔI (chạm đâu hiện đó) · lướt ngón tay để quay camera */
+/* ============================================================================
+   FPV · GÓC NHÌN THỨ NHẤT — BẢN GỘP (1 khối thay cho 8 patch rời)
+
+   Thay thế hoàn toàn các patch sau (XOÁ HẾT trước khi dán khối này):
+     1. GÓC NHÌN THỨ NHẤT (FPV) v2  (+ Trả việc, điều khiển nhân viên)
+     2. TƯƠNG TÁC QUẦY TRONG FPV
+     3. HIỆU ỨNG TƯƠNG TÁC FPV
+     4. PHÍM BACK CỦA ĐIỆN THOẠI THOÁT FPV
+     5. NÚT THOÁT FPV v4 (và mọi bản v2 / v3 / "Thoát FPV trên SP")
+     6. THẺ HÀNH ĐỘNG GỌN TRÊN SP
+     7. THẺ HÀNH ĐỘNG · kính tối
+     8. HOẠT ĐỘNG FPV v3 (mini-game, thanh toán, quay thưởng, ăn thử)
+
+   Dán xuống CUỐI script.js. Không đụng tới các patch khác (camera v2, nhãn kệ…).
+   ============================================================================ */
 (() => {
-  const clampN = THREE.MathUtils.clamp,
-    EYE = 1.62,        /* độ cao mắt khách (m) */
-    WALK = 1.9, RUN = 3.2, /* tốc độ đi / chạy (m/s) */
-    FOV = 72, NEAR = 0.05,
-    LOOK = 0.005,      /* độ nhạy chuột (PC) */
-    TLOOK = 0.0034,    /* độ nhạy lướt ngón tay (SP): rad / px */
-    JR = 44,           /* bán kính joystick (px) */
-    JZX = 0.36, JZY = 0.42; /* vùng joystick: 36% chiều rộng bên trái, 58% chiều cao phía dưới */
-      const ACT = {
+  const store = $("#store");
+  if (store.querySelector(".fp-ov")) {
+    console.error("[FPV] Còn patch FPV cũ trong script.js. Hãy xoá hết các patch FPV rời rồi dán lại bản gộp.");
+    return;
+  }
+
+  /* ============================== 1. CẤU HÌNH ============================== */
+  const CFG = {
+    EYE: 1.62,                 /* độ cao mắt khách (m) */
+    WALK: 1.9, RUN: 3.2,       /* tốc độ đi / chạy (m/s) */
+    FOV: 72, NEAR: 0.05,
+    LOOK: 0.005,               /* độ nhạy chuột (PC) */
+    TLOOK: 0.0034,             /* độ nhạy lướt ngón tay (SP): rad / px */
+    JR: 44,                    /* bán kính joystick (px) */
+    JZX: 0.36, JZY: 0.42,      /* vùng joystick: 36% bề ngang bên trái, từ 42% chiều cao trở xuống */
+    REACH: 1.15, KEEP: 1.45,   /* khoảng cách bắt đầu / giữ tương tác với quầy (m) */
+    SOUND: true,               /* false = tắt mọi âm thanh */
+  };
+  const { EYE, WALK, RUN, FOV, NEAR, LOOK, TLOOK, JR, JZX, JZY, REACH, KEEP, SOUND } = CFG;
+
+  const ACT = {
     idle: "Đang đứng", walk: "Đang đi bộ", wave: "Đang vẫy tay", scan: "Đang thu ngân",
     stock: "Đang xếp hàng", mop: "Đang lau nhà", check: "Đang kiểm kho",
     load: "Đang lấy hàng ở kho", fill: "Đang fill hàng", box: "Đang bê hàng", pallet: "Đang kéo pallet",
   };
 
+  /* ---- Danh mục hàng minh hoạ (tên, giá): sửa tự do ---- */
+  const CATALOG = {
+    shelf:[["Nước rửa tay",35000],["Khăn giấy",18000],["Pin AA (vỉ)",42000],["Bật lửa",8000],["Băng keo",12000]],
+    noodle:[["Mì gói",5000],["Phở ăn liền",9000],["Cháo gói",7000],["Miến khô",14000],["Mì trộn",12000]],
+    snack:[["Snack khoai tây",12000],["Bánh quy",18000],["Kẹo dẻo",15000],["Sô cô la",32000],["Hạt điều",65000]],
+    sauce:[["Nước mắm",32000],["Dầu ăn 1L",55000],["Nước tương",21000],["Hạt nêm",28000],["Đường 1kg",24000]],
+    household:[["Nước rửa chén",34000],["Nước giặt",98000],["Giấy vệ sinh",45000],["Bột giặt",72000],["Nước lau sàn",39000]],
+    rice:[["Gạo ST25 5kg",135000],["Gạo thơm 10kg",210000],["Gạo nếp 2kg",52000],["Gạo lứt 2kg",58000]],
+    drinks:[["Nước suối 1.5L",7000],["Nước ngọt lon",11000],["Trà xanh",10000],["Nước tăng lực",13000],["Nước suối thùng",95000]],
+    eggs:[["Trứng gà (vỉ 10)",36000],["Trứng vịt (vỉ 10)",42000],["Trứng cút (hộp)",24000]],
+    bakery:[["Bánh mì",8000],["Bánh bông lan",22000],["Croissant",18000],["Donut",15000],["Bánh sừng bò",20000]],
+    produce:[["Cà chua",28000],["Cà rốt",22000],["Bắp cải",18000],["Dưa leo",20000],["Chuối",25000],["Táo",65000]],
+    dairy:[["Sữa tươi",32000],["Sữa chua",7000],["Yakult (lốc)",30000],["Trà sữa chai",15000],["Phô mai",38000]],
+    freezer:[["Há cảo",45000],["Cá viên",38000],["Gà viên",42000],["Nugget",55000],["Kem hộp",48000]],
+    icecream:[["Kem hộp",48000],["Kem que",12000],["Kem ốc quế",18000],["Kem mochi",35000]],
+    meat:[["Thịt ba rọi",125000],["Thịt bò",260000],["Ức gà",85000],["Sườn non",155000],["Xúc xích",42000]],
+    seafood:[["Cá phi lê",145000],["Tôm",220000],["Mực",180000],["Cua",350000],["Ngao",60000]],
+    candy:[["Kẹo cao su",8000],["Sô cô la thanh",18000],["Kẹo mút",5000],["Kẹo bạc hà",9000]],
+    display:[["Combo khuyến mãi",99000],["Hàng giảm giá",45000],["Sản phẩm mới",58000]],
+  };
+  const ALIAS = { bakeshelf:"bakery", produce3:"produce", cold:"dairy", ufreezer:"freezer", chiller:"meat" };
+  const catKey = (t) => (CATALOG[t] ? t : ALIAS[t] || "shelf");
+  const KIND = { produce:"veg", produce3:"veg", meat:"meat", chiller:"meat", seafood:"meat", cold:"milk", dairy:"milk", ufreezer:"milk", freezer:"milk", icecream:"milk" };
+  const COLD = { cold:1, dairy:1, ufreezer:1, freezer:1, icecream:1, chiller:1, meat:1, seafood:1 };
+  const SHOP = { produce:"Chọn rau củ quả", meat:"Chọn thịt", seafood:"Chọn hải sản", dairy:"Mở tủ & chọn", freezer:"Mở tủ & chọn", icecream:"Chọn kem", bakery:"Chọn bánh" };
+  const TASTE = { bakery:1, bakeshelf:1, snack:1, candy:1, dairy:1, display:1, noodle:1 };
+  const PROD = [["Cà chua",28000],["Cà rốt",22000],["Bắp cải",18000],["Dưa leo",20000],["Chuối",25000],["Táo",65000]];
+  const FL = [["Vani","#f5e6b8"],["Dâu","#ff8fb1"],["Socola","#7b4a2d"],["Matcha","#8fcf7a"],["Xoài","#ffc531"],["Việt quất","#7c6cf0"]];
+  const PRIZE = ["Giảm 5% lần sau","Chúc may mắn","+10 xu thưởng","Kẹo tặng miễn phí","Giảm 10.000đ","Túi vải Maxidi"];
+  const catLabel = (it) => (BUILD_META[it.type] && BUILD_META[it.type].label) || (TYPES[it.type] && TYPES[it.type][0]) || it.type;
+
+  /* ============================== 2. TIỆN ÍCH ============================== */
+  const clampN = THREE.MathUtils.clamp;
+  const V = new THREE.Vector3(), V2 = new THREE.Vector3(), P = new THREE.Vector3(), D = new THREE.Vector3(), Q = new THREE.Quaternion();
+  const money = (v) => v.toLocaleString("vi-VN") + "đ";
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const hex6 = (c) => "#" + c.toString(16).padStart(6, "0");
+  const typing = (e) => ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
+  const mk = (tag, cls, html) => { const e = document.createElement(tag); e.className = cls; if (html != null) e.innerHTML = html; store.appendChild(e); return e; };
+  const vib = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+
   Object.assign(ICONS, {
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
     walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M13 8l-2 4.5 3 2.5 1 5M11 12.5L8 13.5M11 12.5l-1.5 4L7 20M13 8l3 2.5 2.5.5"/>',
+    cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2 11h11l2-8H7"/>',
   });
 
-  /* ---------- CSS ---------- */
+  /* ---- Âm thanh (WebAudio) ---- */
+  let ac = null;
+  function tone(f, d = 0.08, v = 0.05, type = "square", at = 0) {
+    if (!SOUND) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === "suspended") ac.resume();
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at;
+      o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.02);
+    } catch (e) {}
+  }
+  const beep = (f = 1400, d = 0.07, v = 0.05) => tone(f, d, v);
+  const chime = () => [660, 880, 1175].forEach((f, i) => tone(f, 0.22, 0.06, "sine", i * 0.1));
+
+  /* ================================ 3. CSS ================================= */
   const css = document.createElement("style");
   css.textContent = `
+/* ===== Ẩn giao diện khác khi vào FPV ===== */
 body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend,body.fpv-on #add,body.fpv-on #insp,body.fpv-on #signp{display:none!important}
 #store.fpv .dxl-layer,#store.fpv .dxd-layer,#store.fpv .dx-layer{display:none!important}
+
+/* ===== Lớp phủ nhìn quanh + kính dùng chung ===== */
 .fp-ov{position:absolute;inset:0;z-index:1;display:none;touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 #store.fpv .fp-ov{display:block}
 .fp-ov.g{cursor:grabbing}
 .fp-gl{background:rgba(255,255,255,.3);-webkit-backdrop-filter:blur(20px) saturate(200%);backdrop-filter:blur(20px) saturate(200%);
  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.55),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.95),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.6),0 10px 28px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06)}
-.fp-btn{position:absolute;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px 0 11px;border:0;border-radius:999px;
+
+/* ===== Nút "Góc nhìn thứ nhất" + danh sách chọn ===== */
+.fp-btn{position:absolute;right:12px;bottom:20%;z-index:5;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px 0 11px;border:0;border-radius:999px;
  color:var(--ink,#1d1d1f);font:600 13px/1 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;
  opacity:0;pointer-events:none;transform:translateY(8px) scale(.95);transition:opacity .25s ease,transform .4s cubic-bezier(.2,1.3,.4,1)}
 .fp-btn.on{opacity:1;pointer-events:auto;transform:none}
 .fp-btn:active{transform:scale(.95)}
 .fp-btn svg{width:18px;height:18px}
-.fp-pick{position:absolute;right:12px;bottom:calc(60px + env(safe-area-inset-bottom,0px));z-index:6;width:min(310px,calc(100% - 24px));max-height:min(62%,430px);display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:22px;
+.fp-pick{position:absolute;right:12px;bottom:calc(20% + 48px);z-index:6;width:min(310px,calc(100% - 24px));max-height:min(62%,430px);display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:22px;
  color:var(--ink,#1d1d1f);opacity:0;pointer-events:none;transform:translateY(10px) scale(.96);transform-origin:100% 100%;transition:opacity .22s ease,transform .38s cubic-bezier(.2,1.25,.4,1)}
 .fp-pick.on{opacity:1;pointer-events:auto;transform:none}
 .fp-h{padding:6px 10px 4px;font:700 13px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.65}
@@ -10488,70 +10577,297 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
 .fp-row.cust .fp-av{background:var(--acc,#0a84ff)}
 .fp-row.cust .fp-av svg{opacity:1;width:18px;height:18px}
 .fp-sep{height:1px;margin:4px 8px;background:rgba(127,127,127,.22)}
-.fp-hud{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:4px;max-width:calc(100% - 20px);padding:4px;border-radius:999px;color:var(--ink,#1d1d1f)}
+@media (max-width:720px){.fp-btn{width:40px;padding:0;justify-content:center}.fp-btn span{display:none}}
+
+/* ===== Thanh trên cùng (tên + ‹ › + Trả việc) + nút thoát X ===== */
+.fp-hud{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:4px;flex-wrap:nowrap;
+ max-width:calc(100% - 140px);padding:4px;border-radius:999px;color:var(--ink,#1d1d1f)}
 #store.fpv .fp-hud{display:flex;animation:fpIn .4s cubic-bezier(.2,1.3,.4,1)}
 @keyframes fpIn{from{opacity:0;transform:translate(-50%,-10px) scale(.95)}}
-.fp-t{display:flex;flex-direction:column;gap:2px;min-width:0;padding:2px 8px;text-align:center}
+.fp-t{flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0;padding:2px 8px;text-align:center}
 .fp-t b{font:600 13px/1.15 -apple-system,"Segoe UI",sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
 .fp-t span{font:500 11px/1.15 -apple-system,"Segoe UI",sans-serif;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
-.fp-hb{display:grid;place-items:center;height:32px;min-width:32px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font:600 12.5px/1 -apple-system,"Segoe UI",sans-serif;cursor:pointer;gap:5px;-webkit-tap-highlight-color:transparent}
+.fp-hb{flex:none;display:grid;place-items:center;height:32px;min-width:32px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;
+ font:600 12.5px/1 -apple-system,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;gap:5px;-webkit-tap-highlight-color:transparent}
 @media (hover:hover){.fp-hb:hover{background:rgba(127,127,127,.18)}}
 .fp-hb:active{background:rgba(127,127,127,.28)}
-.fp-hb.x{display:flex;align-items:center;background:rgba(255,59,48,.9);color:#fff}
 .fp-hb svg{width:16px;height:16px}
+.fp-hb.a{display:none;background:rgba(10,132,255,.9);color:#fff}
+#store.fpk .fp-hb.a{display:flex;align-items:center}
 #store.fpc .fp-hb.n{display:none}
-/* joystick nổi: xuất hiện đúng chỗ ngón tay chạm, không nhận chuột (cảm ứng đi qua lớp phủ) */
+.fpx{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:12px;left:auto;bottom:auto;z-index:99999;display:none;place-items:center;
+ width:44px;height:44px;min-width:0;margin:0;padding:0;border:0;border-radius:50%;color:#fff;background:rgba(255,59,48,.92);
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 6px 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;
+ -webkit-tap-highlight-color:transparent;transition:transform .2s cubic-bezier(.2,1.4,.4,1)}
+.fpx:active{transform:scale(.9)}
+.fpx svg{width:20px;height:20px}
+body.fpv-on .fpx{display:grid}
+
+/* ===== Joystick nổi ===== */
 .fp-joy{position:absolute;left:0;top:0;z-index:2;width:116px;height:116px;margin:-58px 0 0 -58px;border-radius:50%;display:grid;place-items:center;pointer-events:none;
  opacity:0;transform:scale(.7);transition:opacity .18s ease,transform .32s cubic-bezier(.2,1.3,.4,1)}
 .fp-joy.on{opacity:1;transform:scale(1)}
 .fp-knob{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 4px 12px rgba(0,0,0,.2)}
-@media (max-width:720px){.fp-btn{width:40px;padding:0;justify-content:center}.fp-btn span{display:none}}
-/* SP / màn cảm ứng: nút nâng lên ~20% chiều cao, danh sách chọn nâng theo */
-.fp-btn{bottom:20%}.fp-pick{bottom:calc(20% + 48px)}
+
+/* ===== Thẻ hành động gần quầy ===== */
+.fp-ac{position:absolute;right:12px;bottom:calc(18% + env(safe-area-inset-bottom,0px));z-index:6;width:min(240px,58vw);display:none;flex-direction:column;gap:6px;padding:10px;border-radius:22px;
+ color:var(--ink,#1d1d1f);opacity:0;pointer-events:none;transform:translateY(10px) scale(.96);transform-origin:100% 100%;transition:opacity .22s ease,transform .38s cubic-bezier(.2,1.25,.4,1)}
+#store.fpv .fp-ac{display:flex}
+.fp-ac.on{opacity:1;pointer-events:auto;transform:none}
+.fp-ac-h{display:flex;flex-direction:column;gap:2px;padding:2px 4px 4px}
+.fp-ac-h b{font:700 14px/1.2 -apple-system,"Segoe UI",sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-ac-h small{font:500 11.5px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
+.fp-ab{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:0 12px 0 8px;border:0;border-radius:14px;background:rgba(127,127,127,.14);color:inherit;
+ font:600 13.5px/1.2 -apple-system,"Segoe UI",sans-serif;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .15s ease,background .15s ease}
+.fp-ab:first-of-type{background:var(--acc,#0a84ff);color:#fff}
+.fp-ab:active{transform:scale(.97)}
+@media (hover:hover){.fp-ab:hover{filter:brightness(1.06)}}
+.fp-ab i{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.28);font:700 11px/1 -apple-system,sans-serif;font-style:normal}
+@media (pointer:coarse){.fp-ab i{display:none}.fp-ab{padding-left:12px}}
+.fp-ap{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;padding:0 4px 0 12px;border-radius:14px;overflow:hidden;background:rgba(127,127,127,.16);font:600 13px/1.2 -apple-system,"Segoe UI",sans-serif}
+.fp-ap::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:var(--acc,#0a84ff);opacity:.35;transition:width .12s linear}
+.fp-ap span{position:relative;white-space:nowrap}
+.fp-ap button{position:relative;flex:none;height:30px;padding:0 12px;border:0;border-radius:999px;background:rgba(255,59,48,.9);color:#fff;font:600 12.5px/1 -apple-system,sans-serif;white-space:nowrap;cursor:pointer}
+.fp-mt{display:none}
+/* PC: thẻ kính đục hơn, nút phụ đậm hơn (nền trắng) */
+@media (min-width:721px) and (pointer:fine){
+ #store .fp-ac.fp-gl{background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.7),0 10px 28px rgba(0,0,0,.2),0 1px 3px rgba(0,0,0,.12)}
+ #store .fp-ab:not(:first-of-type){background:rgba(28,28,34,.12)}
+}
+/* SP / cảm ứng: nút chính + "⋯", kính tối, mờ khi đang đi, hiện có độ trễ */
+@media (max-width:720px),(pointer:coarse){
+ #store.fpv .fp-ac{display:grid;grid-template-columns:auto auto;justify-content:end;justify-items:end;align-items:center;gap:6px}
+ #store .fp-ac.fp-gl{width:auto;max-width:72vw;padding:0;border-radius:0;background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  right:12px;bottom:calc(15% + env(safe-area-inset-bottom,0px));transform:translateX(14px) scale(.96);transform-origin:100% 100%}
+ #store .fp-ac.fp-gl.on{transform:none;transition-delay:.25s,.25s}
+ #store .fp-ac.fp-gl.on.mv{opacity:.42;transform:scale(.94);transition-delay:0s}
+ #store .fp-ac-h{grid-column:1/-1;justify-self:end;order:0;flex-direction:row;padding:4px 11px;border-radius:999px;background:rgba(28,28,34,.6);color:#fff;
+  -webkit-backdrop-filter:blur(14px) saturate(180%);backdrop-filter:blur(14px) saturate(180%);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.22),0 4px 14px rgba(0,0,0,.22)}
+ #store .fp-ac-h b{font-size:11.5px;max-width:52vw}
+ #store .fp-ac-h small{display:none}
+ #store .fp-ab{width:auto;min-height:0;height:42px;padding:0 18px;border-radius:999px;font-size:14px;gap:0;
+  -webkit-backdrop-filter:blur(16px) saturate(190%);backdrop-filter:blur(16px) saturate(190%)}
+ #store .fp-ab i{display:none}
+ #store .fp-ab:first-of-type{order:2;background:var(--acc,#0a84ff);color:#fff;
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.45),0 8px 22px rgba(10,80,200,.38),0 2px 6px rgba(0,0,0,.18)}
+ #store .fp-ab:not(:first-of-type){order:1;grid-column:1/-1;justify-self:end;height:38px;font-size:13.5px;background:rgba(28,28,34,.64);color:#fff;
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.24),0 6px 18px rgba(0,0,0,.26)}
+ #store .fp-ac:not(.open) .fp-ab:not(:first-of-type){display:none}
+ #store .fp-ac.open .fp-ab:not(:first-of-type){animation:fpUp .26s cubic-bezier(.2,1.3,.4,1) both}
+ @keyframes fpUp{from{opacity:0;transform:translateY(8px) scale(.94)}}
+ #store .fp-mt{order:3;display:grid;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:rgba(28,28,34,.64);color:#fff;cursor:pointer;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-backdrop-filter:blur(16px) saturate(190%);backdrop-filter:blur(16px) saturate(190%);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.24),0 6px 18px rgba(0,0,0,.26);
+  transition:transform .25s cubic-bezier(.2,1.4,.4,1),background .2s ease}
+ #store .fp-mt svg{width:20px;height:20px}
+ #store .fp-mt:active{transform:scale(.9)}
+ #store .fp-ac.open .fp-mt{background:var(--acc,#0a84ff);color:#fff;transform:rotate(90deg)}
+ #store .fp-ap{grid-column:1/-1;justify-self:end;order:2;width:min(230px,66vw);min-height:42px;border-radius:999px;padding:0 5px 0 16px;background:rgba(28,28,34,.68);color:#fff;
+  -webkit-backdrop-filter:blur(16px) saturate(190%);backdrop-filter:blur(16px) saturate(190%);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.22),0 6px 18px rgba(0,0,0,.26)}
+ #store .fp-ap::before{opacity:.6}
+}
+
+/* ===== Chip giỏ hàng + chữ bay + bảng chọn hàng / giỏ / hóa đơn ===== */
+.fp-bk{position:absolute;left:12px;top:calc(58px + env(safe-area-inset-top,0px));z-index:6;display:none;align-items:center;gap:7px;height:34px;padding:0 13px 0 10px;border:0;border-radius:999px;color:var(--ink,#1d1d1f);
+ font:600 12.5px/1 -apple-system,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#store.fpv.fpc .fp-bk{display:flex}
+.fp-bk svg{width:16px;height:16px}
+.fp-bk.pl{animation:fpPulse .45s cubic-bezier(.2,1.5,.4,1)}
+@keyframes fpPulse{40%{transform:scale(1.12)}}
+.fp-pop{position:absolute;left:50%;top:44%;z-index:7;transform:translateX(-50%);padding:7px 14px;border-radius:999px;color:#fff;background:rgba(0,0,0,.55);
+ -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font:600 13px/1 -apple-system,"Segoe UI",sans-serif;white-space:nowrap;pointer-events:none;animation:fpPop .9s ease-out forwards}
+@keyframes fpPop{from{opacity:0;transform:translate(-50%,10px) scale(.9)}20%{opacity:1}to{opacity:0;transform:translate(-50%,-46px) scale(1)}}
+.fp-sbg{position:absolute;inset:0;z-index:8;display:none;background:rgba(0,0,0,.28);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.fp-sbg.on{display:block}
+.fp-sh{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:9;width:min(430px,calc(100% - 16px));max-height:72%;display:none;flex-direction:column;gap:6px;padding:12px;border-radius:26px;color:var(--ink,#1d1d1f);transform:translateX(-50%)}
+.fp-sh.on{display:flex;animation:fpSh .38s cubic-bezier(.2,1.2,.4,1)}
+@keyframes fpSh{from{opacity:0;transform:translate(-50%,24px) scale(.97)}}
+.fp-sh-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:2px 4px}
+.fp-sh-h b{display:block;font:700 16px/1.2 -apple-system,"Segoe UI",sans-serif}
+.fp-sh-h small{display:block;margin-top:2px;font:500 11.5px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
+.fp-sh-x{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(127,127,127,.2);color:inherit;cursor:pointer}
+.fp-sh-l{overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px}
+.fp-pr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px 8px 10px;border-radius:14px}
+.fp-pr:nth-child(odd){background:rgba(127,127,127,.09)}
+.fp-pn{min-width:0}
+.fp-pn b{display:block;font:600 14px/1.25 -apple-system,"Segoe UI",sans-serif}
+.fp-pn small{font:500 12px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
+.fp-st{flex:none;display:flex;align-items:center;gap:2px}
+.fp-st button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:rgba(127,127,127,.2);color:inherit;font:600 18px/1 -apple-system,sans-serif;cursor:pointer;touch-action:manipulation}
+.fp-st button:active{transform:scale(.9)}
+.fp-st span{min-width:26px;text-align:center;font:700 14px/1 -apple-system,sans-serif}
+.fp-sh-f{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 0}
+.fp-sh-f>span{font:500 13px/1.3 -apple-system,"Segoe UI",sans-serif}
+.fp-sh-f>span b{font-weight:700}
+.fp-fb{display:flex;gap:6px}
+.fp-fb button{height:38px;padding:0 16px;border:0;border-radius:999px;background:rgba(127,127,127,.2);color:inherit;font:600 13.5px/1 -apple-system,sans-serif;white-space:nowrap;cursor:pointer}
+.fp-fb button.pri{background:var(--acc,#0a84ff);color:#fff}
+.fp-empty{padding:18px 10px;text-align:center;opacity:.6;font:500 13px/1.4 -apple-system,sans-serif}
+
+/* ===== Hiệu ứng ===== */
+.fx-fl{position:absolute;inset:0;z-index:5;pointer-events:none;background:#34c759;opacity:0}
+.fx-fl.on{animation:fxF .38s ease-out}
+@keyframes fxF{from{opacity:.2}to{opacity:0}}
+
+/* ===== Mini-game / thanh toán / quay thưởng ===== */
+.fx2-cf{position:absolute;inset:0;width:100%;height:100%;z-index:20;pointer-events:none}
+.fx2-bg{position:absolute;inset:0;z-index:12;display:none;background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.fx2-bg.on{display:block}
+.fx2-box{position:absolute;left:50%;top:50%;z-index:13;width:min(420px,calc(100% - 20px));max-height:88%;display:none;flex-direction:column;gap:10px;padding:14px;border-radius:28px;color:#fff;
+ background:rgba(24,24,30,.86);-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);
+ box-shadow:inset 0 0 0 .5px rgba(255,255,255,.24),inset 0 1px 0 rgba(255,255,255,.22),0 28px 70px rgba(0,0,0,.5);transform:translate(-50%,-50%);font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+.fx2-box button{font-family:inherit}
+.fx2-box.on{display:flex;animation:fx2In .45s cubic-bezier(.2,1.25,.4,1)}
+@keyframes fx2In{from{opacity:0;transform:translate(-50%,-46%) scale(.95)}}
+.fx2-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.fx2-h b{display:block;font-size:16px;font-weight:700}
+.fx2-h small{display:block;margin-top:2px;font-size:12px;opacity:.6;line-height:1.3}
+.fx2-x{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;cursor:pointer}
+.fx2-b{overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px}
+.fx2-msg{min-height:20px;text-align:center;font-size:13.5px;font-weight:600;opacity:.92}
+.fx2-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.fx2-btn{height:44px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font-weight:600;font-size:14px;cursor:pointer;touch-action:manipulation;white-space:nowrap;-webkit-tap-highlight-color:transparent;transition:transform .15s ease}
+.fx2-btn.pri{background:var(--acc,#0a84ff)}
+.fx2-btn.big{flex:1;height:64px;font-size:20px;letter-spacing:.05em}
+.fx2-btn:active{transform:scale(.96)}
+.fx2-btn[disabled]{opacity:.4;pointer-events:none}
+.fx2-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.fx2-chip{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:0;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer;touch-action:manipulation}
+.fx2-chip.on{background:#fff;color:#111}
+.fx2-chip i{width:12px;height:12px;border-radius:50%}
+.fx2-hud{display:flex;justify-content:space-between;font-size:13px;opacity:.85}
+.fx2-hud b{font-variant-numeric:tabular-nums}
+.fx2-gauge{position:relative;width:210px;height:210px;margin:0 auto;flex:none}
+.fx2-gauge svg{width:100%;height:100%}
+.g0{fill:none;stroke:rgba(255,255,255,.14);stroke-width:14}
+.g1{fill:none;stroke:var(--acc,#0a84ff);stroke-width:14;stroke-linecap:round}
+.gt{fill:#ffd60a}
+.gc{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.gc b{font-size:38px;font-weight:700;font-variant-numeric:tabular-nums}
+.gc small{font-size:12px;opacity:.6}
+.fx2-cone{position:relative;height:262px;flex:none}
+.fx2-cone .cn{position:absolute;left:50%;bottom:0;transform:translateX(-50%);border-left:40px solid transparent;border-right:40px solid transparent;border-top:106px solid #d9a05b}
+.scs{position:absolute;left:50%;bottom:100px;width:84px;margin-left:-42px;height:0}
+.scs i{position:absolute;left:0;bottom:0;width:84px;height:64px;border-radius:50%;box-shadow:inset -9px -9px 0 rgba(0,0,0,.12),inset 7px 7px 0 rgba(255,255,255,.24)}
+.scs i.n{animation:fx2Pop .4s cubic-bezier(.2,1.7,.4,1)}
+@keyframes fx2Pop{from{transform:translateY(-70px) scale(.7);opacity:0}}
+.fx2-belt{position:relative;height:84px;border-radius:16px;overflow:hidden;background:repeating-linear-gradient(90deg,#2a2a31 0 18px,#303038 18px 36px);flex:none}
+.fx2-belt .zone{position:absolute;left:50%;top:0;bottom:0;width:60px;transform:translateX(-50%);background:rgba(255,59,48,.22);border-left:2px solid #ff3b30;border-right:2px solid #ff3b30}
+.fx2-belt .zone::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:#ff3b30;box-shadow:0 0 12px #ff3b30}
+.fx2-it{position:absolute;left:0;top:22px;width:40px;height:40px;border-radius:10px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.fx2-it::after{content:"";position:absolute;left:8px;right:8px;bottom:9px;height:8px;background:repeating-linear-gradient(90deg,#fff 0 2px,transparent 2px 4px);opacity:.85}
+.fx2-it.ok{filter:brightness(1.35);outline:2px solid #30d158}
+.fx2-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;flex:none}
+.fx2-bar i{display:block;height:100%;width:100%;background:#ffd60a}
+.fx2-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:none}
+.fx2-cell{position:relative;aspect-ratio:1.3;border:0;border-radius:16px;background:rgba(255,255,255,.1);cursor:pointer;touch-action:manipulation}
+.fx2-cell.lit{background:rgba(255,255,255,.2);box-shadow:0 0 0 2px #ffd60a,0 0 22px rgba(255,214,10,.55);animation:fx2P .4s ease-in-out infinite alternate}
+.fx2-cell.lit::after{content:"";position:absolute;left:28%;right:28%;top:26%;bottom:26%;border-radius:10px;background:var(--c,#ff9f0a)}
+.fx2-cell.bad{animation:fx2S .25s}
+@keyframes fx2P{to{transform:scale(1.05)}}
+@keyframes fx2S{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.fx2-res{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0 2px;text-align:center}
+.fx2-res .big{font-size:30px;font-weight:700}
+.fx2-res small{font-size:12.5px;opacity:.7}
+.stars{display:flex;gap:6px}
+.stars i{width:44px;height:44px;opacity:.22;transform:scale(.8)}
+.stars i.on{opacity:1;color:#ffd60a;animation:fx2St .55s cubic-bezier(.2,1.7,.4,1) both}
+.stars i:nth-child(2).on{animation-delay:.12s}.stars i:nth-child(3).on{animation-delay:.24s}
+.stars svg{width:100%;height:100%;fill:currentColor}
+@keyframes fx2St{from{transform:scale(.2) rotate(-40deg);opacity:0}}
+.fx2-scan{max-height:190px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.fx2-ln{display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.1);font-size:13px;animation:fx2Ln .25s ease-out}
+@keyframes fx2Ln{from{opacity:0;transform:translateX(-14px)}}
+.fx2-tt{display:flex;justify-content:space-between;align-items:baseline;padding:2px 4px;font-size:13px;opacity:.95}
+.fx2-tt b{font-size:24px;font-variant-numeric:tabular-nums}
+.fx2-ok{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;font-size:15px}
+.fx2-ok svg{width:42px;height:42px}
+.fx2-ok circle{fill:none;stroke:#30d158;stroke-width:3;stroke-dasharray:120;stroke-dashoffset:120;animation:fx2D .5s ease-out forwards}
+.fx2-ok path{fill:none;stroke:#30d158;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:30;stroke-dashoffset:30;animation:fx2D .4s .35s ease-out forwards}
+@keyframes fx2D{to{stroke-dashoffset:0}}
+.fx2-paper{align-self:center;flex:none;width:min(270px,100%);padding:12px 12px 16px;background:#fffdf6;color:#222;font:12px/1.55 ui-monospace,Menlo,monospace;border-radius:4px 4px 0 0;overflow:hidden;
+ box-shadow:0 8px 24px rgba(0,0,0,.35);animation:fx2Pr 1.3s ease-out both}
+@keyframes fx2Pr{from{max-height:0;opacity:.6}to{max-height:900px;opacity:1}}
+.fx2-paper .pt{text-align:center;font-weight:700;font-size:13px}
+.fx2-paper .ps{text-align:center;opacity:.6;font-size:11px}
+.fx2-paper .pl{display:flex;justify-content:space-between;gap:8px}
+.fx2-paper .tt{margin-top:6px;padding-top:6px;border-top:1px dashed #999;font-weight:700}
+.fx2-paper .pm{margin-top:4px;color:#0a7a30}
+.fx2-paper .bc{height:34px;margin:8px 0 4px;background:repeating-linear-gradient(90deg,#111 0 2px,transparent 2px 4px,#111 4px 5px,transparent 5px 8px)}
+.fx2-wh{position:relative;width:240px;margin:8px auto;flex:none}
+.fx2-pt{position:absolute;left:50%;top:-8px;transform:translateX(-50%);z-index:2;border-left:12px solid transparent;border-right:12px solid transparent;border-top:22px solid #fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+.fx2-wheel{position:relative;width:240px;height:240px;border-radius:50%;border:6px solid #fff;box-shadow:0 10px 30px rgba(0,0,0,.4);
+ background:conic-gradient(#ff9f0a 0 60deg,#8e8e93 60deg 120deg,#30d158 120deg 180deg,#ff375f 180deg 240deg,#0a84ff 240deg 300deg,#bf5af2 300deg 360deg);
+ transition:transform 4.4s cubic-bezier(.12,.72,.08,1)}
+.fx2-wheel span{position:absolute;left:50%;top:50%;transform-origin:0 0;font-size:11px;font-weight:700;white-space:nowrap;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+
+/* ===== Chế độ tối ===== */
 @media (prefers-color-scheme:dark){
  .fp-gl{background:rgba(40,40,46,.4);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2),inset 1.5px 1.5px 1px -1px rgba(255,255,255,.45),inset -1.5px -1.5px 1px -1px rgba(255,255,255,.16),0 10px 28px rgba(0,0,0,.5)}
- .fp-btn,.fp-pick,.fp-hud{color:#f5f5f7}
+ .fp-btn,.fp-pick,.fp-hud,.fp-ac,.fp-bk,.fp-sh{color:#f5f5f7}
  .fp-knob{background:rgba(255,255,255,.32)}
 }`;
   document.head.appendChild(css);
 
-  /* ---------- DOM ---------- */
-  const store = $("#store"),
-    mk = (tag, cls, html) => { const e = document.createElement(tag); e.className = cls; if (html != null) e.innerHTML = html; store.appendChild(e); return e; };
+  /* ================================ 4. DOM ================================= */
+  document.querySelectorAll(".fpx,.fp-exit").forEach((e) => e.remove());   /* dọn nút thoát bản cũ nếu còn sót */
+
   const ov = mk("div", "fp-ov"),
     btn = mk("button", "fp-btn fp-gl", IC("eye", 18) + "<span>Góc nhìn thứ nhất</span>"),
-    pick = mk("div", "fp-pick fp-gl", '<div class="fp-h">Chọn góc nhìn</div><div class="fp-list"></div>'),
+    pickEl = mk("div", "fp-pick fp-gl", '<div class="fp-h">Chọn góc nhìn</div><div class="fp-list"></div>'),
     hud = mk("div", "fp-hud fp-gl",
       `<button class="fp-hb n" data-a="prev" title="Nhân viên trước">${IC("chev", 16).replace("<svg", '<svg style="transform:rotate(90deg)"')}</button>
        <div class="fp-t"><b></b><span></span></div>
        <button class="fp-hb n" data-a="next" title="Nhân viên kế tiếp">${IC("chev", 16).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</button>
-       <button class="fp-hb x" data-a="exit">${IC("x", 14)}<span>Thoát</span></button>`),
+       <button class="fp-hb a" data-a="auto" title="Trả nhân viên về công việc">Trả việc</button>`),
     joy = mk("div", "fp-joy fp-gl", '<div class="fp-knob"></div>'),
-    knob = joy.firstChild, hTitle = hud.querySelector("b"), hSub = hud.querySelector(".fp-t span"),
-    list = pick.querySelector(".fp-list");
-  btn.type = "button";
+    card = mk("div", "fp-ac fp-gl"),
+    chip = mk("button", "fp-bk fp-gl"),
+    sbg = mk("div", "fp-sbg"),
+    sheetEl = mk("div", "fp-sh fp-gl"),
+    flashEl = mk("div", "fx-fl"),
+    cf = mk("canvas", "fx2-cf"),
+    mgBg = mk("div", "fx2-bg"),
+    mgBox = mk("div", "fx2-box", `<div class="fx2-h"><div><b></b><small></small></div><button class="fx2-x" type="button">${IC("x", 14)}</button></div><div class="fx2-b"></div>`),
+    kin = document.createElement("input");
+  btn.type = "button"; chip.type = "button";
+  const knob = joy.firstChild, hTitle = hud.querySelector("b"), hSub = hud.querySelector(".fp-t span"), pickList = pickEl.querySelector(".fp-list"),
+    mgTitle = mgBox.querySelector(".fx2-h b"), mgSub = mgBox.querySelector(".fx2-h small"), mgBody = mgBox.querySelector(".fx2-b");
 
-    const autoB = document.createElement("button");
-  autoB.type = "button"; autoB.className = "fp-hb a"; autoB.dataset.a = "auto"; autoB.textContent = "Trả việc";
-  autoB.title = "Trả nhân viên về công việc";
-  hud.insertBefore(autoB, hud.querySelector(".x"));
-  const css2 = document.createElement("style");
-  css2.textContent = ".fp-hb.a{display:none;background:rgba(10,132,255,.9);color:#fff}#store.fpk .fp-hb.a{display:flex;align-items:center}";
-  document.head.appendChild(css2);
-  function release() { fp.ctrl = false; store.classList.remove("fpk"); hudKey = ""; resetLook(); fp.jx = fp.jy = 0; }
+  /* nút thoát X: duy nhất, gắn vào body, không dính CSS của trang */
+  const fpx = document.createElement("button");
+  fpx.type = "button"; fpx.className = "fpx"; fpx.title = fpx.ariaLabel = "Thoát góc nhìn thứ nhất";
+  fpx.innerHTML = IC("x", 20);
+  document.body.appendChild(fpx);
 
-  /* ---------- Trạng thái ---------- */
+  /* ô nhập ẩn: chỉ để nhận phím khi chơi mini-game (WASD / F / số không còn điều khiển nhân vật phía sau) */
+  kin.readOnly = true; kin.setAttribute("inputmode", "none"); kin.setAttribute("aria-hidden", "true"); kin.tabIndex = -1;
+  kin.style.cssText = "position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0";
+  store.appendChild(kin);
+
+  [hud, card, chip, sheetEl, mgBg, mgBox, fpx].forEach((e) => e.addEventListener("pointerdown", (ev) => ev.stopPropagation()));
+
+  /* ============================== 5. TRẠNG THÁI ============================ */
   const fp = {
     on: false, kind: null, code: null, t: 0, saved: null, fov: 0, near: 0,
     yaw: PI, pitch: 0, pos: { x: 0, z: 0 }, bob: 0, jx: 0, jy: 0,
     oy: 0, op: 0, idle: 0, sy: null, sp: null, run: false, ctrl: false,
-    };
+  };
   const keys = new Set(),
     KM = { w: "f", arrowup: "f", s: "b", arrowdown: "b", a: "l", arrowleft: "l", d: "r", arrowright: "r", q: "ql", e: "qr" };
-  const P = new THREE.Vector3(), D = new THREE.Vector3(), Q = new THREE.Quaternion();
+  const kd = new Set(), MV = { w: 1, a: 1, s: 1, d: 1, arrowup: 1, arrowdown: 1, arrowleft: 1, arrowright: 1 };  /* phím đang giữ (để huỷ hành động) */
   let hudKey = "", btnOn = false;
 
-  /* ---------- Điều khiển chạm: joystick nổi + lướt để nhìn (khai báo trước để dùng ở dưới) ---------- */
+  /* tương tác quầy */
+  const basket = new Map(); /* tên → {p, q} */
+  let cartOn = false, sheet = null, act = null, seq = 0, cardKey = "", cardActs = [], near = null, punchT = 0, punchBase = 0, moreTm = 0;
+  /* mini-game */
+  let mg = null, timers = [], xu = 0;
+  const best = {};
+
+  /* =========================== 6. ĐIỀU KHIỂN CHẠM ========================== */
   const tp = new Map(); /* pointerId → {role:'joy'|'look', ...} */
   const has = (r) => { for (const p of tp.values()) if (p.role === r) return true; return false; };
   const lookOn = () => has("look");
@@ -10562,105 +10878,16 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     joy.classList.remove("on");
     ov.classList.remove("g");
   }
-
-  /* ---------- Danh sách chọn ---------- */
-  function renderPick() {
-    list.innerHTML =
-      `<button class="fp-row cust" data-c="1"><span class="fp-av">${IC("walk", 18)}</span><span class="fp-nm"><b>Làm khách hàng</b><small>Tự đi mua sắm trong cửa hàng</small></span>${IC("chev", 14)}</button><div class="fp-sep"></div>` +
-      StaffRegistry.all().map((s) => {
-        const r = ROLES[s.role] || ROLES.staff;
-        return `<button class="fp-row" data-s="${esc(s.code)}"><span class="fp-av ${r[1]}">${ini(s)}</span><span class="fp-nm"><b>${esc(s.name)}</b><small>${esc(r[0])}${s.shift ? " · " + esc(s.shift) : ""}</small></span>${IC("chev", 14)}</button>`;
-      }).join("");
-  }
-  const openPick = () => { renderPick(); pick.classList.add("on"); };
-  const closePick = () => pick.classList.remove("on");
-  btn.addEventListener("click", () => (pick.classList.contains("on") ? closePick() : openPick()));
-  pick.addEventListener("click", (e) => {
-    const b = e.target.closest(".fp-row");
-    if (!b) return;
-    closePick();
-    b.dataset.c ? enter("cust") : enter("staff", b.dataset.s);
-  });
-  document.addEventListener("pointerdown", (e) => {
-    if (pick.classList.contains("on") && !pick.contains(e.target) && !btn.contains(e.target)) closePick();
-  });
-
-  /* ---------- Vào / ra FPV ---------- */
-  function resetLook() { fp.oy = fp.op = 0; fp.idle = 0; fp.sy = fp.sp = null; }
-  function setKind(kind, code) {
-    fp.kind = kind; fp.code = code || null; hudKey = ""; resetLook(); endTouch();
-    fp.ctrl = false; store.classList.remove("fpk");    store.classList.toggle("fpc", kind === "cust");
-  }
-  function enter(kind, code) {
-    if (mode === "edit") { const v = document.querySelector('#tools [data-m="view"]'); if (v) v.click(); }
-    if (!fp.on) {
-      fp.saved = { th: cam.th, ph: cam.ph, r: cam.r, fit: cam.fit, tx: cam.tx, ty: cam.ty, tz: cam.tz };
-      fp.fov = camera.fov; fp.near = camera.near;
-      camera.fov = FOV; camera.near = NEAR; camera.updateProjectionMatrix();
-      fp.on = true;
-      document.body.classList.add("fpv-on");
-      store.classList.add("fpv");
-      store.classList.toggle("fpt", matchMedia("(pointer:coarse)").matches || innerWidth <= 720);
-      keysDown.clear();
-    }
-    cam.T = null; cam.vth = 0;
-    setKind(kind, code);
-    if (kind === "cust") {
-      const dx = (STORE.door[0] + STORE.door[1]) / 2;
-      fp.pos.x = dx; fp.pos.z = STORE.D / 2 - 1.3;
-      fp.yaw = PI; fp.pitch = 0; fp.bob = 0;
-    }
-    fp.t = performance.now();
-    const touch = store.classList.contains("fpt");
-    toast(kind === "cust"
-      ? (touch ? "Chạm giữ để hiện joystick đi · lướt ngón tay để nhìn" : "Bạn là khách hàng · WASD để đi, kéo chuột để nhìn")
-      : (touch ? "Lướt ngón tay để nhìn quanh" : "Kéo để nhìn quanh · Esc để thoát"));
-  }
-  function exit() {
-    if (!fp.on) return;
-    fp.on = false;
-    camera.fov = fp.fov; camera.near = fp.near; camera.updateProjectionMatrix();
-    fit();
-    const s = fp.saved;
-    Object.assign(cam, { th: s.th, ph: s.ph, tx: s.tx, ty: s.ty, tz: s.tz });
-    cam.r = Math.abs(s.r - s.fit) < 0.01 ? cam.fit : s.r;
-    cam.T = null; cam.vth = 0;
-    document.body.classList.remove("fpv-on");
-    fp.ctrl = false;
-    store.classList.remove("fpv", "fpc", "fpt", "fpk");
-        keys.clear(); endTouch();
-    closePick();
-  }
-  function cycle(d) {
-    const all = StaffRegistry.all();
-    if (!all.length) return;
-    let i = all.findIndex((s) => s.code === fp.code);
-    i = ((i < 0 ? 0 : i) + d + all.length) % all.length;
-    setKind("staff", all[i].code);
-  }
-  hud.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-a]");
-    if (!b) return;
-    const a = b.dataset.a;
-    if (a === "exit") exit();
-        if (a === "auto") release();
-    if (a === "prev") cycle(-1);
-    if (a === "next") cycle(1);
-  });
-  hud.addEventListener("pointerdown", (e) => e.stopPropagation());
-  $("#tabs").addEventListener("click", () => { if (fp.on) exit(); }, true);
-
-  /* ---------- Chạm: ngón đầu nửa TRÁI = joystick nổi, nửa PHẢI = quay camera; ngón thứ hai nhận vai còn lại ---------- */
   const joyPlace = (p) => { joy.style.left = p.cx + "px"; joy.style.top = p.cy + "px"; };
+
   ov.addEventListener("pointerdown", (e) => {
     if (tp.has(e.pointerId)) return;
     const touch = e.pointerType !== "mouse",
       r = ov.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     let role = "look";
-    /* khách hàng + cảm ứng: chưa có joystick và (chạm nửa trái hoặc đã có ngón đang quay) → làm joystick */
     const inJoy = x < r.width * JZX && y > r.height * JZY; /* vùng nhỏ góc dưới trái */
     if (touch && !has("joy") && inJoy) role = "joy";
-            if (role === "look" && has("look")) return; /* đã đủ 2 vai, bỏ qua ngón thứ ba */
+    if (role === "look" && has("look")) return;           /* đã đủ 2 vai, bỏ qua ngón thứ ba */
     ov.setPointerCapture(e.pointerId);
     const p = { role, touch, x: e.clientX, y: e.clientY, ox: e.clientX, oy: e.clientY, cx: x, cy: y };
     tp.set(e.pointerId, p);
@@ -10672,8 +10899,7 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     p.x = e.clientX; p.y = e.clientY;
-        if (p.role === "joy") {
-      /* đế joystick đứng yên tại điểm chạm; núm chỉ trượt trong vòng bán kính JR */
+    if (p.role === "joy") {  /* đế đứng yên tại điểm chạm; núm chỉ trượt trong vòng JR */
       let jx = p.x - p.ox, jy = p.y - p.oy;
       const len = Math.hypot(jx, jy);
       if (len > JR) { jx = (jx / len) * JR; jy = (jy / len) * JR; }
@@ -10681,11 +10907,11 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       fp.jx = jx / JR; fp.jy = -jy / JR;
       return;
     }
-    /* quay camera: cảm ứng = cảnh trượt theo ngón tay; chuột (PC) = kiểu FPS như trước.
+    /* quay camera: cảm ứng = cảnh trượt theo ngón tay; chuột (PC) = kiểu FPS.
        Muốn vuốt phải = quay phải trên SP: đổi "p.touch ? 1 : -1" thành "-1". */
     fp.idle = 0;
     const s = p.touch ? TLOOK : LOOK, g = p.touch ? 1 : -1;
-        if (fp.kind === "cust" || fp.ctrl) { fp.yaw += g * dx * s; fp.pitch = clampN(fp.pitch + g * dy * s, -1.35, 1.35); }
+    if (fp.kind === "cust" || fp.ctrl) { fp.yaw += g * dx * s; fp.pitch = clampN(fp.pitch + g * dy * s, -1.35, 1.35); }
     else { fp.oy = clampN(fp.oy + g * dx * s, -1.7, 1.7); fp.op = clampN(fp.op + g * dy * s, -1.1, 1.1); }
   });
   const endP = (e) => {
@@ -10701,30 +10927,136 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
   ov.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
   ov.addEventListener("contextmenu", (e) => e.preventDefault());
 
-  /* ---------- Bàn phím (chặn phím cũ chỉ khi đang ở FPV) ---------- */
-  const typing = (e) => ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
+  /* ================================ 7. BÀN PHÍM ============================ */
   addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+    if (MV[k]) kd.add(k);
     if (!fp.on || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); exit(); return; }
-    const k = KM[e.key.toLowerCase()];
-    if (!k) return;
-    e.stopPropagation(); e.preventDefault();
-    fp.run = e.shiftKey;
-    keys.add(k);
+    if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); if (sheet) closeSheet(); exit(); return; }
+    const km = KM[k];
+    if (km) { e.stopPropagation(); e.preventDefault(); fp.run = e.shiftKey; keys.add(km); return; }
+    /* phím tắt hành động: F = hành động đầu, 1..9 = hành động tương ứng */
+    if (sheet || act || !card.classList.contains("on")) return;
+    const i = k === "f" ? 0 : /^[1-9]$/.test(k) ? +k - 1 : -1;
+    if (i >= 0 && cardActs[i]) { e.preventDefault(); cardActs[i].run(); cardKey = ""; }
   }, true);
-  addEventListener("keyup", (e) => { const k = KM[e.key.toLowerCase()]; if (k) keys.delete(k); fp.run = e.shiftKey; }, true);
-  addEventListener("blur", () => keys.clear());
+  addEventListener("keyup", (e) => {
+    const k = e.key.toLowerCase();
+    kd.delete(k);
+    if (KM[k]) keys.delete(KM[k]);
+    fp.run = e.shiftKey;
+  }, true);
+  addEventListener("blur", () => { keys.clear(); kd.clear(); });
 
-  /* ---------- Camera mỗi khung hình (thay updCam khi đang ở FPV) ---------- */
-  const _upd = updCam;
+  /* ======================= 8. CHỌN GÓC NHÌN · VÀO / RA ===================== */
+  function renderPick() {
+    pickList.innerHTML =
+      `<button class="fp-row cust" data-c="1"><span class="fp-av">${IC("walk", 18)}</span><span class="fp-nm"><b>Làm khách hàng</b><small>Tự đi mua sắm trong cửa hàng</small></span>${IC("chev", 14)}</button><div class="fp-sep"></div>` +
+      StaffRegistry.all().map((s) => {
+        const r = ROLES[s.role] || ROLES.staff;
+        return `<button class="fp-row" data-s="${esc(s.code)}"><span class="fp-av ${r[1]}">${ini(s)}</span><span class="fp-nm"><b>${esc(s.name)}</b><small>${esc(r[0])}${s.shift ? " · " + esc(s.shift) : ""}</small></span>${IC("chev", 14)}</button>`;
+      }).join("");
+  }
+  const openPick = () => { renderPick(); pickEl.classList.add("on"); };
+  const closePick = () => pickEl.classList.remove("on");
+  btn.addEventListener("click", () => (pickEl.classList.contains("on") ? closePick() : openPick()));
+  pickEl.addEventListener("click", (e) => {
+    const b = e.target.closest(".fp-row");
+    if (!b) return;
+    closePick();
+    b.dataset.c ? enter("cust") : enter("staff", b.dataset.s);
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (pickEl.classList.contains("on") && !pickEl.contains(e.target) && !btn.contains(e.target)) closePick();
+  });
+
+  function resetLook() { fp.oy = fp.op = 0; fp.idle = 0; fp.sy = fp.sp = null; }
+  function release() { fp.ctrl = false; store.classList.remove("fpk"); hudKey = ""; resetLook(); fp.jx = fp.jy = 0; }
+  function setKind(kind, code) {
+    fp.kind = kind; fp.code = code || null; hudKey = ""; resetLook(); endTouch();
+    fp.ctrl = false; store.classList.remove("fpk");
+    store.classList.toggle("fpc", kind === "cust");
+  }
+
+  /* phím Back của điện thoại: vào FPV thêm 1 bước lịch sử, bấm Back = thoát FPV (không thoát trang) */
+  let histOn = false;
+  function syncHistory(on) {
+    if (on === histOn) return;
+    histOn = on;
+    if (on) history.pushState({ fpv: 1 }, "");
+    else if (history.state && history.state.fpv) history.back();
+  }
+  addEventListener("popstate", () => { if (fp.on) exit(); });
+
+  function enter(kind, code) {
+    if (mode === "edit") { const v = document.querySelector('#tools [data-m="view"]'); if (v) v.click(); }
+    if (!fp.on) {
+      fp.saved = { th: cam.th, ph: cam.ph, r: cam.r, fit: cam.fit, tx: cam.tx, ty: cam.ty, tz: cam.tz };
+      fp.fov = camera.fov; fp.near = camera.near;
+      camera.fov = FOV; camera.near = NEAR; camera.updateProjectionMatrix();
+      fp.on = true;
+      document.body.classList.add("fpv-on");
+      store.classList.add("fpv");
+      store.classList.toggle("fpt", matchMedia("(pointer:coarse)").matches || innerWidth <= 720);
+      keysDown.clear();
+      syncHistory(true);
+    }
+    cam.T = null; cam.vth = 0;
+    setKind(kind, code);
+    if (kind === "cust") {
+      const dx = (STORE.door[0] + STORE.door[1]) / 2;
+      fp.pos.x = dx; fp.pos.z = STORE.D / 2 - 1.3;
+      fp.yaw = PI; fp.pitch = 0; fp.bob = 0;
+    }
+    fp.t = performance.now();
+    const touch = store.classList.contains("fpt");
+    toast(kind === "cust"
+      ? (touch ? "Chạm giữ góc dưới trái để đi · lướt ngón tay để nhìn" : "Bạn là khách hàng · WASD để đi, kéo chuột để nhìn")
+      : (touch ? "Lướt ngón tay để nhìn quanh" : "Kéo để nhìn quanh · Esc để thoát"));
+  }
+  function exit() {
+    if (!fp.on) return;
+    fp.on = false;
+    camera.fov = fp.fov; camera.near = fp.near; camera.updateProjectionMatrix();
+    fit();
+    const s = fp.saved;
+    Object.assign(cam, { th: s.th, ph: s.ph, tx: s.tx, ty: s.ty, tz: s.tz });
+    cam.r = Math.abs(s.r - s.fit) < 0.01 ? cam.fit : s.r;
+    cam.T = null; cam.vth = 0;
+    document.body.classList.remove("fpv-on");
+    fp.ctrl = false;
+    store.classList.remove("fpv", "fpc", "fpt", "fpk");
+    keys.clear(); endTouch(); closePick();
+    if (mg) closeMg();
+    syncHistory(false);
+  }
+  function cycle(d) {
+    const all = StaffRegistry.all();
+    if (!all.length) return;
+    let i = all.findIndex((s) => s.code === fp.code);
+    i = ((i < 0 ? 0 : i) + d + all.length) % all.length;
+    setKind("staff", all[i].code);
+  }
+  hud.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-a]");
+    if (!b) return;
+    const a = b.dataset.a;
+    if (a === "auto") release();
+    if (a === "prev") cycle(-1);
+    if (a === "next") cycle(1);
+  });
+  fpx.addEventListener("click", exit);
+  $("#tabs").addEventListener("click", () => { if (fp.on) exit(); }, true);
+
+  /* ============================ 9. CAMERA MỖI KHUNG ======================== */
   const npcOf = () => npcs.find((n) => n.s.code === fp.code);
 
   function frame() {
     const now = performance.now(), dt = Math.min(0.05, Math.max(0, (now - fp.t) / 1000));
     fp.t = now;
-    let ey, yaw, pitch;
+    let yaw, pitch;
 
-        if (fp.kind === "staff") {
+    if (fp.kind === "staff") {
       const n = npcOf();
       if (!n) return false;
       n.g.updateMatrixWorld(true);
@@ -10786,14 +11118,14 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
         if (d < 0.55 && d > 1e-4) { fp.pos.x = n.g.position.x + (dx / d) * 0.55; fp.pos.z = n.g.position.z + (dz / d) * 0.55; }
       });
       fp.bob += Math.min(1, len) * sp * dt * 2.6;
-      ey = EYE + (len > 0.05 ? Math.abs(Math.sin(fp.bob)) * 0.03 : 0);
+      const ey = EYE + (len > 0.05 ? Math.abs(Math.sin(fp.bob)) * 0.03 : 0);
       yaw = fp.yaw; pitch = fp.pitch;
       camera.position.set(fp.pos.x, ey, fp.pos.z);
       if (hudKey !== "cust") {
         hudKey = "cust";
         hTitle.textContent = "Bạn là khách hàng";
         hSub.textContent = store.classList.contains("fpt")
-          ? "Chạm giữ để đi · lướt ngón tay để nhìn"
+          ? "Chạm giữ góc dưới trái để đi · lướt ngón tay để nhìn"
           : "WASD để đi · kéo để nhìn · Shift để chạy";
       }
     }
@@ -10804,171 +11136,21 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     return true;
   }
 
-    /* nhân viên đang được điều khiển: bỏ qua routine, đi theo joystick / WASD, va chạm kệ như NPC thường */
-  const _stepNpc = stepNpc;
-  stepNpc = function (n, dt, t) {
-    if (!(fp.on && fp.kind === "staff" && fp.ctrl && n.s.code === fp.code)) return _stepNpc.apply(this, arguments);
-    let f = (keys.has("f") ? 1 : 0) - (keys.has("b") ? 1 : 0) + fp.jy,
-      s = (keys.has("r") ? 1 : 0) - (keys.has("l") ? 1 : 0) + fp.jx;
-    const len = Math.hypot(f, s);
-    if (len > 1) { f /= len; s /= len; }
-    const sp = fp.run ? RUN : WALK, sy = Math.sin(fp.yaw), cy = Math.cos(fp.yaw), p = n.g.position;
-    p.x += (sy * f - cy * s) * sp * dt;
-    p.z += (cy * f + sy * s) * sp * dt;
-    if (window.dxNav) dxNav.pushOut(p, 0.2);
-    n.g.rotation.y = fp.yaw;
-    n.job = null;
-    n.mode = len > 0.05 ? "walk" : "idle";
-    pose(n, dt, t);
-  };
-
-  updCam = function () {
-    if (!fp.on) return _upd.apply(this, arguments);
-    if (mode === "edit" || tab !== "store" || !frame()) { exit(); return _upd.apply(this, arguments); }
-  };
-
-  /* ---------- Ẩn đầu nhân viên đang xem (tránh nhìn xuyên tóc / mũ); bật nút khi phù hợp ---------- */
-  const _r = ren.render.bind(ren);
-  ren.render = (s, c) => {
-    const vis = tab === "store" && mode !== "edit" && !fp.on;
-    if (vis !== btnOn) { btnOn = vis; btn.classList.toggle("on", vis); if (!vis) closePick(); }
-    let h = null;
-    if (fp.on && fp.kind === "staff") { const n = npcOf(); if (n) { h = n.head; h.visible = false; } }
-    _r(s, c);
-    if (h) h.visible = true;
-  };
-})();
-
-/* ============ PATCH: TƯƠNG TÁC QUẦY TRONG FPV (khách mua hàng / nhân viên thao tác) ============
-   Cần patch FPV v2 có sẵn (class #store.fpv / .fpc / .fpk). Chỉ thêm mới. */
-(() => {
-  const store = $("#store"), clampN = THREE.MathUtils.clamp,
-    REACH = 1.15, KEEP = 1.45; /* khoảng cách bắt đầu / giữ tương tác (m) */
-  const money = (v) => v.toLocaleString("vi-VN") + "đ";
-
-  /* ===== DANH MỤC HÀNG MINH HỌA (tên, giá): sửa tự do ===== */
-  const CATALOG = {
-    shelf:[["Nước rửa tay",35000],["Khăn giấy",18000],["Pin AA (vỉ)",42000],["Bật lửa",8000],["Băng keo",12000]],
-    noodle:[["Mì gói",5000],["Phở ăn liền",9000],["Cháo gói",7000],["Miến khô",14000],["Mì trộn",12000]],
-    snack:[["Snack khoai tây",12000],["Bánh quy",18000],["Kẹo dẻo",15000],["Sô cô la",32000],["Hạt điều",65000]],
-    sauce:[["Nước mắm",32000],["Dầu ăn 1L",55000],["Nước tương",21000],["Hạt nêm",28000],["Đường 1kg",24000]],
-    household:[["Nước rửa chén",34000],["Nước giặt",98000],["Giấy vệ sinh",45000],["Bột giặt",72000],["Nước lau sàn",39000]],
-    rice:[["Gạo ST25 5kg",135000],["Gạo thơm 10kg",210000],["Gạo nếp 2kg",52000],["Gạo lứt 2kg",58000]],
-    drinks:[["Nước suối 1.5L",7000],["Nước ngọt lon",11000],["Trà xanh",10000],["Nước tăng lực",13000],["Nước suối thùng",95000]],
-    eggs:[["Trứng gà (vỉ 10)",36000],["Trứng vịt (vỉ 10)",42000],["Trứng cút (hộp)",24000]],
-    bakery:[["Bánh mì",8000],["Bánh bông lan",22000],["Croissant",18000],["Donut",15000],["Bánh sừng bò",20000]],
-    produce:[["Cà chua",28000],["Cà rốt",22000],["Bắp cải",18000],["Dưa leo",20000],["Chuối",25000],["Táo",65000]],
-    dairy:[["Sữa tươi",32000],["Sữa chua",7000],["Yakult (lốc)",30000],["Trà sữa chai",15000],["Phô mai",38000]],
-    freezer:[["Há cảo",45000],["Cá viên",38000],["Gà viên",42000],["Nugget",55000],["Kem hộp",48000]],
-    icecream:[["Kem hộp",48000],["Kem que",12000],["Kem ốc quế",18000],["Kem mochi",35000]],
-    meat:[["Thịt ba rọi",125000],["Thịt bò",260000],["Ức gà",85000],["Sườn non",155000],["Xúc xích",42000]],
-    seafood:[["Cá phi lê",145000],["Tôm",220000],["Mực",180000],["Cua",350000],["Ngao",60000]],
-    candy:[["Kẹo cao su",8000],["Sô cô la thanh",18000],["Kẹo mút",5000],["Kẹo bạc hà",9000]],
-    display:[["Combo khuyến mãi",99000],["Hàng giảm giá",45000],["Sản phẩm mới",58000]],
-  };
-  const ALIAS = { bakeshelf:"bakery", produce3:"produce", cold:"dairy", ufreezer:"freezer", chiller:"meat" };
-  const catKey = (t) => (CATALOG[t] ? t : ALIAS[t] || "shelf");
-  const KIND = { produce:"veg", produce3:"veg", meat:"meat", chiller:"meat", seafood:"meat", cold:"milk", dairy:"milk", ufreezer:"milk", freezer:"milk", icecream:"milk" };
-  const COLD = { cold:1, dairy:1, ufreezer:1, freezer:1, icecream:1, chiller:1, meat:1, seafood:1 };
-  const SHOP = { produce:"Chọn rau củ quả", meat:"Chọn thịt", seafood:"Chọn hải sản", dairy:"Mở tủ & chọn", freezer:"Mở tủ & chọn", icecream:"Chọn kem", bakery:"Chọn bánh" };
-  const catLabel = (it) => (BUILD_META[it.type] && BUILD_META[it.type].label) || (TYPES[it.type] && TYPES[it.type][0]) || it.type;
-
-  Object.assign(ICONS, { cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2 11h11l2-8H7"/>' });
-
-  /* ---------- CSS ---------- */
-  const css = document.createElement("style");
-  css.textContent = `
-/* sửa: chữ "Trả việc" & các nút thanh FPV không rớt hàng, chỉ phần tên được cắt bớt */
-.fp-hb{flex:none;white-space:nowrap}
-.fp-hud{flex-wrap:nowrap}
-.fp-t{flex:1 1 auto;min-width:0}
-/* thẻ hành động gần quầy */
-.fp-ac{position:absolute;right:12px;bottom:calc(18% + env(safe-area-inset-bottom,0px));z-index:6;width:min(240px,58vw);display:none;flex-direction:column;gap:6px;padding:10px;border-radius:22px;
- color:var(--ink,#1d1d1f);opacity:0;pointer-events:none;transform:translateY(10px) scale(.96);transform-origin:100% 100%;transition:opacity .22s ease,transform .38s cubic-bezier(.2,1.25,.4,1)}
-#store.fpv .fp-ac{display:flex}
-.fp-ac.on{opacity:1;pointer-events:auto;transform:none}
-.fp-ac-h{display:flex;flex-direction:column;gap:2px;padding:2px 4px 4px}
-.fp-ac-h b{font:700 14px/1.2 -apple-system,"Segoe UI",sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fp-ac-h small{font:500 11.5px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
-.fp-ab{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:0 12px 0 8px;border:0;border-radius:14px;background:rgba(127,127,127,.14);color:inherit;
- font:600 13.5px/1.2 -apple-system,"Segoe UI",sans-serif;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .15s ease,background .15s ease}
-.fp-ab:first-of-type{background:var(--acc,#0a84ff);color:#fff}
-.fp-ab:active{transform:scale(.97)}
-@media (hover:hover){.fp-ab:hover{filter:brightness(1.06)}}
-.fp-ab i{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.28);font:700 11px/1 -apple-system,sans-serif;font-style:normal}
-@media (pointer:coarse){.fp-ab i{display:none}.fp-ab{padding-left:12px}}
-.fp-ap{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;padding:0 4px 0 12px;border-radius:14px;overflow:hidden;background:rgba(127,127,127,.16);font:600 13px/1.2 -apple-system,"Segoe UI",sans-serif}
-.fp-ap::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:var(--acc,#0a84ff);opacity:.35;transition:width .12s linear}
-.fp-ap span{position:relative;white-space:nowrap}
-.fp-ap button{position:relative;flex:none;height:30px;padding:0 12px;border:0;border-radius:999px;background:rgba(255,59,48,.9);color:#fff;font:600 12.5px/1 -apple-system,sans-serif;white-space:nowrap;cursor:pointer}
-/* chip giỏ hàng */
-.fp-bk{position:absolute;left:12px;top:calc(58px + env(safe-area-inset-top,0px));z-index:6;display:none;align-items:center;gap:7px;height:34px;padding:0 13px 0 10px;border:0;border-radius:999px;color:var(--ink,#1d1d1f);
- font:600 12.5px/1 -apple-system,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent}
-#store.fpv.fpc .fp-bk{display:flex}
-.fp-bk svg{width:16px;height:16px}
-.fp-bk.pl{animation:fpPulse .45s cubic-bezier(.2,1.5,.4,1)}
-@keyframes fpPulse{40%{transform:scale(1.12)}}
-/* +1 bay lên */
-.fp-pop{position:absolute;left:50%;top:44%;z-index:7;transform:translateX(-50%);padding:7px 14px;border-radius:999px;color:#fff;background:rgba(0,0,0,.55);
- -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font:600 13px/1 -apple-system,"Segoe UI",sans-serif;white-space:nowrap;pointer-events:none;animation:fpPop .9s ease-out forwards}
-@keyframes fpPop{from{opacity:0;transform:translate(-50%,10px) scale(.9)}20%{opacity:1}to{opacity:0;transform:translate(-50%,-46px) scale(1)}}
-/* bảng chọn hàng / giỏ / hóa đơn */
-.fp-sbg{position:absolute;inset:0;z-index:8;display:none;background:rgba(0,0,0,.28);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
-.fp-sbg.on{display:block}
-.fp-sh{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:9;width:min(430px,calc(100% - 16px));max-height:72%;display:none;flex-direction:column;gap:6px;padding:12px;border-radius:26px;color:var(--ink,#1d1d1f);transform:translateX(-50%)}
-.fp-sh.on{display:flex;animation:fpSh .38s cubic-bezier(.2,1.2,.4,1)}
-@keyframes fpSh{from{opacity:0;transform:translate(-50%,24px) scale(.97)}}
-.fp-sh-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:2px 4px}
-.fp-sh-h b{display:block;font:700 16px/1.2 -apple-system,"Segoe UI",sans-serif}
-.fp-sh-h small{display:block;margin-top:2px;font:500 11.5px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
-.fp-sh-x{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(127,127,127,.2);color:inherit;cursor:pointer}
-.fp-sh-l{overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px}
-.fp-pr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px 8px 10px;border-radius:14px}
-.fp-pr:nth-child(odd){background:rgba(127,127,127,.09)}
-.fp-pn{min-width:0}
-.fp-pn b{display:block;font:600 14px/1.25 -apple-system,"Segoe UI",sans-serif}
-.fp-pn small{font:500 12px/1.2 -apple-system,"Segoe UI",sans-serif;opacity:.6}
-.fp-st{flex:none;display:flex;align-items:center;gap:2px}
-.fp-st button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:rgba(127,127,127,.2);color:inherit;font:600 18px/1 -apple-system,sans-serif;cursor:pointer;touch-action:manipulation}
-.fp-st button:active{transform:scale(.9)}
-.fp-st span{min-width:26px;text-align:center;font:700 14px/1 -apple-system,sans-serif}
-.fp-sh-f{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 0}
-.fp-sh-f>span{font:500 13px/1.3 -apple-system,"Segoe UI",sans-serif}
-.fp-sh-f>span b{font-weight:700}
-.fp-fb{display:flex;gap:6px}
-.fp-fb button{height:38px;padding:0 16px;border:0;border-radius:999px;background:rgba(127,127,127,.2);color:inherit;font:600 13.5px/1 -apple-system,sans-serif;white-space:nowrap;cursor:pointer}
-.fp-fb button.pri{background:var(--acc,#0a84ff);color:#fff}
-.fp-empty{padding:18px 10px;text-align:center;opacity:.6;font:500 13px/1.4 -apple-system,sans-serif}`;
-  document.head.appendChild(css);
-
-  /* ---------- DOM ---------- */
-  const mk = (tag, cls, html) => { const e = document.createElement(tag); e.className = cls; if (html != null) e.innerHTML = html; store.appendChild(e); return e; };
-  const card = mk("div", "fp-ac fp-gl"),
-    chip = mk("button", "fp-bk fp-gl"),
-    sbg = mk("div", "fp-sbg"),
-    sheetEl = mk("div", "fp-sh fp-gl");
-  chip.type = "button";
-  [card, chip, sheetEl].forEach((e) => e.addEventListener("pointerdown", (ev) => ev.stopPropagation()));
-
-  /* ---------- Trạng thái ---------- */
-  const basket = new Map(); /* tên → {p, q} */
-  let cartOn = false, sheet = null, act = null, seq = 0, cardKey = "", cardActs = [], cur = null, punchT = 0, punchBase = 0;
-  const V = new THREE.Vector3();
+  /* ========================= 10. TƯƠNG TÁC QUẦY HÀNG ======================= */
   const count = () => { let n = 0; basket.forEach((v) => (n += v.q)); return n; };
   const total = () => { let t = 0; basket.forEach((v) => (t += v.p * v.q)); return t; };
-  const vib = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
-
-  function refreshChip() {
-    chip.innerHTML = `${IC("cart", 16)}<span>${count()} món · ${money(total())}${cartOn ? " · Xe đẩy" : ""}</span>`;
-  }
+  function refreshChip() { chip.innerHTML = `${IC("cart", 16)}<span>${count()} món · ${money(total())}${cartOn ? " · Xe đẩy" : ""}</span>`; }
   refreshChip();
   chip.addEventListener("click", () => openSheet("basket"));
 
-  function pop(text) {
-    const e = mk("div", "fp-pop", esc(text));
+  function popText(txt) {
+    const e = mk("div", "fp-pop"); e.textContent = txt;
     e.addEventListener("animationend", () => e.remove());
+  }
+  function pop(text) {   /* chữ bay + giật nhẹ màn hình + chip giỏ nảy + rung */
+    popText(text);
+    if (!punchT) punchBase = camera.fov;
     punchT = performance.now();
-    punchBase = camera.fov;
     chip.classList.remove("pl"); void chip.offsetWidth; chip.classList.add("pl");
     vib(14);
   }
@@ -10979,28 +11161,27 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     refreshChip();
   }
   function quickPick(it) {
-    const L = CATALOG[catKey(it.type)], p = L[Math.floor(Math.random() * L.length)];
+    const L = CATALOG[catKey(it.type)], p = pick(L);
     addItem(p[0], p[1], 1);
   }
   function pay() {
     if (!basket.size) return toast("Giỏ hàng trống");
-    const t = total();
-    basket.clear(); sheet = null; closeSheet(); refreshChip();
-    toast("Đã thanh toán " + money(t) + " · Cảm ơn quý khách!");
+    const t = total(), L = [...basket.entries()];
+    basket.clear(); closeSheet(); refreshChip();
+    payFlow(L, t);
     vib(30);
   }
 
-  /* ---------- Bảng chọn hàng / giỏ / hóa đơn ---------- */
+  /* ---- Bảng chọn hàng / giỏ / hóa đơn ---- */
   function renderSheet() {
     if (!sheet) return;
-    const n = count(), t = total(), k = sheet.kind;
-    const foot = `<span>Giỏ: <b>${n}</b> món · <b>${money(t)}</b></span>`;
+    const n = count(), t = total(), k = sheet.kind, foot = `<span>Giỏ: <b>${n}</b> món · <b>${money(t)}</b></span>`;
     let h = "";
     if (k === "shop") {
       const it = sheet.it, L = CATALOG[catKey(it.type)];
       h = `<div class="fp-sh-h"><div><b>${esc(it.name)}</b><small>${esc(catLabel(it))} · giá minh họa</small></div><button class="fp-sh-x" data-s="close">${IC("x", 14)}</button></div>
         <div class="fp-sh-l">${L.map((p) => `<div class="fp-pr"><div class="fp-pn"><b>${esc(p[0])}</b><small>${money(p[1])}</small></div><div class="fp-st"><button data-s="dec" data-n="${esc(p[0])}" data-p="${p[1]}">−</button><span>${(basket.get(p[0]) || {}).q || 0}</span><button data-s="inc" data-n="${esc(p[0])}" data-p="${p[1]}">+</button></div></div>`).join("")}</div>
-        <div class="sp"></div><div class="fp-sh-f">${foot}<div class="fp-fb"><button class="pri" data-s="close">Xong</button></div></div>`;
+        <div class="fp-sh-f">${foot}<div class="fp-fb"><button class="pri" data-s="close">Xong</button></div></div>`;
     } else {
       const lines = [...basket.entries()], rec = k === "receipt";
       h = `<div class="fp-sh-h"><div><b>${rec ? "Hóa đơn" : "Giỏ hàng"}</b><small>${rec ? "Kiểm tra lại rồi thanh toán" : "Ra quầy thu ngân để thanh toán"}</small></div><button class="fp-sh-x" data-s="close">${IC("x", 14)}</button></div>
@@ -11009,15 +11190,8 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     }
     sheetEl.innerHTML = h;
   }
-  function openSheet(kind, it) {
-    sheet = { kind, it };
-    renderSheet();
-    sbg.classList.add("on"); sheetEl.classList.add("on");
-  }
-  function closeSheet() {
-    sheet = null;
-    sbg.classList.remove("on"); sheetEl.classList.remove("on");
-  }
+  function openSheet(kind, it) { sheet = { kind, it }; renderSheet(); sbg.classList.add("on"); sheetEl.classList.add("on"); }
+  function closeSheet() { sheet = null; sbg.classList.remove("on"); sheetEl.classList.remove("on"); }
   sbg.addEventListener("pointerdown", closeSheet);
   sheetEl.addEventListener("click", (e) => {
     const b = e.target.closest("[data-s]");
@@ -11031,7 +11205,7 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     renderSheet();
   });
 
-  /* ---------- Quầy gần nhất (đứng gần + nhìn về phía quầy) ---------- */
+  /* ---- Quầy gần nhất (đứng gần + nhìn về phía quầy) ---- */
   function nearShelf() {
     camera.getWorldDirection(V);
     const px = camera.position.x, pz = camera.position.z, ll = Math.hypot(V.x, V.z) || 1, dxn = V.x / ll, dzn = V.z / ll;
@@ -11040,7 +11214,7 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       const c = Math.cos(it.rot), s = Math.sin(it.rot), dx = px - it.pos[0], dz = pz - it.pos[1],
         lx = dx * c - dz * s, lz = dx * s + dz * c, hx = it.size[0] / 2, hz = it.size[1] / 2,
         qx = clampN(lx, -hx, hx), qz = clampN(lz, -hz, hz), d = Math.hypot(lx - qx, lz - qz),
-        same = cur && cur.code === it.code;
+        same = near && near.code === it.code;
       if (d > (same ? KEEP : REACH) || d >= bd) return;
       const wx = it.pos[0] + qx * c + qz * s - px, wz = it.pos[1] - qx * s + qz * c - pz,
         cosA = (wx * dxn + wz * dzn) / (Math.hypot(wx, wz) || 1);
@@ -11050,7 +11224,7 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     return best;
   }
 
-  /* ---------- Nhân viên đang được điều khiển ---------- */
+  /* ---- Nhân viên đang được điều khiển ---- */
   function ctrlNpc() {
     let b = null, bd = 1e9;
     npcs.forEach((n) => {
@@ -11060,20 +11234,15 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     return bd < 0.7 ? b : null;
   }
   const isGray = (n) => ((ROLES[n.s.role] || ROLES.staff)[1] === "gray");
-
   function startAct(a) {
     const n = ctrlNpc();
     if (!n) return;
     act = { id: ++seq, n, t0: performance.now(), ...a };
     cardKey = "";
   }
-  function cancelAct(msg) {
-    if (!act) return;
-    act = null; cardKey = "";
-    if (msg) toast(msg);
-  }
+  function cancelAct(msg) { if (!act) return; act = null; cardKey = ""; if (msg) toast(msg); }
 
-  /* ---------- Danh sách hành động ---------- */
+  /* ---- Danh sách hành động ---- */
   function actionsFor(ctx, it) {
     const T = it && it.type, out = [];
     if (ctx.kind === "cust") {
@@ -11104,144 +11273,94 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     out.push(A("Vẫy tay", "wave", 2.5));
     return out;
   }
+  /* hành động mini-game thêm vào cùng thẻ */
+  function extraActions(ctx, it) {
+    if (!it) return [];
+    const T = it.type, out = [];
+    if (ctx.kind === "cust") {
+      if (T === "produce" || T === "produce3") out.push({ label: "Cân rau củ", run: gScale });
+      if (T === "icecream") out.push({ label: "Tự làm kem ốc quế", run: gCone });
+      if (TASTE[T]) out.push({ label: "Ăn thử miễn phí", run: () => taste(it) });
+    } else if (ctx.kind === "staff") {
+      if (T === "cashier") out.push({ label: "Quét mã thần tốc", run: gScan });
+      else if (T !== "cart") out.push({ label: "Xếp hàng thần tốc", run: gShelf });
+    }
+    return out;
+  }
 
   function renderCard(ctx, it) {
+    clearTimeout(moreTm); card.classList.remove("open");
     if (act) {
       card.innerHTML = `<div class="fp-ac-h"><b>${esc(act.it ? act.it.name : act.n.s.name)}</b><small>${esc(act.n.s.name)}</small></div><div class="fp-ap"><span>Đang ${esc(act.label.toLowerCase())}…</span><button data-a="cancel">Hủy</button></div>`;
       cardActs = [];
       return;
     }
-    cardActs = actionsFor(ctx, it);
+    cardActs = actionsFor(ctx, it).concat(extraActions(ctx, it));
     const head = it
       ? `<div class="fp-ac-h"><b>${esc(it.name)}</b><small>${esc(catLabel(it))} · ${esc(it.code)}</small></div>`
       : `<div class="fp-ac-h"><b>Hành động</b><small>${esc(ctx.npc.s.name)}</small></div>`;
-    card.innerHTML = head + cardActs.map((a, i) => `<button class="fp-ab" data-i="${i}"><i>${i === 0 ? "F" : i + 1}</i><span>${esc(a.label)}</span></button>`).join("");
+    card.innerHTML = head +
+      cardActs.map((a, i) => `<button class="fp-ab" data-i="${i}"><i>${i === 0 ? "F" : i + 1}</i><span>${esc(a.label)}</span></button>`).join("") +
+      (cardActs.length > 1 ? '<button type="button" class="fp-mt" aria-label="Thêm hành động"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg></button>' : "");
   }
   card.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.classList.contains("fp-mt")) {   /* nút ⋯ (SP): xổ / thu hành động phụ, tự thu sau 4,5 giây */
+      const o = card.classList.toggle("open");
+      clearTimeout(moreTm);
+      if (o) moreTm = setTimeout(() => card.classList.remove("open"), 4500);
+      return;
+    }
     if (b.dataset.a === "cancel") return cancelAct("Đã hủy");
     const a = cardActs[+b.dataset.i];
     if (a) { a.run(); cardKey = ""; }
   });
 
-  /* phím tắt: F = hành động đầu, 1..5 = hành động tương ứng; chỉ khi không mở bảng */
-  const typing = (e) => ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName);
-  const kd = new Set(), MV = { w:1, a:1, s:1, d:1, arrowup:1, arrowdown:1, arrowleft:1, arrowright:1 };
-  addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
-    if (MV[k]) kd.add(k);
-    if (!store.classList.contains("fpv") || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === "Escape" && sheet) { closeSheet(); return; }
-    if (sheet || act || !card.classList.contains("on")) return;
-    const i = k === "f" ? 0 : /^[1-9]$/.test(k) ? +k - 1 : -1;
-    if (i >= 0 && cardActs[i]) { e.preventDefault(); cardActs[i].run(); cardKey = ""; }
-  }, true);
-  addEventListener("keyup", (e) => kd.delete(e.key.toLowerCase()), true);
-  addEventListener("blur", () => kd.clear());
-
-  /* ---------- Nhân viên làm hành động: dừng đi, chạy đúng tư thế, xoay theo hướng nhìn ---------- */
-  const _step = stepNpc;
-  stepNpc = function (n, dt, t) {
-    if (act && act.n === n) {
-      camera.getWorldDirection(V);
-      n.g.rotation.y = Math.atan2(V.x, V.z);
-      n.job = null;
-      if (act.mode === "box") { n.pm = "box"; n.rk = act.kind || "dry"; }
-      n.mode = act.mode;
-      pose(n, dt, t);
-      return;
-    }
-    return _step.apply(this, arguments);
-  };
-
-  /* ---------- Vòng lặp: gần quầy → hiện thẻ; tiến độ; hiệu ứng giật nhẹ ---------- */
+  /* ---- Vòng tương tác mỗi khung: gần quầy → hiện thẻ; tiến độ; giật nhẹ màn hình ---- */
   function tick() {
-    const fpv = store.classList.contains("fpv"), cust = fpv && store.classList.contains("fpc"), ctrl = fpv && store.classList.contains("fpk");
+    const fpv = fp.on, cust = fpv && fp.kind === "cust", ctrl = fpv && fp.kind === "staff" && fp.ctrl;
     if (!fpv) {
       if (sheet) closeSheet();
       if (act) cancelAct();
       if (basket.size || cartOn) { basket.clear(); cartOn = false; refreshChip(); }
-      card.classList.remove("on"); cur = null;
+      card.classList.remove("on"); near = null;
       return;
     }
-    /* hiệu ứng giật nhẹ khi lấy hàng */
-    if (punchT) {
+    if (punchT) {  /* giật nhẹ khi lấy hàng */
       const p = (performance.now() - punchT) / 220;
       if (p >= 1) { camera.fov = punchBase; punchT = 0; } else camera.fov = punchBase - 3 * Math.sin(Math.PI * p);
       camera.updateProjectionMatrix();
     }
     const ctx = cust ? { kind: "cust" } : ctrl ? { kind: "staff", npc: ctrlNpc() } : null;
     if (ctx && ctx.kind === "staff" && !ctx.npc) { card.classList.remove("on"); return; }
-    if (!ctx) { if (act) cancelAct(); card.classList.remove("on"); cur = null; return; }
+    if (!ctx) { if (act) cancelAct(); card.classList.remove("on"); near = null; return; }
 
-    /* đang làm việc: tiến độ + điều kiện huỷ */
-    if (act) {
-      if (!ctrl || !npcs.includes(act.n)) { cancelAct(); }
+    if (act) {   /* đang làm việc: tiến độ + điều kiện huỷ */
+      if (!ctrl || !npcs.includes(act.n)) cancelAct();
       else {
         const el = performance.now() - act.t0, pct = el / (act.dur * 1000);
-        if (el > 300 && (kd.size || store.querySelector(".fp-joy.on"))) cancelAct();
+        if (el > 300 && (kd.size || joy.classList.contains("on"))) cancelAct();
         else if (pct >= 1) { const a = act; act = null; cardKey = ""; toast(a.label + " xong" + (a.it ? " · " + a.it.name : "")); }
-        else card.style.setProperty("--p", (pct * 100).toFixed(1) + "%"), card.querySelector(".fp-ap") && card.querySelector(".fp-ap").style.setProperty("--p", (pct * 100).toFixed(1) + "%");
+        else { const ap = card.querySelector(".fp-ap"); if (ap) ap.style.setProperty("--p", (pct * 100).toFixed(1) + "%"); }
       }
     }
 
-    cur = nearShelf();
-    const key = ctx.kind + "|" + (cur ? cur.code : "-") + "|" + cartOn + "|" + (act ? act.id : 0) + "|" + (ctx.npc ? ctx.npc.s.code : "");
-    if (key !== cardKey) { cardKey = key; renderCard(ctx, cur); }
-    card.classList.toggle("on", !sheet && (act || cardActs.length > 0));
+    near = nearShelf();
+    const key = ctx.kind + "|" + (near ? near.code : "-") + "|" + cartOn + "|" + (act ? act.id : 0) + "|" + (ctx.npc ? ctx.npc.s.code : "");
+    if (key !== cardKey) { cardKey = key; renderCard(ctx, near); }
+    card.classList.toggle("on", !sheet && (!!act || cardActs.length > 0));
+    card.classList.toggle("mv", joy.classList.contains("on"));   /* SP: thẻ mờ đi khi đang giữ joystick */
   }
-  window.fpIx = { get act() { return act; }, get cur() { return cur; }, get basket() { return basket; }, get cartOn() { return cartOn; } };
-  const _r = ren.render.bind(ren);
-  ren.render = (s, c) => { tick(); _r(s, c); };
-})();
 
-/* ============ PATCH: HIỆU ỨNG TƯƠNG TÁC FPV (nhìn thấy tay/đạo cụ, hàng bay lên kệ, giỏ hàng, vệt lau, âm bíp) ============
-   Cần: patch FPV v2 + patch TƯƠNG TÁC QUẦY (đã thêm dòng window.fpIx). Chỉ thêm mới. */
-(() => {
-  const store = $("#store"), clampN = THREE.MathUtils.clamp, V = new THREE.Vector3(), V2 = new THREE.Vector3();
-  const IX = () => window.fpIx;
-  const SOUND = true; /* đặt false để tắt âm bíp */
-
-  /* camera nằm trong scene để vật gắn vào camera (giỏ hàng) được vẽ */
-  if (camera.parent !== scene) scene.add(camera);
+  /* ============================ 11. HIỆU ỨNG 3D ============================ */
+  scene.add(camera);   /* camera nằm trong scene để vật gắn vào camera (giỏ hàng) được vẽ */
   const fx = new THREE.Group();
   scene.add(fx);
+  const KC = { veg: [0x66bb6a, 0xff8a3d, 0xe53935], meat: [0xe58a86, 0xc62828, 0xf19a94], milk: [0xffffff, 0x81d4fa, 0x1e88e5], dry: [0xf9a825, 0xe53935, 0x43a047, 0x1e88e5] };
+  const PALX = [0xe53935, 0x1e88e5, 0xfdd835, 0x43a047, 0xfb8c00, 0x8e24aa, 0xec407a, 0x00acc1];
+  const CW = [0xff9f0a, 0xff375f, 0x30d158, 0x0a84ff, 0xffd60a, 0xbf5af2];
 
-  /* ---------- CSS ---------- */
-  const css = document.createElement("style");
-  css.textContent = `
-.fx-fl{position:absolute;inset:0;z-index:5;pointer-events:none;background:#34c759;opacity:0}
-.fx-fl.on{animation:fxF .38s ease-out}
-@keyframes fxF{from{opacity:.2}to{opacity:0}}`;
-  document.head.appendChild(css);
-  const flashEl = document.createElement("div");
-  flashEl.className = "fx-fl";
-  store.appendChild(flashEl);
-  const screenFlash = () => { flashEl.classList.remove("on"); void flashEl.offsetWidth; flashEl.classList.add("on"); };
-  function popText(txt) {
-    const e = document.createElement("div");
-    e.className = "fp-pop";
-    e.textContent = txt;
-    store.appendChild(e);
-    e.addEventListener("animationend", () => e.remove());
-  }
-
-  /* ---------- Âm thanh ngắn (WebAudio) ---------- */
-  let ac = null;
-  function beep(f = 1400, d = 0.07, v = 0.05) {
-    if (!SOUND) return;
-    try {
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      if (ac.state === "suspended") ac.resume();
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "square"; o.frequency.value = f; g.gain.value = v;
-      o.connect(g); g.connect(ac.destination);
-      o.start(); o.stop(ac.currentTime + d);
-    } catch (e) {}
-  }
-
-  /* ---------- Hình học tiện ích ---------- */
   /* điểm gần nhất của quầy so với vị trí from (toạ độ thế giới) */
   function shelfPoint(it, from) {
     const c = Math.cos(it.rot), s = Math.sin(it.rot), dx = from.x - it.pos[0], dz = from.z - it.pos[1],
@@ -11249,24 +11368,19 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       qx = clampN(lx, -hx, hx), qz = clampN(lz, -hz, hz);
     return { x: it.pos[0] + qx * c + qz * s, z: it.pos[1] - qx * s + qz * c, ux: s, uz: c };
   }
-  const KC = { veg: [0x66bb6a, 0xff8a3d, 0xe53935], meat: [0xe58a86, 0xc62828, 0xf19a94], milk: [0xffffff, 0x81d4fa, 0x1e88e5], dry: [0xf9a825, 0xe53935, 0x43a047, 0x1e88e5] };
-  const PALX = [0xe53935, 0x1e88e5, 0xfdd835, 0x43a047, 0xfb8c00, 0x8e24aa, 0xec407a, 0x00acc1];
-  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const screenFlash = () => { flashEl.classList.remove("on"); void flashEl.offsetWidth; flashEl.classList.add("on"); };
 
-  /* ---------- Vật bay · nháy sáng · vệt lau ---------- */
+  /* ---- vật bay · nháy sáng · vệt lau ---- */
   const fly = [], flashes = [], decals = [];
   const fG = new THREE.BoxGeometry(0.13, 0.13, 0.1), sG = new THREE.SphereGeometry(1, 10, 8), dG = new THREE.PlaneGeometry(0.34, 0.14).rotateX(-PI / 2);
   function spawnFly(a, endFn, color, dur, h, sc = 1) {
     const m = new THREE.Mesh(fG, M(color, 0.6));
-    m.scale.setScalar(sc);
-    m.position.copy(a);
-    fx.add(m);
-    fly.push({ m, t: 0, d: dur, a: a.clone(), end: endFn, h, last: null });
+    m.scale.setScalar(sc); m.position.copy(a); fx.add(m);
+    fly.push({ m, t: 0, d: dur, a: a.clone(), end: endFn, h });
   }
   function spawnFlash(p, color = 0xfff3b0) {
     const m = new THREE.Mesh(sG, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false }));
-    m.position.copy(p); m.scale.setScalar(0.04);
-    fx.add(m);
+    m.position.copy(p); m.scale.setScalar(0.04); fx.add(m);
     flashes.push({ m, t: 0 });
   }
   function clearFx() {
@@ -11279,7 +11393,6 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       const o = fly[i];
       o.t += dt;
       const e = Math.min(1, o.t / o.d), k = e * e * (3 - 2 * e), b = o.end();
-      o.last = b;
       o.m.position.set(o.a.x + (b.x - o.a.x) * k, o.a.y + (b.y - o.a.y) * k + Math.sin(PI * e) * o.h, o.a.z + (b.z - o.a.z) * k);
       o.m.rotation.y += dt * 7; o.m.rotation.x += dt * 3;
       if (e >= 1) { spawnFlash(o.m.position); fx.remove(o.m); fly.splice(i, 1); }
@@ -11300,7 +11413,54 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     }
   }
 
-  /* ---------- Giỏ hàng / xe đẩy gắn vào camera (khách hàng) ---------- */
+  /* ---- nổ hạt 3D trước mặt camera (mini-game, thanh toán, ăn thử) ---- */
+  const parts = [], pg = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+  function burst(n, cols = CW, up = 1) {
+    camera.getWorldDirection(V);
+    const o = camera.position.clone().addScaledVector(V, 1.1); o.y -= 0.1;
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ color: pick(cols), transparent: true }));
+      m.position.copy(o); fx.add(m);
+      parts.push({ m, v: new THREE.Vector3(rnd(-1.3, 1.3), rnd(0.6, 2.2) * up, rnd(-1.3, 1.3)), life: 0, max: rnd(0.7, 1.1) });
+    }
+  }
+  function stepParts(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life += dt; p.v.y -= 4.5 * dt;
+      p.m.position.addScaledVector(p.v, dt);
+      p.m.rotation.x += dt * 8; p.m.rotation.y += dt * 6;
+      p.m.material.opacity = Math.max(0, 1 - p.life / p.max);
+      if (p.life >= p.max) { fx.remove(p.m); p.m.material.dispose(); parts.splice(i, 1); }
+    }
+  }
+
+  /* ---- pháo giấy 2D ---- */
+  let cfP = [], cfRun = false;
+  function confetti(n = 90) {
+    const r = store.getBoundingClientRect(), x = cf.getContext("2d");
+    cf.width = r.width; cf.height = r.height;
+    for (let i = 0; i < n; i++)
+      cfP.push({ x: r.width / 2 + rnd(-50, 50), y: r.height * 0.55, vx: rnd(-360, 360), vy: rnd(-680, -220), a: rnd(0, 6), va: rnd(-9, 9),
+        c: hex6(pick(CW)), w: rnd(6, 11), h: rnd(4, 7), life: 0 });
+    if (cfRun) return;
+    cfRun = true;
+    let t0 = performance.now();
+    const f = (now) => {
+      const dt = Math.min(0.05, (now - t0) / 1000); t0 = now;
+      x.clearRect(0, 0, cf.width, cf.height);
+      cfP = cfP.filter((p) => (p.life += dt) < 2.2 && p.y < cf.height + 20);
+      cfP.forEach((p) => {
+        p.vy += 900 * dt; p.vx *= 0.99; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt;
+        x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.globalAlpha = Math.min(1, 2.2 - p.life);
+        x.fillStyle = p.c; x.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); x.restore();
+      });
+      if (cfP.length) requestAnimationFrame(f); else { cfRun = false; x.clearRect(0, 0, cf.width, cf.height); }
+    };
+    requestAnimationFrame(f);
+  }
+
+  /* ---- giỏ hàng / xe đẩy gắn vào camera (khách hàng) ---- */
   const vm = new THREE.Group();
   vm.visible = false;
   camera.add(vm);
@@ -11310,46 +11470,43 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), vmM(c));
       m.position.set(x, y, z); m.renderOrder = ord; vm.add(m);
     };
-  let vmKey = "";
+  let vmKey = "", prevN = 0;
   function buildVM(cols, cart) {
     while (vm.children.length) { const o = vm.children[0]; vm.remove(o); o.geometry.dispose(); }
-    const W = cart ? 0.62 : 0.34, H = cart ? 0.2 : 0.13, D = cart ? 0.44 : 0.24, col = cart ? 0xb8bcc4 : 0xd32f2f;
+    const W = cart ? 0.62 : 0.34, H = cart ? 0.2 : 0.13, Dd = cart ? 0.44 : 0.24, col = cart ? 0xb8bcc4 : 0xd32f2f;
     vm.position.set(cart ? 0 : 0.3, cart ? -0.64 : -0.5, cart ? -0.92 : -0.72);
-    part(W, 0.02, D, col, 0, 0, 0, 1);
-    part(W, H, 0.02, col, 0, H / 2, -D / 2, 2);
-    part(0.02, H, D, col, -W / 2, H / 2, 0, 3);
-    part(0.02, H, D, col, W / 2, H / 2, 0, 4);
+    part(W, 0.02, Dd, col, 0, 0, 0, 1);
+    part(W, H, 0.02, col, 0, H / 2, -Dd / 2, 2);
+    part(0.02, H, Dd, col, -W / 2, H / 2, 0, 3);
+    part(0.02, H, Dd, col, W / 2, H / 2, 0, 4);
     const nx = cart ? 6 : 4, n = Math.min(cols.length, nx * 3);
     for (let i = 0; i < n; i++) {
-      const hh = 0.08 + (i % 3) * 0.03, col2 = cols[i], gx = i % nx, gz = Math.floor(i / nx);
-      part(0.07, hh, 0.07, col2, -W / 2 + 0.06 + (gx * (W - 0.12)) / (nx - 1), 0.01 + hh / 2, -D / 2 + 0.08 + gz * 0.075, 5 + i);
+      const hh = 0.08 + (i % 3) * 0.03, gx = i % nx, gz = Math.floor(i / nx);
+      part(0.07, hh, 0.07, cols[i], -W / 2 + 0.06 + (gx * (W - 0.12)) / (nx - 1), 0.01 + hh / 2, -Dd / 2 + 0.08 + gz * 0.075, 5 + i);
     }
-    part(W, H, 0.02, col, 0, H / 2, D / 2, 30);
+    part(W, H, 0.02, col, 0, H / 2, Dd / 2, 30);
     if (cart) {
-      part(0.025, 0.34, 0.025, 0x55595f, -W / 2 + 0.02, H + 0.17, D / 2 + 0.03, 31);
-      part(0.025, 0.34, 0.025, 0x55595f, W / 2 - 0.02, H + 0.17, D / 2 + 0.03, 32);
-      part(W, 0.03, 0.03, 0x2a2a2e, 0, H + 0.34, D / 2 + 0.03, 33);
+      part(0.025, 0.34, 0.025, 0x55595f, -W / 2 + 0.02, H + 0.17, Dd / 2 + 0.03, 31);
+      part(0.025, 0.34, 0.025, 0x55595f, W / 2 - 0.02, H + 0.17, Dd / 2 + 0.03, 32);
+      part(W, 0.03, 0.03, 0x2a2a2e, 0, H + 0.34, Dd / 2 + 0.03, 33);
     } else {
       part(W * 0.92, 0.014, 0.014, 0x333338, 0, H + 0.13, 0, 31);
       part(0.014, 0.13, 0.014, 0x333338, -W * 0.46, H + 0.065, 0, 32);
       part(0.014, 0.13, 0.014, 0x333338, W * 0.46, H + 0.065, 0, 33);
     }
   }
-  let prevN = 0;
   function basketSync() {
-    const ix = IX();
-    if (!ix) return;
     const cols = [];
     let n = 0;
-    ix.basket.forEach((v, name) => {
+    basket.forEach((v, name) => {
       n += v.q;
       let h = 7; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
       for (let i = 0; i < Math.min(v.q, 4); i++) cols.push(PALX[Math.abs(h + i) % PALX.length]);
     });
-    const key = cols.join(",") + "|" + ix.cartOn;
-    if (key !== vmKey) { vmKey = key; buildVM(cols, ix.cartOn); }
+    const key = cols.join(",") + "|" + cartOn;
+    if (key !== vmKey) { vmKey = key; buildVM(cols, cartOn); }
     if (n > prevN) {   /* vừa lấy thêm món: hàng bay từ kệ vào giỏ */
-      const src = ix.cur ? shelfPoint(ix.cur, camera.position) : null;
+      const src = near ? shelfPoint(near, camera.position) : null;
       const a = src ? new THREE.Vector3(src.x + (Math.random() - 0.5) * src.ux * 0.4, 0.6 + Math.random() * 0.8, src.z + (Math.random() - 0.5) * src.uz * 0.4)
         : camera.getWorldDirection(V2).clone().multiplyScalar(1.0).add(camera.position);
       spawnFly(a, () => { vm.updateMatrixWorld(true); return vm.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.1, 0)); }, pick(PALX), 0.5, 0.35);
@@ -11357,7 +11514,7 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     prevN = n;
   }
 
-  /* ---------- Hiệu ứng theo hành động nhân viên ---------- */
+  /* ---- hiệu ứng theo hành động nhân viên ---- */
   let lastId = 0, nxt = 0, nxt2 = 0;
   function flyToShelf(A, sc) {
     if (!A.it) return;
@@ -11367,8 +11524,9 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       a = new THREE.Vector3(camera.position.x + V2.x * 0.5, camera.position.y - 0.42, camera.position.z + V2.z * 0.5);
     spawnFly(a, () => b, pick(KC[A.kind] || KC.dry), 0.5, 0.35, sc);
   }
-  function acts(now) {
-    const ix = IX(), A = ix && ix.act;
+  const expiry = () => "Hạn dùng: còn " + (5 + Math.floor(Math.random() * 26)) + " ngày";
+  function actFx(now) {
+    const A = act;
     if (!A) { lastId = 0; return; }
     if (A.id !== lastId) {
       lastId = A.id; nxt = now + 250; nxt2 = now + 900;
@@ -11381,15 +11539,13 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
       nxt = now + 800; beep(1500); screenFlash();
       if (A.label === "Thu ngân") popText("Bíp!");
     } else if (A.mode === "check" && now >= nxt) {
-      nxt = now + 1250; beep(980, 0.09);
-      popText("Hạn dùng: còn " + (5 + Math.floor(Math.random() * 26)) + " ngày");
+      nxt = now + 1250; beep(980, 0.09); popText(expiry());
     }
-    if (A.mode === "scan" && A.label !== "Thu ngân" && now >= nxt2) { nxt2 = now + 1300; popText("Hạn dùng: còn " + (5 + Math.floor(Math.random() * 26)) + " ngày"); }
+    if (A.mode === "scan" && A.label !== "Thu ngân" && now >= nxt2) { nxt2 = now + 1300; popText(expiry()); }
     if (A.mode === "mop" && now >= nxt) {
       nxt = now + 110;
       if (decals.length < 70) {
-        const t = now / 1000, ll = Math.hypot(V2.x, V2.z) || 1, fx0 = V2.x / ll, fz0 = V2.z / ll,
-          sw = Math.sin(t * 3.4) * 0.16,
+        const t = now / 1000, ll = Math.hypot(V2.x, V2.z) || 1, fx0 = V2.x / ll, fz0 = V2.z / ll, sw = Math.sin(t * 3.4) * 0.16,
           m = new THREE.Mesh(dG, new THREE.MeshBasicMaterial({ color: 0x9fc8ff, transparent: true, opacity: 0.38, depthWrite: false }));
         m.position.set(camera.position.x + fx0 * 0.78 + fz0 * sw, 0.014, camera.position.z + fz0 * 0.78 - fx0 * sw);
         m.rotation.y = Math.atan2(fx0, fz0);
@@ -11399,9 +11555,9 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     }
   }
 
-  /* ---------- Camera: cúi nhìn tay + quay về quầy + rung nhẹ khi đang thao tác ---------- */
-  /* p = góc cúi (rad, âm = nhìn xuống) · f = quay về quầy · sw/sf = biên độ / tần số rung */
-  const CFG = {
+  /* ---- camera: cúi nhìn tay + quay về quầy + rung nhẹ khi đang thao tác ----
+     p = góc cúi (rad, âm = nhìn xuống) · f = quay về quầy · sw/sf = biên độ / tần số rung */
+  const TILT = {
     box: { p: -0.7, f: true, sw: 0.015, sf: 2.2 },
     stock: { p: -0.62, f: true, sw: 0.02, sf: 2.4 },
     scan: { p: -0.62, f: true, sw: 0.01, sf: 3 },
@@ -11409,18 +11565,15 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     mop: { p: -0.78, f: false, sw: 0.05, sf: 3.4 },
     wave: { p: 0.35, f: false, sw: 0.03, sf: 8 },
   };
-  let ab = 0, cfgL = null, actL = null, t0 = performance.now();
-  const _u = updCam;
-  updCam = function () {
-    const r = _u.apply(this, arguments);
-    const now = performance.now(), dt = Math.min(0.05, (now - t0) / 1000);
-    t0 = now;
-    const ix = IX(), ctrl = store.classList.contains("fpv") && store.classList.contains("fpk"),
-      A = ctrl && ix ? ix.act : null;
-    if (A) { cfgL = CFG[A.mode] || null; actL = A; }
+  let ab = 0, cfgL = null, actL = null, tTilt = performance.now();
+  function tilt() {
+    const now = performance.now(), dt = Math.min(0.05, (now - tTilt) / 1000);
+    tTilt = now;
+    const ctrl = fp.on && fp.ctrl, A = ctrl ? act : null;
+    if (A) { cfgL = TILT[A.mode] || null; actL = A; }
     ab += ((A && cfgL ? 1 : 0) - ab) * (1 - Math.exp(-dt * 6));
     if (!ctrl) ab = 0;
-    if (ab < 0.01 || !cfgL) return r;
+    if (ab < 0.01 || !cfgL) return;
     camera.getWorldDirection(V);
     let yaw = Math.atan2(V.x, V.z), pitch = Math.asin(clampN(V.y, -1, 1));
     if (cfgL.f && actL && actL.it) {
@@ -11433,68 +11586,369 @@ body.fpv-on .mn-host,body.fpv-on #mnPanel,body.fpv-on #tools,body.fpv-on #legend
     const cp = Math.cos(pitch);
     camera.lookAt(camera.position.x + Math.sin(yaw) * cp, camera.position.y + Math.sin(pitch), camera.position.z + Math.cos(yaw) * cp);
     camera.updateMatrixWorld(true);
-    return r;
-  };
+  }
 
-  /* ---------- Vòng lặp ---------- */
-  let tr = performance.now(), warned = false, wasOn = false;
-  const _r = ren.render.bind(ren);
-  ren.render = (s, c) => {
-    const now = performance.now(), dt = Math.min(0.05, (now - tr) / 1000);
-    tr = now;
-    const on = store.classList.contains("fpv");
-    if (on) {
-      if (!IX() && !warned) { warned = true; console.warn("FPV effects: thiếu dòng window.fpIx trong patch Tương tác quầy."); }
-      const cust = store.classList.contains("fpc"), ctrl = store.classList.contains("fpk");
-      vm.visible = cust;
+  let wasOn = false;
+  function fxTick(now, dt) {
+    if (fp.on) {
+      vm.visible = fp.kind === "cust";
       if (!wasOn) { prevN = 0; vmKey = ""; }
-      if (IX()) { if (cust) basketSync(); if (ctrl) acts(now); }
-      stepFx(dt);
+      if (fp.kind === "cust") basketSync();
+      if (fp.kind === "staff" && fp.ctrl) actFx(now);
     } else if (wasOn) {
       clearFx(); vm.visible = false; vmKey = ""; prevN = 0; lastId = 0; ab = 0;
     }
-    wasOn = on;
-    _r(s, c);
+    wasOn = fp.on;
+    stepFx(dt);
+    stepParts(dt);
+  }
+
+  /* ======================= 12. MINI-GAME & THANH TOÁN ====================== */
+  const at = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+  const refocus = () => kin.focus({ preventScroll: true });
+
+  function openMg(title, sub, html, key) {
+    closeMg(true);
+    mgTitle.textContent = title; mgSub.textContent = sub || ""; mgBody.innerHTML = html;
+    mg = { key, act: null, stop: null };
+    mgBg.classList.add("on"); mgBox.classList.add("on");
+    refocus();
+    return mg;
+  }
+  function closeMg(silent) {
+    timers.splice(0).forEach(clearTimeout);
+    if (mg && mg.stop) mg.stop();
+    mg = null;
+    mgBg.classList.remove("on"); mgBox.classList.remove("on");
+    if (!silent) kin.blur();
+  }
+  mgBox.addEventListener("mousedown", (e) => e.preventDefault());
+  mgBox.addEventListener("pointerup", refocus);
+  mgBox.querySelector(".fx2-x").addEventListener("click", () => closeMg());
+  mgBox.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-a]");
+    if (!b || !mg) return;
+    if (b.dataset.a === "done") return closeMg();
+    if (mg.act) mg.act(b.dataset.a, b);
+  });
+  kin.addEventListener("keydown", (e) => {
+    if (!mg) return;
+    if (e.key === "Escape") { e.preventDefault(); closeMg(); return; }
+    if (mg.key) mg.key(e, "down");
+  });
+  kin.addEventListener("keyup", (e) => { if (mg && mg.key) mg.key(e, "up"); });
+
+  const STAR = '<svg viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2 6.3 20.3l1.2-6.4L2.8 9.5l6.4-.8z"/></svg>';
+  function result(name, score, pct, again, c) {
+    const s = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : pct >= 0.25 ? 1 : 0, old = best[name] || 0, nb = score > old;
+    if (nb) best[name] = score;
+    mgBody.innerHTML = `<div class="fx2-res"><div class="stars">${[0, 1, 2].map((i) => `<i class="${i < s ? "on" : ""}">${STAR}</i>`).join("")}</div>
+      <b class="big">${score} điểm</b><small>${["Cần luyện thêm", "Khá ổn", "Giỏi lắm!", "Xuất sắc!"][s]} · ${nb ? "Kỷ lục mới!" : "Kỷ lục " + old}</small></div>
+      <div class="fx2-row"><button class="fx2-btn pri" data-a="again">Chơi lại</button><button class="fx2-btn" data-a="done">Xong</button></div>`;
+    c.act = (a) => { if (a === "again") again(); };
+    if (s >= 2) { chime(); confetti(s === 3 ? 120 : 60); burst(s === 3 ? 40 : 22); } else tone(300, 0.22, 0.05, "sine");
+  }
+
+  /* ---- 1) Cân rau củ ---- */
+  function gScale() {
+    const GMAX = 1500, C = 2 * Math.PI * 80;
+    let sel = 0, target = 0, w = 0, hold = false, held = 0, done = false, raf = 0, last = 0, lastTick = 0;
+    function key(e, t) {
+      if (e.code !== "Space" && e.key !== " ") return;
+      e.preventDefault();
+      if (t === "down" && !e.repeat) press(); else if (t === "up") releaseHold();
+    }
+    const c = openMg("Cân rau củ", "Giữ nút (hoặc phím Space) để đổ rau, thả đúng cân nặng yêu cầu",
+      `<div class="fx2-chips">${PROD.map((p, i) => `<button class="fx2-chip${i ? "" : " on"}" data-a="p:${i}">${p[0]}</button>`).join("")}</div>
+       <div class="fx2-gauge"><svg viewBox="0 0 200 200"><circle class="g0" cx="100" cy="100" r="80"/><circle class="g1" cx="100" cy="100" r="80" stroke-dasharray="${C}" stroke-dashoffset="${C}" transform="rotate(-90 100 100)"/><circle class="gt" r="6" cx="100" cy="20"/></svg><div class="gc"><b>0g</b><small></small></div></div>
+       <div class="fx2-msg"></div><div class="fx2-row"><button class="fx2-btn pri big fx2-hold" type="button">Giữ để đổ rau</button></div>`, key);
+    const g1 = mgBody.querySelector(".g1"), gt = mgBody.querySelector(".gt"), gb = mgBody.querySelector(".gc b"), msg = mgBody.querySelector(".fx2-msg"),
+      row = mgBody.querySelector(".fx2-row"), chips = [...mgBody.querySelectorAll(".fx2-chip")];
+    const setUI = () => { g1.style.strokeDashoffset = C * (1 - w / GMAX); gb.textContent = Math.round(w / 5) * 5 + "g"; };
+    function newRound() {
+      target = pick([300, 500, 800, 1000]); w = 0; held = 0; done = false; lastTick = 0;
+      const a = ((-90 + (target / GMAX) * 360) * PI) / 180;
+      gt.setAttribute("cx", 100 + 80 * Math.cos(a)); gt.setAttribute("cy", 100 + 80 * Math.sin(a));
+      mgBody.querySelector(".gc small").textContent = "mục tiêu " + target + "g";
+      msg.innerHTML = `Cân đúng <b>${target}g ${PROD[sel][0]}</b> · ${money(PROD[sel][1])}/kg`;
+      row.innerHTML = '<button class="fx2-btn pri big fx2-hold" type="button">Giữ để đổ rau</button>';
+      bindHold(); setUI();
+    }
+    function bindHold() {
+      const b = row.querySelector(".fx2-hold");
+      if (!b) return;
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(); });
+      ["pointerup", "pointercancel", "pointerleave"].forEach((t) => b.addEventListener(t, releaseHold));
+    }
+    function press() { if (done || hold) return; hold = true; held = 0; last = performance.now(); raf = requestAnimationFrame(loop); }
+    function loop(now) {
+      if (!hold) return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now; held += dt;
+      w = Math.min(GMAX, w + (260 + held * 340) * dt);
+      if (w - lastTick >= 100) { lastTick = w; tone(500 + w * 0.4, 0.03, 0.025, "sine"); }
+      setUI();
+      if (w >= GMAX) return releaseHold();
+      raf = requestAnimationFrame(loop);
+    }
+    function releaseHold() { if (!hold) return; hold = false; cancelAnimationFrame(raf); finish(); }
+    function finish() {
+      done = true;
+      const gram = Math.round(w / 5) * 5, diff = Math.abs(gram - target), cost = Math.round((PROD[sel][1] * gram) / 100000) * 100;
+      let t = "Lệch nhiều, thử lại nhé";
+      if (gram < 20) t = "Chưa đổ gì cả!";
+      else if (diff <= 15) { t = "Chuẩn không cần chỉnh!"; chime(); burst(26); confetti(40); }
+      else if (diff <= 60) { t = "Rất gần rồi!"; tone(900, 0.1, 0.05, "sine"); burst(10); }
+      else if (diff <= 150) t = "Hơi lệch một chút";
+      msg.innerHTML = `${gram}g · lệch ${diff}g · <b>${money(cost)}</b><br>${t}`;
+      row.innerHTML = `<button class="fx2-btn" data-a="again">Cân lại</button>${gram >= 20 ? '<button class="fx2-btn pri" data-a="add">Bỏ vào giỏ</button>' : ""}`;
+      c.gram = gram; c.cost = cost;
+    }
+    c.act = (a) => {
+      if (a.startsWith("p:")) { sel = +a.slice(2); chips.forEach((x, i) => x.classList.toggle("on", i === sel)); newRound(); }
+      else if (a === "again") newRound();
+      else if (a === "add") { addItem(PROD[sel][0] + " " + c.gram + "g", c.cost, 1); burst(18); closeMg(); }
+    };
+    c.stop = () => cancelAnimationFrame(raf);
+    newRound();
+  }
+
+  /* ---- 2) Kem ốc quế ---- */
+  function gCone() {
+    const sc = [], PR = (n) => 8000 + 9000 * n;
+    const c = openMg("Kem ốc quế", "Chọn tối đa 3 vị, mỗi viên thêm lên một tầng",
+      `<div class="fx2-chips">${FL.map((f, i) => `<button class="fx2-chip" data-a="f:${i}"><i style="background:${f[1]}"></i>${f[0]}</button>`).join("")}</div>
+       <div class="fx2-cone"><div class="cn"></div><div class="scs"></div></div><div class="fx2-msg"></div>
+       <div class="fx2-row"><button class="fx2-btn" data-a="clr">Làm lại</button><button class="fx2-btn pri" data-a="ok">Hoàn tất</button></div>`);
+    const scs = mgBody.querySelector(".scs"), msg = mgBody.querySelector(".fx2-msg");
+    const render = () => {
+      scs.innerHTML = sc.map((i, k) => `<i class="${k === sc.length - 1 ? "n" : ""}" style="bottom:${k * 40}px;background:${FL[i][1]}"></i>`).join("");
+      msg.textContent = sc.length ? `${sc.length}/3 viên · ${money(PR(sc.length))}` : "Chạm một vị để bắt đầu";
+    };
+    c.act = (a) => {
+      if (a.startsWith("f:")) {
+        if (sc.length >= 3) { msg.textContent = "Đủ 3 viên rồi, bấm Hoàn tất nhé"; return tone(260, 0.1, 0.05, "sine"); }
+        sc.push(+a.slice(2)); render(); tone(520 + sc.length * 140, 0.09, 0.05, "sine");
+      } else if (a === "clr") { sc.length = 0; render(); }
+      else if (a === "ok") {
+        if (!sc.length) { msg.textContent = "Chọn ít nhất 1 vị nhé"; return; }
+        addItem("Kem ốc quế (" + sc.map((i) => FL[i][0]).join(" · ") + ")", PR(sc.length), 1);
+        chime(); confetti(40); burst(24, sc.map((i) => parseInt(FL[i][1].slice(1), 16))); closeMg();
+      }
+    };
+    render();
+  }
+
+  /* ---- 3) Ăn thử ---- */
+  let lastTaste = 0, tasteN = 0;
+  function taste(it) {
+    const now = performance.now();
+    if (now - lastTaste < 2800) return toast("Từ từ thôi, nhai xong đã nhé");
+    lastTaste = now; tasteN++;
+    const T = it.type, L = T === "bakery" || T === "bakeshelf" ? ["Thơm bơ quá!", "Mềm xốp luôn!", "Ngon tuyệt!"]
+      : T === "snack" || T === "candy" ? ["Giòn rụm!", "Ngọt vừa miệng!", "Nghiện rồi!"] : T === "dairy" ? ["Mát lạnh sảng khoái!", "Béo ngậy!"] : ["Ngon đó nha!", "Được đó!"];
+    popText(pick(L));
+    tone(420, 0.05, 0.05, "triangle"); tone(380, 0.05, 0.05, "triangle", 0.12); tone(560, 0.1, 0.05, "sine", 0.26);
+    burst(18, [0xff8fb1, 0xffd60a, 0xff9f0a]);
+    try { cv.animate([{ transform: "scale(1)" }, { transform: "scale(1.025)" }, { transform: "scale(1)" }, { transform: "scale(1.015)" }, { transform: "scale(1)" }], { duration: 420 }); } catch (x) {}
+    vib([12, 40, 12]);
+    if (tasteN === 4) toast("Ăn thử nhiều thế, mua luôn đi nhé!");
+  }
+
+  /* ---- 4) Thanh toán + hóa đơn + quay thưởng ---- */
+  function payFlow(lines, totalVnd) {
+    const pts = Math.floor(totalVnd / 10000); xu += pts;
+    const c = openMg("Thanh toán", "Quầy thu ngân · Maxidi", `<div class="fx2-scan"></div><div class="fx2-tt"><span>Đang quét mã…</span><b>0đ</b></div><div class="fx2-row"></div>`);
+    const L = mgBody.querySelector(".fx2-scan"), T = mgBody.querySelector(".fx2-tt b"), TS = mgBody.querySelector(".fx2-tt span"), row = mgBody.querySelector(".fx2-row");
+    let i = 0, run = 0, spun = false;
+    const step = () => {
+      if (i >= lines.length) {
+        TS.textContent = "Chọn cách thanh toán";
+        row.innerHTML = '<button class="fx2-btn" data-a="m:Tiền mặt">Tiền mặt</button><button class="fx2-btn pri" data-a="m:Quẹt thẻ">Quẹt thẻ</button><button class="fx2-btn" data-a="m:Mã QR">Mã QR</button>';
+        return;
+      }
+      const [nm, v] = lines[i++]; run += v.p * v.q;
+      const d = document.createElement("div"); d.className = "fx2-ln"; d.innerHTML = `<span>${esc(nm)} ×${v.q}</span><b>${money(v.p * v.q)}</b>`;
+      L.appendChild(d); L.scrollTop = L.scrollHeight; T.textContent = money(run);
+      tone(800 + i * 70, 0.05, 0.05);
+      at(step, lines.length > 8 ? 110 : 240);
+    };
+    function process(method) {
+      row.innerHTML = "";
+      TS.textContent = method === "Quẹt thẻ" ? "Đang quẹt thẻ…" : method === "Mã QR" ? "Đang quét mã QR…" : "Đang nhận tiền…";
+      tone(700, 0.08, 0.05); at(() => tone(900, 0.08, 0.05), 350);
+      at(() => receipt(method), 1000);
+    }
+    function receipt(method) {
+      chime(); confetti(100); burst(36);
+      const paper = `<div class="fx2-paper"><div class="pt">MAXIDI · Chợ Kiểu Mới</div><div class="ps">${new Date().toLocaleString("vi-VN")}</div>
+        ${lines.map(([n, v]) => `<div class="pl"><span>${esc(n)} ×${v.q}</span><span>${money(v.p * v.q)}</span></div>`).join("")}
+        <div class="pl tt"><span>TỔNG</span><span>${money(totalVnd)}</span></div><div class="pm">${method} · +${pts} xu (tổng ${xu} xu)</div><div class="bc"></div><div class="ps">Cảm ơn quý khách!</div></div>`;
+      mgBody.innerHTML = `<div class="fx2-ok"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19"/><path d="M13 23l7 7 12-14"/></svg>Thanh toán thành công</div>${paper}
+        <div class="fx2-row">${totalVnd >= 50000 ? '<button class="fx2-btn pri" data-a="spin">Quay thưởng</button>' : ""}<button class="fx2-btn" data-a="done">Xong</button></div>`;
+    }
+    function wheel() {
+      spun = true;
+      mgBody.innerHTML = `<div class="fx2-wh"><div class="fx2-pt"></div><div class="fx2-wheel">${PRIZE.map((p, k) => `<span style="transform:rotate(${k * 60 + 30 - 90}deg) translate(36px,-6px)">${p}</span>`).join("")}</div></div>
+        <div class="fx2-msg">Quay để nhận quà tặng!</div><div class="fx2-row"><button class="fx2-btn pri" data-a="go">Quay!</button></div>`;
+    }
+    function spin(b) {
+      b.disabled = true;
+      const idx = Math.floor(Math.random() * 6), deg = 360 * 5 + (360 - (idx * 60 + 30)), w = mgBody.querySelector(".fx2-wheel");
+      w.style.transform = `rotate(${deg}deg)`;
+      for (let k = 0; k < 14; k++) at(() => tone(500 + k * 40, 0.03, 0.03, "sine"), k * 280);
+      at(() => {
+        const lucky = idx !== 1;
+        if (idx === 2) xu += 10;
+        mgBody.querySelector(".fx2-msg").innerHTML = lucky ? `Bạn nhận được <b>${PRIZE[idx]}</b>!` : "Tiếc quá, lần sau sẽ may mắn hơn nhé!";
+        mgBody.querySelector(".fx2-row").innerHTML = '<button class="fx2-btn pri" data-a="done">Xong</button>';
+        if (lucky) { chime(); confetti(110); burst(34); } else tone(300, 0.25, 0.05, "sine");
+      }, 4500);
+    }
+    c.act = (a, b) => {
+      if (a.startsWith("m:")) process(a.slice(2));
+      else if (a === "spin" && !spun) wheel();
+      else if (a === "go") spin(b);
+    };
+    at(step, 250);
+  }
+
+  /* ---- 5) Nhân viên: Quét mã thần tốc ---- */
+  function gScan() {
+    const N = 10, GAP = 0.9, SW = 40;
+    function key(e, t) { if ((e.code === "Space" || e.key === " " || e.key === "Enter") && t === "down" && !e.repeat) { e.preventDefault(); hit(); } }
+    const c = openMg("Quét mã thần tốc", "Bấm BÍP (hoặc Space) khi món hàng đi qua tia đỏ",
+      `<div class="fx2-hud"><span>Điểm <b class="sc">0</b></span><span>Combo <b class="cb">x0</b></span></div><div class="fx2-belt"><div class="zone"></div></div>
+       <div class="fx2-msg">Sẵn sàng…</div><div class="fx2-row"><button class="fx2-btn pri big" data-a="beep">BÍP!</button></div>`, key);
+    const belt = mgBody.querySelector(".fx2-belt"), msg = mgBody.querySelector(".fx2-msg"), scE = mgBody.querySelector(".sc"), cbE = mgBody.querySelector(".cb");
+    const W = belt.clientWidth || 320, mid = W / 2, half = 30, speed = W / 3.4;
+    let t = 0, spawned = 0, processed = 0, score = 0, combo = 0, items = [], raf = 0, last = performance.now(), over = false;
+    const say = (s) => (msg.textContent = s), upd = () => { scE.textContent = score; cbE.textContent = "x" + combo; };
+    function hit() {
+      if (over) return;
+      let b = null, bd = 1e9;
+      items.forEach((o) => { if (o.done) return; const d = Math.abs(o.x + SW / 2 - mid); if (d < half + 14 && d < bd) { bd = d; b = o; } });
+      if (!b) { combo = 0; say("Hụt rồi!"); tone(200, 0.12, 0.05, "sawtooth"); return upd(); }
+      const perfect = bd <= 12;
+      b.done = true; combo++;
+      score += Math.round((perfect ? 30 : 20) * (1 + Math.min(combo, 8) * 0.12));
+      b.el.classList.add("ok"); tone(perfect ? 1500 : 1100, 0.07); burst(perfect ? 14 : 8);
+      say(perfect ? "Hoàn hảo!" : "Tốt!"); upd();
+    }
+    function loop(now) {
+      if (over) return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      if (spawned < N && t >= spawned * GAP) {
+        const el = document.createElement("div"); el.className = "fx2-it"; el.style.background = hex6(pick(CW));
+        belt.appendChild(el); items.push({ x: -SW, el, done: false }); spawned++;
+      }
+      for (let i = items.length - 1; i >= 0; i--) {
+        const o = items[i]; o.x += speed * dt; o.el.style.transform = `translateX(${o.x}px)`;
+        if (o.x > W) { if (!o.done) { combo = 0; upd(); } o.el.remove(); items.splice(i, 1); processed++; }
+      }
+      if (processed >= N) return end();
+      raf = requestAnimationFrame(loop);
+    }
+    function end() { over = true; result("scan", score, Math.min(1, score / 470), gScan, c); }
+    c.act = (a) => { if (a === "beep") hit(); };
+    c.stop = () => { over = true; cancelAnimationFrame(raf); };
+    raf = requestAnimationFrame(loop);
+  }
+
+  /* ---- 6) Nhân viên: Xếp hàng thần tốc ---- */
+  function gShelf() {
+    const R = 14;
+    const c = openMg("Xếp hàng thần tốc", "Chạm đúng ô đang sáng trước khi hết giờ",
+      `<div class="fx2-hud"><span>Điểm <b class="sc">0</b></span><span>Combo <b class="cb">x0</b></span><span><b class="rd">0</b>/${R}</span></div>
+       <div class="fx2-bar"><i></i></div><div class="fx2-grid">${Array.from({ length: 9 }, (_, i) => `<button class="fx2-cell" data-a="c:${i}"></button>`).join("")}</div><div class="fx2-msg">Chuẩn bị…</div>`);
+    const cells = [...mgBody.querySelectorAll(".fx2-cell")], bar = mgBody.querySelector(".fx2-bar i"), msg = mgBody.querySelector(".fx2-msg"),
+      scE = mgBody.querySelector(".sc"), cbE = mgBody.querySelector(".cb"), rdE = mgBody.querySelector(".rd");
+    let r = 0, score = 0, combo = 0, lit = -1, tm = 0, over = false;
+    const upd = () => { scE.textContent = score; cbE.textContent = "x" + combo; rdE.textContent = r; };
+    function next() {
+      if (over) return;
+      if (r >= R) return end();
+      let n; do n = Math.floor(Math.random() * 9); while (n === lit);
+      lit = n; r++; upd();
+      cells[n].style.setProperty("--c", hex6(pick(CW))); cells[n].classList.add("lit");
+      const lim = Math.max(0.75, 1.5 - r * 0.05) * 1000;
+      bar.style.transition = "none"; bar.style.width = "100%"; void bar.offsetWidth;
+      bar.style.transition = `width ${lim}ms linear`; bar.style.width = "0%";
+      tm = at(() => { cells[lit] && cells[lit].classList.remove("lit"); lit = -1; combo = 0; msg.textContent = "Chậm quá!"; tone(220, 0.15, 0.05, "sawtooth"); upd(); at(next, 220); }, lim);
+    }
+    function tap(i) {
+      if (over || lit < 0) return;
+      if (i === lit) {
+        clearTimeout(tm); cells[i].classList.remove("lit");
+        score += 10 + Math.min(combo, 6) * 2; combo++; lit = -1;
+        tone(700 + combo * 70, 0.07, 0.05, "sine"); burst(8); msg.textContent = combo >= 3 ? `Combo x${combo}!` : "Tốt!"; upd();
+        at(next, 140);
+      } else {
+        combo = 0; cells[i].classList.remove("bad"); void cells[i].offsetWidth; cells[i].classList.add("bad");
+        tone(200, 0.1, 0.05, "sawtooth"); msg.textContent = "Nhầm ô rồi!"; upd();
+      }
+    }
+    function end() { over = true; result("shelf", score, Math.min(1, score / 280), gShelf, c); }
+    c.act = (a) => { if (a.startsWith("c:")) tap(+a.slice(2)); };
+    c.stop = () => { over = true; clearTimeout(tm); };
+    at(next, 700);
+  }
+
+  /* ========================= 13. MÓC VÀO VÒNG LẶP CHÍNH ===================== */
+  /* nhân viên: đang làm hành động (hành động quầy) → đứng yên, đúng tư thế, xoay theo hướng nhìn;
+     đang được điều khiển → đi theo joystick / WASD, va chạm như NPC thường */
+  const _step = stepNpc;
+  stepNpc = function (n, dt, t) {
+    if (act && act.n === n) {
+      camera.getWorldDirection(V);
+      n.g.rotation.y = Math.atan2(V.x, V.z);
+      n.job = null;
+      if (act.mode === "box") { n.pm = "box"; n.rk = act.kind || "dry"; }
+      n.mode = act.mode;
+      pose(n, dt, t);
+      return;
+    }
+    if (fp.on && fp.kind === "staff" && fp.ctrl && n.s.code === fp.code) {
+      let f = (keys.has("f") ? 1 : 0) - (keys.has("b") ? 1 : 0) + fp.jy,
+        s = (keys.has("r") ? 1 : 0) - (keys.has("l") ? 1 : 0) + fp.jx;
+      const len = Math.hypot(f, s);
+      if (len > 1) { f /= len; s /= len; }
+      const sp = fp.run ? RUN : WALK, sy = Math.sin(fp.yaw), cy = Math.cos(fp.yaw), p = n.g.position;
+      p.x += (sy * f - cy * s) * sp * dt;
+      p.z += (cy * f + sy * s) * sp * dt;
+      if (window.dxNav) dxNav.pushOut(p, 0.2);
+      n.g.rotation.y = fp.yaw;
+      n.job = null;
+      n.mode = len > 0.05 ? "walk" : "idle";
+      pose(n, dt, t);
+      return;
+    }
+    return _step.apply(this, arguments);
   };
-})();wwwwwwwwwwwwwwwwwwwwwwwwwwwww
 
+  /* camera: FPV thay updCam; sau đó phủ hiệu ứng cúi / rung khi nhân viên đang thao tác */
+  const _upd = updCam;
+  updCam = function () {
+    let r;
+    if (!fp.on) r = _upd.apply(this, arguments);
+    else if (mode === "edit" || tab !== "store" || !frame()) { exit(); r = _upd.apply(this, arguments); }
+    tilt();
+    return r;
+  };
 
-/* ============ PATCH: THOÁT FPV TRÊN SP · nút X nổi góc phải + phím Back của điện thoại ============ */
-(() => {
-  const store = $("#store"),
-    css = document.createElement("style");
-  css.textContent = `
-.fp-exit{position:absolute;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:7;display:none;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;
- color:#fff;background:rgba(255,59,48,.88);-webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);
- box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 6px 18px rgba(0,0,0,.25);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
- transition:transform .2s cubic-bezier(.2,1.4,.4,1)}
-.fp-exit:active{transform:scale(.9)}
-.fp-exit svg{width:20px;height:20px}
-#store.fpv .fp-exit{display:grid}
-.fp-hb.x{display:none!important}             /* chỉ dùng nút X nổi ở góc phải */
-.fp-hud{max-width:calc(100% - 140px)}        /* chừa chỗ cho nút X ở góc phải */
-`;
-  document.head.appendChild(css);
-
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "fp-exit";
-  b.title = b.ariaLabel = "Thoát góc nhìn thứ nhất";
-  b.innerHTML = IC("x", 20);
-  store.appendChild(b);
-  b.addEventListener("pointerdown", (e) => e.stopPropagation());
-  const doExit = () => { const x = store.querySelector('.fp-hud [data-a="exit"]'); if (x) x.click(); };
-  b.addEventListener("click", doExit);
-
-  /* phím Back của điện thoại: vào FPV thì thêm 1 bước lịch sử, bấm Back = thoát FPV (không thoát trang) */
-  let was = false;
-  new MutationObserver(() => {
-    const on = store.classList.contains("fpv");
-    if (on === was) return;
-    was = on;
-    if (on) history.pushState({ fpv: 1 }, "");
-    else if (history.state && history.state.fpv) history.back();
-  }).observe(store, { attributes: true, attributeFilter: ["class"] });
-  addEventListener("popstate", () => { if (store.classList.contains("fpv")) doExit(); });
+  /* một vòng render duy nhất cho toàn bộ FPV */
+  const _r = ren.render.bind(ren);
+  let tr = performance.now();
+  ren.render = (s, c) => {
+    const now = performance.now(), dt = Math.min(0.05, (now - tr) / 1000);
+    tr = now;
+    if (mg && !fp.on) closeMg();
+    fxTick(now, dt);
+    tick();
+    const vis = tab === "store" && mode !== "edit" && !fp.on;     /* nút "Góc nhìn thứ nhất" */
+    if (vis !== btnOn) { btnOn = vis; btn.classList.toggle("on", vis); if (!vis) closePick(); }
+    let h = null;                                                  /* ẩn đầu nhân viên đang xem (tránh nhìn xuyên tóc / mũ) */
+    if (fp.on && fp.kind === "staff") { const n = npcOf(); if (n) { h = n.head; h.visible = false; } }
+    _r(s, c);
+    if (h) h.visible = true;
+  };
 })();
-
