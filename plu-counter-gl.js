@@ -18,18 +18,34 @@
   var THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
   var p3 = null;
 
-  function loadThree(cfg) {
-    if (cfg.three && cfg.three.WebGLRenderer) return Promise.resolve(cfg.three);
-    if (window.THREE && window.THREE.WebGLRenderer) return Promise.resolve(window.THREE);
-    var url = cfg.threeUrl || THREE_URL;
-    if (!p3 || p3.url !== url) {
-      var pr = import(url);
-      pr.url = url;
-      pr.catch(function () { if (p3 === pr) p3 = null; });
-      p3 = pr;
-    }
-    return p3;
+  /* Danh sách nguồn Three.js: thử lần lượt cho đến khi nạp được */
+var THREE_URLS = [
+  "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.module.min.js"
+];
+
+/* Kiểm tra bản THREE đủ mới (có CapsuleGeometry và SRGBColorSpace) */
+function threeOk(t) {
+  return !!(t && t.WebGLRenderer && t.CapsuleGeometry && t.SRGBColorSpace);
+}
+
+/* Nạp Three.js: ưu tiên bản người dùng cấp, rồi global, rồi import() từ các CDN */
+function loadThree(cfg) {
+  if (threeOk(cfg.three)) return Promise.resolve(cfg.three);
+  if (threeOk(window.THREE)) return Promise.resolve(window.THREE);
+  if (p3) return p3;
+
+  var urls = cfg.threeUrl ? [cfg.threeUrl].concat(THREE_URLS) : THREE_URLS;
+  var i = 0;
+  function tryNext() {
+    if (i >= urls.length) return Promise.reject(new Error("Không nạp được Three.js"));
+    return import(urls[i++]).catch(tryNext);
   }
+  p3 = tryNext();
+  p3.catch(function () { p3 = null; });   /* lỗi thì cho lần sau thử lại */
+  return p3;
+}
 
   function hueOf(s) {
     var h = 0; s = String(s || "");
@@ -63,6 +79,10 @@
     var renderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      /* Lưu renderer vào ctx để dọn nếu build lỗi giữa chừng */
+ctx._r = renderer;
+/* Mất context WebGL: cho phép trình duyệt tự khôi phục */
+renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preventDefault(); });
     } catch (e) { throw new Error("WebGL không khả dụng"); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
@@ -1108,7 +1128,14 @@ B.egg = function (g, o) {
     };
   }
 
-  window.PLUCounter.registerView("gl", function (sceneEl, ctx) {
-    return loadThree(ctx.cfg).then(function (THREE) { return build(THREE, sceneEl, ctx); });
+/* Đăng ký view gl: build lỗi thì giải phóng context rồi ném lỗi cho engine thử lại */
+window.PLUCounter.registerView("gl", function (sceneEl, ctx) {
+  return loadThree(ctx.cfg).then(function (THREE) {
+    try { return build(THREE, sceneEl, ctx); }
+    catch (e) {
+      if (ctx._r) { try { ctx._r.dispose(); ctx._r.forceContextLoss(); } catch (_) {} ctx._r = null; }
+      throw e;
+    }
   });
+});
 })();

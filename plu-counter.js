@@ -272,24 +272,74 @@ function useView(v) {
   if (s.dead) { if (v && v.destroy) v.destroy(); return; }
   decided = true; view = s.view = v; init();
 }
-function showError(msg) {
+/* Hiển thị màn hình chờ (không có nút lỗi, không có chữ "không tải được") */
+function showLoading() {
   if (s.dead) return;
-  sceneEl.classList.add("loading");
-  sceneEl.innerHTML = '<div class="pc-loading">' + esc(msg) + ' <button class="plu-btn sm pc-retry">Thử lại</button></div>';
-  var b = sceneEl.querySelector(".pc-retry"); if (b) b.onclick = chooseView;
-}
-function chooseView() {
-  if (!views.gl) return showError("Chưa nạp plu-counter-gl.js (phải nạp sau plu-counter.js).");
-  sceneEl.classList.add("loading");
+  sceneEl.className = "pc-scene loading";
   sceneEl.innerHTML = '<div class="pc-loading">Đang dựng quầy 3D…</div>';
-  Promise.resolve().then(function () { return views.gl(sceneEl, ctx); }).then(function (v) {
-    if (s.dead) { if (v && v.destroy) v.destroy(); return; }
-    if (!v) return showError("Không dựng được quầy 3D.");
-    useView(v);
-  }, function (e) {
-    try { console.warn("PLUCounter: không dùng được WebGL.", e); } catch (_) {}
-    showError("Không tải được Three.js hoặc thiết bị không hỗ trợ WebGL.");
-  });
+}
+
+/* Dùng view CSS dự phòng, im lặng, không báo lỗi */
+function useFallback() {
+  if (s.dead || decided) return;
+  try { useView(cssView(sceneEl, ctx)); } catch (e) { console.error("PLUCounter: view CSS lỗi", e); }
+}
+
+/* Chọn view: thử GL nhiều lần ngầm, xong thì hiển thị, hết lượt thì dùng CSS */
+function chooseView() {
+  if (cfg.renderer === "css" || !views.gl) return useFallback();
+
+  var MAX_TRIES = 3;          /* số lần thử GL */
+  var TIMEOUT = 15000;        /* tối đa 15s mỗi lần */
+  var tries = 0;
+
+  showLoading();
+
+  /* Một lần thử dựng GL */
+  function attempt() {
+    if (s.dead || decided) return;
+    tries++;
+    var settled = false;
+
+    /* Quá thời gian thì bỏ lần này, thử lại hoặc dùng CSS */
+    var timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      retryOrFallback(new Error("GL timeout"));
+    }, TIMEOUT);
+    s.timers.push(timer);
+
+    Promise.resolve()
+      .then(function () { return views.gl(sceneEl, ctx); })
+      .then(function (v) {
+        clearTimeout(timer);
+        /* Trả về trễ sau khi đã timeout/đóng: huỷ để không rò rỉ context */
+        if (settled || s.dead || decided) { if (v && v.destroy) v.destroy(); return; }
+        settled = true;
+        if (!v) return retryOrFallback(new Error("GL view null"));
+        useView(v);           /* WebGL xong → hiển thị ngay */
+      })
+      .catch(function (e) {
+        clearTimeout(timer);
+        if (settled) return;
+        settled = true;
+        retryOrFallback(e);
+      });
+  }
+
+  /* Thử lại sau một khoảng ngắn, hết lượt thì dùng CSS */
+  function retryOrFallback(err) {
+    try { console.warn("PLUCounter: GL lần " + tries + " lỗi", err); } catch (_) {}
+    if (s.dead || decided) return;
+    if (tries < MAX_TRIES) {
+      showLoading();
+      later(attempt, 800 * tries);
+    } else {
+      useFallback();
+    }
+  }
+
+  attempt();
 }
 chooseView();
 
