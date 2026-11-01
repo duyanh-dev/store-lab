@@ -244,7 +244,7 @@
   /* ============ 5. GIAO DIỆN: nhãn tên 3D + nút Lưu ============ */
   const css = document.createElement("style");
   css.textContent = `
-#slName3d{position:absolute;left:50%;top:calc(var(--sl-top,14px) + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;pointer-events:none;
+#slName3d{display:none !important; position:absolute;left:50%;top:calc(var(--sl-top,14px) + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;pointer-events:none;
  max-width:min(78vw,520px);display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 26px 10px;border-radius:26px;color:#1d1d1f;overflow:hidden;
  background:linear-gradient(160deg,rgba(255,255,255,.64),rgba(255,255,255,.26));
  -webkit-backdrop-filter:blur(24px) saturate(1.9);backdrop-filter:blur(24px) saturate(1.9);
