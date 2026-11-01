@@ -1,662 +1,526 @@
-/* ==================== PLU TRAINING – LIQUID GLASS 3D EDITION ==================== */
+/* ==========================================================================
+   PLU TRAINING – LIQUID GLASS v4 (nhẹ, 1 màu nhấn)
+   Biến host (tuỳ chọn): --bg --ink --mute --acc --edge --edge2 --field --btn
+   Chỉ dùng MỘT màu nhấn (--a). Xanh/đỏ/cam chỉ dành cho đúng/sai/cảnh báo.
+   Nếu nav của host đè lên: #plu { --plu-top: 64px }
+   ========================================================================== */
+
 #plu {
-  position: fixed;
-  inset: 0;
-  z-index: 12; /* Giữ bằng z-index gốc để không che thanh Nav của hệ thống */
-  display: none;
-  background: var(--bg, #0d1017);
-  color: var(--ink, #f2f5f9);
-  overflow: hidden;
-  user-select: none;
+  --i: var(--ink, #f2f4f8);
+  --m: var(--mute, #8e95a6);
+  --b: var(--bg, #0a0c11);
+  --a: var(--acc, #0a84ff);
+  --e1: var(--edge, rgba(255, 255, 255, .30));
+  --e2: var(--edge2, rgba(255, 255, 255, .10));
+  --f: var(--field, rgba(0, 0, 0, .28));
+  --bt: var(--btn, rgba(255, 255, 255, .09));
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --ok: #30d158; --no: #ff453a; --warn: #ff9f0a;
+  --tint: var(--a);
+  --r: 24px;
+
+  position: fixed; inset: 0; z-index: 12; display: none; overflow: hidden;
+  background: var(--b); color: var(--i);
+  font-family: inherit;
+  -webkit-user-select: none; user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-#plu.on {
-  display: flex;
-  flex-direction: column;
-  animation: plu-fade .25s cubic-bezier(.16, 1, .3, 1);
-}
-@keyframes plu-fade {
-  from { opacity: 0; transform: scale(.985); }
-  to { opacity: 1; transform: scale(1); }
-}
+#plu.on { display: block; animation: plu-in .28s ease-out; }
+#plu *, #plu *::before, #plu *::after { box-sizing: border-box; }
+#plu button, #plu input { font-family: inherit; touch-action: manipulation; }
+#plu h2, #plu h3, #plu p { margin: 0; }
+@keyframes plu-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes plu-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* Đèn nền Ambient tạo chiều sâu khúc xạ cho kính lỏng trên nền đặc */
-#plu::before,
-#plu::after {
-  content: "";
-  position: absolute;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  filter: blur(85px);
-  opacity: .22;
-  pointer-events: none;
-  z-index: 0;
-}
-#plu::before {
-  top: -120px;
-  left: -80px;
-  background: radial-gradient(circle, var(--acc, #0a84ff), transparent 70%);
-}
-#plu::after {
-  bottom: -140px;
-  right: -80px;
-  background: radial-gradient(circle, #30d158, transparent 70%);
-}
+/* ---------- Nền tĩnh: một nguồn sáng mờ, không animation ---------- */
+.plu-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.plu-bg span { position: absolute; line-height: 1; opacity: .2; filter: blur(2px) saturate(.45); -webkit-user-select: none; user-select: none; }
 
-/* Khung chính */
-.plu-box {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 1020px;
-  height: 100dvh;
-  margin: 0 auto;
-  padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-sizing: border-box;
-}
-
-/* Mixin Kính lỏng 3D nổi khối */
-.plu-glass,
-.plu-card,
-.plu-st,
-.plu-numpad,
-.plu-list {
-  background: var(--glass2, rgba(255, 255, 255, .07));
-  -webkit-backdrop-filter: blur(36px) saturate(190%);
-  backdrop-filter: blur(36px) saturate(190%);
-  border-radius: 26px;
+/* ---------- Tấm kính ----------
+   Không dùng backdrop-filter: nền tĩnh nên blur không đổi hình nhưng tốn GPU mỗi khung khi cuộn. */
+.g {
+  position: relative; border-radius: var(--r);
+  background:
+    rgba(255, 255, 255, .07);
   box-shadow:
-    0 18px 40px -10px rgba(0, 0, 0, .28),
-    0 4px 12px rgba(0, 0, 0, .12),
-    inset 0 1.5px 1px var(--edge, rgba(255, 255, 255, .32)),
-    inset 0 -1.5px 2px rgba(0, 0, 0, .18),
-    inset 0 0 24px var(--edge2, rgba(255, 255, 255, .05));
-  border: 1px solid var(--edge2, rgba(255, 255, 255, .12));
+    inset 0 1px 0 rgba(255, 255, 255, .42),
+    inset 0 0 0 1px rgba(255, 255, 255, .12),
+    inset 0 -1px 0 rgba(255, 255, 255, .06),
+    0 18px 40px -22px rgba(0, 0, 0, .55);
 }
+/* Mặt thẻ lật: không blur (backdrop-filter lỗi trong không gian 3D) */
+.g.flat { background-color: rgba(24, 28, 38, .72); background-image: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 
-/* Header & Thanh trạng thái */
-.plu-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: none;
-  padding: 10px 14px;
-  border-radius: 22px;
-  background: var(--glass, rgba(255, 255, 255, .06));
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, .15),
-    inset 0 1px 0 var(--edge, rgba(255, 255, 255, .25));
+/* ---------- Khung: 1 cột flex, chỉ .plu-body cuộn ---------- */
+.plu-shell {
+  position: relative; z-index: 1; height: 100dvh; max-width: 1100px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  padding-top: calc(max(var(--plu-top, 0px), var(--fit-top, 0px)) + 12px);
+  padding-bottom: calc(max(var(--plu-bot, 0px), var(--fit-bot, 0px), env(safe-area-inset-bottom)) + 12px);
+  padding-left: calc(max(var(--plu-l, 0px), var(--fit-l, 0px)) + 14px);
+  padding-right: calc(max(var(--plu-r, 0px), var(--fit-r, 0px)) + 14px);
 }
-.plu-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-right: auto;
+.plu-main { flex: 1 1 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.plu-head, .plu-tabs, .plu-cats { flex: 0 0 auto; position: relative; z-index: 2; }
+.plu-body {
+  flex: 1 1 0; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  padding: 2px 2px 18px; display: flex; flex-direction: column;
+  scrollbar-width: thin; scrollbar-color: var(--e2) transparent;
 }
-.plu-logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  background: linear-gradient(135deg, var(--acc, #0a84ff), #5e5ce6);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(10, 132, 255, .4), inset 0 1px 1px rgba(255, 255, 255, .45);
-}
-.plu-top h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -.02em;
-}
-.plu-sub {
-  font-size: 11px;
-  color: var(--mute, #8e96a8);
-  display: block;
-}
+.plu-body > * { flex: 0 0 auto; }
 
-/* Huy hiệu Combo & Điểm trên Header */
-.plu-pills {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+/* ---------- Đầu trang ---------- */
+.plu-head { --r: 22px; display: flex; align-items: center; gap: 12px; padding: 9px 12px 9px 16px; }
+.plu-ttl { margin-right: auto; min-width: 0; }
+.plu-ttl h2 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+.plu-sub { display: block; font-size: 11.5px; color: var(--m); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plu-pills { display: flex; gap: 6px; }
 .plu-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  background: var(--btn, rgba(255, 255, 255, .09));
-  box-shadow: inset 0 1px 0 var(--edge, rgba(255, 255, 255, .22));
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px 6px 9px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--bt);
+  box-shadow: inset 0 0 0 1px var(--e2); transition: color .2s;
 }
-.plu-pill.fire {
-  background: linear-gradient(135deg, rgba(255, 149, 0, .22), rgba(255, 59, 48, .22));
-  color: #ff9f0a;
-  box-shadow: 0 0 16px rgba(255, 149, 0, .25), inset 0 1px 0 rgba(255, 255, 255, .3);
+.plu-pill svg { width: 14px; height: 14px; fill: currentColor; stroke: none; color: var(--m); }
+.plu-pill.hot { color: var(--warn); }
+.plu-pill.hot svg { color: var(--warn); }
+.plu-pill.bump { animation: plu-bump .3s; }
+@keyframes plu-bump { 40% { transform: scale(1.1); } }
+.plu-ib {
+  width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: var(--i); background: var(--bt); box-shadow: inset 0 0 0 1px var(--e2); transition: transform .12s, background .2s;
 }
+.plu-ib svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.plu-ib:hover { background: rgba(255, 255, 255, .16); }
+.plu-ib:active { transform: scale(.92); }
 
-/* Nút âm thanh & Đóng */
-.plu-ico-btn,
-.plu-x {
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--btn, rgba(255, 255, 255, .1));
-  color: var(--ink);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, .14),
-    inset 0 1px 0 var(--edge, rgba(255, 255, 255, .28));
-  transition: transform .15s, background .2s;
+/* ---------- Thanh chế độ (segmented, kiểu iOS) ---------- */
+.plu-tabs { --r: 20px; display: flex; gap: 2px; padding: 4px; overflow-x: auto; scrollbar-width: none; }
+.plu-tabs::-webkit-scrollbar { display: none; }
+.plu-nv {
+  flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px;
+  border: 0; border-radius: 16px; background: transparent; color: var(--m); cursor: pointer; white-space: nowrap;
+  font-size: 12.5px; font-weight: 650; transition: background .2s, color .2s;
 }
-.plu-ico-btn:hover,
-.plu-x:hover {
-  transform: translateY(-1px) scale(1.04);
-}
-.plu-ico-btn:active,
-.plu-x:active {
-  transform: scale(.94);
-}
+.plu-nv svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.plu-nv:hover { color: var(--i); }
+.plu-nv.on { color: var(--i); background: rgba(255, 255, 255, .16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 0 0 1px var(--e2); }
+.plu-nv.on svg { stroke: var(--tint); }
 
-/* Thanh chuyển chế độ học (Segmented Liquid Pills) */
-.plu-nav-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex: none;
-}
-.plu-seg {
-  display: flex;
-  gap: 5px;
-  overflow-x: auto;
-  padding: 4px;
-  border-radius: 18px;
-  background: var(--field, rgba(0, 0, 0, .22));
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, .2), 0 1px 0 var(--edge2);
-  scrollbar-width: none;
-  max-width: 100%;
-}
-.plu-seg::-webkit-scrollbar { display: none; }
-.plu-seg button {
-  border: 0;
-  background: transparent;
-  color: var(--mute);
-  padding: 7px 13px;
-  border-radius: 14px;
-  font: 600 12.5px inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all .2s cubic-bezier(.16, 1, .3, 1);
-}
-.plu-seg button.on {
-  background: var(--glass2, rgba(255, 255, 255, .14));
-  color: var(--ink);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, .18),
-    inset 0 1px 0.5px var(--edge, rgba(255, 255, 255, .4));
-}
-
-/* Bộ lọc danh mục nhanh */
+/* ---------- Bộ lọc nhóm hàng ---------- */
 .plu-cats {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 2px 2px 4px;
-  flex: none;
-  scrollbar-width: none;
+  display: flex; gap: 6px; overflow-x: auto; padding: 2px 4px 4px; scrollbar-width: none;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 22px), transparent);
+  mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 22px), transparent);
 }
 .plu-cats::-webkit-scrollbar { display: none; }
 .plu-cat-chip {
-  border: 0;
-  padding: 5px 11px;
-  border-radius: 999px;
-  font: 600 11.5px inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  background: var(--btn, rgba(255, 255, 255, .06));
-  color: var(--mute);
-  box-shadow: inset 0 1px 0 var(--edge2);
-  transition: all .18s;
+  flex: none; border: 0; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  cursor: pointer; color: var(--m); background: var(--bt); box-shadow: inset 0 0 0 1px var(--e2); transition: background .2s, color .2s;
 }
-.plu-cat-chip.on {
-  background: var(--ink);
-  color: var(--bg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .22);
-}
+.plu-cat-chip:hover { color: var(--i); }
+.plu-cat-chip.on { color: var(--b); background: var(--i); box-shadow: none; }
 
-/* Vùng nội dung chính */
-.plu-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 4px 2px;
-  display: flex;
-  flex-direction: column;
-}
+/* ---------- Sân khấu ---------- */
+.plu-stage { width: 100%; max-width: 520px; margin: auto; display: grid; gap: 16px; animation: plu-rise .3s ease-out; }
+.plu-stage.split { max-width: 920px; }
+@media (min-width: 820px) { .plu-stage.split { grid-template-columns: 1.1fr .9fr; align-items: center; } }
+.plu-h3 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
 
-/* Bố cục Sân khấu (Stage) tự động chia 2 cột trên PC, 1 cột trên SP */
-.plu-stage {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-  width: 100%;
-  max-width: 540px;
-  margin: auto;
-  align-items: stretch;
-}
-.plu-stage.split {
-  max-width: 880px;
-}
-@media (min-width: 760px) {
-  .plu-stage.split {
-    grid-template-columns: 1.08fr 0.92fr;
-    align-items: center;
-  }
-}
+.plu-pips { display: flex; gap: 4px; max-width: 920px; width: 100%; margin: 0 auto 14px; padding: 0 4px; }
+.plu-pips i { flex: 1; height: 4px; border-radius: 9px; background: rgba(127, 127, 140, .28); transition: background .2s; }
+.plu-pips i.ok { background: var(--ok); }
+.plu-pips i.no { background: var(--no); }
+.plu-pips i.cur { background: var(--tint); }
 
-/* Thẻ sản phẩm Liquid Glass 3D */
-.plu-card {
-  position: relative;
-  padding: 22px 20px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  overflow: hidden;
-}
-.plu-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--edge, rgba(255, 255, 255, .6)), transparent);
-}
+.plu-q { padding: 26px 22px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; --r: 30px; }
+.plu-qn { position: absolute; top: 18px; left: 20px; font: 700 12px var(--mono); color: var(--m); letter-spacing: .04em; }
+.plu-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--m); }
+.plu-name { font-size: clamp(22px, 3.2vw, 30px); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; margin: 6px 0 4px; text-wrap: balance; }
+.plu-name.sm { font-size: 19px; }
+.plu-hint { font-size: 12px; color: var(--m); margin-top: 8px; }
 
-/* Khối cầu Icon / Ảnh sản phẩm 3D */
-.plu-img {
-  width: 96px;
-  height: 96px;
-  margin: 4px auto 12px;
-  border-radius: 28px;
-  display: grid;
-  place-items: center;
-  font-size: 44px;
-  font-weight: 800;
-  position: relative;
-  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, .22), var(--field, rgba(0, 0, 0, .2)));
-  box-shadow:
-    0 12px 28px rgba(0, 0, 0, .22),
-    inset 0 2px 2px var(--edge, rgba(255, 255, 255, .4)),
-    inset 0 -3px 6px rgba(0, 0, 0, .25);
-  overflow: hidden;
+.plu-lvb {
+  position: absolute; top: 16px; right: 16px; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  color: var(--m); background: var(--bt); box-shadow: inset 0 0 0 1px var(--e2);
 }
-.plu-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.plu-badge-lv {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--btn);
-  color: var(--mute);
-  box-shadow: inset 0 1px 0 var(--edge);
-}
-.plu-badge-lv.lv2 {
-  background: rgba(48, 209, 88, .18);
-  color: #30d158;
-}
+.plu-lvb.l1 { color: var(--warn); }
+.plu-lvb.l2 { color: var(--ok); }
 
-.plu-card .cat {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--mute);
+/* ---------- Thấu kính sản phẩm: kính trong, không màu ---------- */
+.plu-lens-wrap { position: relative; width: clamp(108px, 16vw, 140px); aspect-ratio: 1; margin: 6px 0 16px; display: grid; place-items: center; }
+.plu-lens {
+  position: relative; width: 82%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 32% 20%, rgba(255, 255, 255, .34), rgba(255, 255, 255, .07) 46%, rgba(255, 255, 255, .03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .3), inset 0 -10px 20px rgba(0, 0, 0, .25), 0 18px 28px -16px rgba(0, 0, 0, .65);
 }
-.plu-card .nm2 {
-  font-size: 23px;
-  font-weight: 750;
-  letter-spacing: -.02em;
-  margin: 6px 0 8px;
-  line-height: 1.25;
-}
-.plu-card .big {
-  font: 800 54px/1.05 ui-monospace, "SF Mono", monospace;
-  letter-spacing: .06em;
-  margin: 8px 0;
-  background: linear-gradient(180deg, var(--ink) 30%, var(--mute) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .2));
-}
+.plu-lens img { width: 100%; height: 100%; object-fit: cover; }
+.plu-emo { font-size: clamp(44px, 7vw, 60px); line-height: 1; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .35)); }
+.plu-ground { display: none; }
+/* Thanh đếm giờ: chỉ animate transform (chạy trên GPU, không repaint) */
+.plu-timer { position: absolute; left: 28px; right: 28px; top: 0; height: 3px; border-radius: 0 0 3px 3px; overflow: hidden; background: rgba(127, 127, 140, .2); }
+.plu-timer i { display: block; height: 100%; background: var(--tint); transform-origin: left center; transform: scaleX(1); will-change: transform; }
 
-/* Hiệu ứng Lật thẻ 3D (Flashcard Flip) */
-.plu-flip-wrap {
-  perspective: 1200px;
-  cursor: pointer;
+/* ---------- Ô số PLU: màn hình lõm ---------- */
+.plu-code { display: flex; gap: 8px; justify-content: center; margin: 8px 0 4px; --dw: 56px; }
+.plu-code.sm { --dw: 34px; gap: 5px; margin: 0; }
+.plu-d {
+  position: relative; width: var(--dw); height: calc(var(--dw) * 1.3); border-radius: calc(var(--dw) * .28); display: grid; place-items: center;
+  font: 700 calc(var(--dw) * .6)/1 var(--mono); color: var(--m); background: var(--f);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .45), 0 1px 0 rgba(255, 255, 255, .18);
+  transition: color .15s, box-shadow .2s;
 }
-.plu-flip-inner {
-  position: relative;
-  transition: transform .55s cubic-bezier(.22, 1, .36, 1);
-  transform-style: preserve-3d;
-}
-.plu-flip-wrap.flipped .plu-flip-inner {
-  transform: rotateY(180deg);
-}
-.plu-face-back {
-  margin-top: 10px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--edge2, rgba(255, 255, 255, .15));
-}
+.plu-d.on, .plu-d.filled { color: var(--i); }
+.plu-d.cur::after { content: ""; width: 3px; height: 46%; border-radius: 2px; background: var(--tint); animation: plu-blink 1s steps(2) infinite; }
+.plu-d.good { color: var(--ok); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(48, 209, 88, .55); }
+.plu-d.bad { color: var(--no); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 69, 58, .55); animation: plu-sh .3s; }
+@keyframes plu-blink { 50% { opacity: 0; } }
+@keyframes plu-sh { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 
-/* Màn hình hiển thị số nhập POS */
-.plu-pos-screen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 10px auto 4px;
-}
-.plu-digit {
-  width: 52px;
-  height: 62px;
-  border-radius: 16px;
-  background: var(--field, rgba(0, 0, 0, .28));
-  box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, .35),
-    0 1px 0 var(--edge, rgba(255, 255, 255, .2));
-  display: grid;
-  place-items: center;
-  font: 800 32px ui-monospace, "SF Mono", monospace;
-  color: var(--ink);
-  transition: transform .12s, box-shadow .15s;
-}
-.plu-digit.filled {
-  transform: translateY(-2px);
-  box-shadow:
-    0 6px 16px rgba(10, 132, 255, .25),
-    inset 0 1.5px 1px var(--edge, rgba(255, 255, 255, .45));
-  border: 1px solid var(--acc, #0a84ff);
-}
+/* Phản hồi */
+.plu-fb { width: 100%; min-height: 58px; margin-top: 12px; display: grid; place-items: center; }
+.fbk { display: grid; gap: 2px; font-size: 13px; animation: plu-rise .2s; }
+.fbk b { font-size: 16px; font-weight: 750; }
+.fbk span { color: var(--m); }
+.fbk code { font: 700 13px var(--mono); padding: 1px 7px; border-radius: 7px; background: var(--f); color: var(--i); }
+.fbk em { font-style: normal; color: var(--warn); font-weight: 600; }
+.fbk.ok b { color: var(--ok); } .fbk.no b { color: var(--no); }
+.fbk .plu-btn { justify-self: center; margin-top: 6px; }
 
-/* Bàn phím số Kính lỏng Numpad (Chuẩn POS Thu Ngân) */
-.plu-numpad {
-  padding: 14px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 9px;
+/* ---------- Thẻ lật 3D ---------- */
+.plu-flip { display: grid; transform-style: preserve-3d; cursor: pointer; transition: transform .55s cubic-bezier(.2, .9, .25, 1); }
+.plu-flip.flipped { transform: rotateY(180deg); }
+.plu-face {
+  grid-area: 1 / 1; -webkit-backface-visibility: hidden; backface-visibility: hidden; --r: 30px;
+  min-height: clamp(300px, 46vh, 400px); padding: 26px 22px 22px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
 }
-.plu-key {
-  height: 54px;
-  border: 0;
-  border-radius: 18px;
-  background: var(--btn, rgba(255, 255, 255, .09));
-  color: var(--ink);
-  font: 700 22px ui-monospace, "SF Mono", monospace;
-  cursor: pointer;
-  box-shadow:
-    0 6px 14px rgba(0, 0, 0, .16),
-    inset 0 1.5px 1px var(--edge, rgba(255, 255, 255, .32)),
-    inset 0 -2px 3px rgba(0, 0, 0, .18);
-  transition: transform .1s, background .15s;
-}
-.plu-key:hover {
-  background: var(--glass, rgba(255, 255, 255, .15));
-}
-.plu-key:active {
-  transform: translateY(2px) scale(.96);
-}
-.plu-key.fn {
-  font-size: 15px;
-  font-family: inherit;
-  color: var(--mute);
-}
-.plu-key.ok-key {
-  background: linear-gradient(135deg, var(--acc, #0a84ff), #0066cc);
-  color: #fff;
-}
+.plu-face.back { transform: rotateY(180deg); }
+.plu-ctx { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+.plu-chip { font-size: 11.5px; padding: 5px 10px; border-radius: 999px; background: var(--bt); color: var(--m); box-shadow: inset 0 0 0 1px var(--e2); }
+.plu-chip b { font: 700 11.5px var(--mono); color: var(--i); margin-right: 4px; }
 
-/* Các nút chọn trắc nghiệm 3D */
-.plu-opts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.plu-opt {
-  border: 0;
-  border-radius: 20px;
-  padding: 16px 12px;
-  background: var(--btn, rgba(255, 255, 255, .08));
-  color: var(--ink);
-  font: 700 16px inherit;
-  cursor: pointer;
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, .15),
-    inset 0 1.5px 1px var(--edge, rgba(255, 255, 255, .3)),
-    inset 0 -2px 4px rgba(0, 0, 0, .15);
-  transition: transform .14s, background .2s, box-shadow .2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 74px;
-}
-.plu-opt:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-.plu-opt:active:not(:disabled) {
-  transform: scale(.97);
-}
-.plu-opt.ok {
-  background: linear-gradient(135deg, #30d158, #248a3d) !important;
-  color: #fff !important;
-  box-shadow: 0 8px 24px rgba(48, 209, 88, .4), inset 0 1px 1px rgba(255, 255, 255, .5);
-}
-.plu-opt.no {
-  background: linear-gradient(135deg, #ff453a, #c9342b) !important;
-  color: #fff !important;
-}
-
-/* Thanh tiến độ & Thời gian */
-.plu-bar {
-  height: 7px;
-  border-radius: 99px;
-  background: var(--field, rgba(120, 120, 128, .22));
-  overflow: hidden;
-  margin: 4px 0 8px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25);
-}
-.plu-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, var(--acc, #0a84ff), #30d158);
-  transition: width .28s cubic-bezier(.16, 1, .3, 1);
-}
-.plu-bar.t i {
-  background: linear-gradient(90deg, #ff9f0a, #ff453a);
-  transition: width .1s linear;
-}
-
-/* Phản hồi Đúng / Sai */
-.plu-fb {
-  min-height: 24px;
-  font-weight: 700;
-  font-size: 14px;
-  margin-top: 8px;
-}
-.plu-fb.ok { color: #30d158; }
-.plu-fb.no {
-  color: #ff453a;
-  animation: plu-sh .32s;
-}
-@keyframes plu-sh {
-  20%, 60% { transform: translateX(-7px); }
-  40%, 80% { transform: translateX(7px); }
-}
-
-/* Nút hành động chung */
-.plu-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 12px;
-}
+/* ---------- Nút: phẳng, nhấn = thu nhỏ nhẹ ---------- */
+.plu-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.plu-row.left { justify-content: flex-start; }
 .plu-btn {
-  border: 0;
-  border-radius: 16px;
-  padding: 12px 20px;
-  font: 700 14px inherit;
-  cursor: pointer;
-  background: var(--btn, rgba(255, 255, 255, .1));
-  color: var(--ink);
+  border: 0; border-radius: 16px; padding: 12px 20px; font-size: 14px; font-weight: 650; cursor: pointer; color: var(--i);
+  background: rgba(255, 255, 255, .12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 0 0 1px var(--e2);
+  transition: transform .1s, background .2s;
+}
+.plu-btn:hover { background: rgba(255, 255, 255, .18); }
+.plu-btn:active { transform: scale(.97); }
+.plu-btn.pri { color: #fff; background: var(--a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.plu-btn.pri:hover { filter: brightness(1.08); background: var(--a); }
+.plu-btn.bad { color: var(--no); background: rgba(255, 69, 58, .14); }
+.plu-btn.good { color: var(--ok); background: rgba(48, 209, 88, .14); }
+.plu-btn.lg { padding: 14px 28px; font-size: 15px; border-radius: 18px; }
+.plu-btn.sm { padding: 7px 14px; font-size: 12px; border-radius: 12px; }
+.plu-btn kbd { font: 600 10.5px var(--mono); margin-left: 8px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, .22); opacity: .85; }
+.plu-btn svg { width: 16px; height: 16px; margin-left: 8px; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.plu-btn.arm { background: var(--no); color: #fff; }
+
+/* ---------- Bàn phím POS ---------- */
+.plu-pad { --r: 28px; padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.plu-key {
+  height: clamp(48px, 7.2vh, 62px); border: 0; border-radius: 18px; cursor: pointer; color: var(--i); font: 600 23px var(--mono);
+  background: rgba(255, 255, 255, .12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px var(--e2);
+  transition: transform .07s, background .15s;
+}
+.plu-key:hover { background: rgba(255, 255, 255, .18); }
+.plu-key:active, .plu-key.hit { transform: scale(.95); background: rgba(255, 255, 255, .24); }
+.plu-key.fn { font: 650 14px/1 inherit; font-family: inherit; color: var(--m); }
+.plu-key.ok-key { font: 700 15px/1 inherit; font-family: inherit; color: #fff; background: var(--a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+
+/* ---------- Trắc nghiệm ---------- */
+.plu-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.plu-opt {
+  position: relative; min-height: 80px; padding: 16px 12px; border: 0; border-radius: 22px; cursor: pointer; color: var(--i);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 15px; font-weight: 700; line-height: 1.25;
+  background: rgba(255, 255, 255, .10); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px var(--e2);
+  transition: transform .1s, background .2s;
+}
+.plu-opt:hover:not(:disabled) { background: rgba(255, 255, 255, .17); }
+.plu-opt:active:not(:disabled) { transform: scale(.97); }
+.plu-opt .kc { position: absolute; top: 8px; left: 10px; font: 600 10px var(--mono); color: var(--m); opacity: .8; }
+.plu-opt .ot.mono { font: 700 27px var(--mono); letter-spacing: .06em; }
+.plu-opt .nm { display: none; font-size: 11.5px; font-weight: 600; opacity: .85; }
+.plu-opts.done .nm { display: block; }
+.plu-opt:disabled { cursor: default; }
+.plu-opt:disabled:not(.ok):not(.no) { opacity: .5; }
+.plu-opt.ok { color: #fff; background: var(--ok); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.plu-opt.no { color: #fff; background: var(--no); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); animation: plu-sh .3s; }
+
+/* ---------- Chọn độ khó ---------- */
+.plu-choice {
+  --r: 24px; border: 0; width: 100%; text-align: left; padding: 20px 22px; cursor: pointer; color: var(--i);
+  display: grid; gap: 4px; transition: transform .15s;
+}
+.plu-choice:hover { transform: translateY(-2px); }
+.plu-choice:active { transform: scale(.985); }
+.plu-choice b { font-size: 17px; font-weight: 750; }
+.plu-choice span { font-size: 13px; color: var(--m); line-height: 1.4; }
+
+/* ---------- Vòng tiến độ ---------- */
+.plu-rs { position: relative; flex: none; }
+.plu-rs svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.plu-rs circle { fill: none; stroke-width: 9; }
+.plu-rs .tr { stroke: rgba(127, 127, 140, .24); }
+.plu-rs .fg { stroke: var(--tint); stroke-linecap: round; animation: plu-draw .8s ease-out; }
+@keyframes plu-draw { from { stroke-dashoffset: var(--c); } }
+.plu-rt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.plu-rt b { font-size: 30px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.plu-rt span { font-size: 11px; color: var(--m); margin-top: 3px; }
+
+/* ---------- Kết quả ---------- */
+.plu-end { --r: 32px; padding: 28px 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.plu-verdict { font-size: 16px; font-weight: 750; padding: 7px 16px; border-radius: 999px; }
+.plu-verdict.k { color: var(--ok); background: rgba(48, 209, 88, .15); }
+.plu-verdict.x { color: var(--warn); background: rgba(255, 159, 10, .15); }
+.plu-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.plu-mini div { padding: 10px 6px; border-radius: 16px; background: var(--f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .3); }
+.plu-mini b { display: block; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.plu-mini span { font-size: 11px; color: var(--m); }
+.plu-miss { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+/* ---------- Màn Hôm nay ----------
+   Ít khung: chữ lớn đặt thẳng lên nền, chỉ giữ kính cho thứ chạm được (viên kính tiến độ, thanh 3 mục, nhãn nhóm hàng). */
+.plu-home { width: 100%; max-width: 900px; margin: 0 auto; display: grid; gap: 26px; padding-top: 4px; animation: plu-rise .35s ease-out; }
+
+.plu-hero2 { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 6px 6px 0; }
+.plu-hero-t { display: grid; gap: 10px; min-width: 0; }
+.plu-hero-t h3 { font-size: clamp(30px, 5.2vw, 48px); font-weight: 800; letter-spacing: -.04em; line-height: 1.04; text-wrap: balance; }
+.plu-hero-t p { font-size: 14.5px; color: var(--m); line-height: 1.55; max-width: 42ch; }
+.plu-hero-t .plu-row { margin-top: 8px; }
+.plu-hero-t .plu-btn.pri { border-radius: 999px; }
+
+/* Viên kính chứa chất lỏng: mực nước = % mã đã nhớ */
+.plu-orb-w { flex: none; display: grid; justify-items: center; gap: 12px; }
+.plu-orb {
+  position: relative; width: 172px; aspect-ratio: 1; border-radius: 50%; overflow: hidden; isolation: isolate;
+  background: rgba(255, 255, 255, .07);
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, .16),
-    inset 0 1px 1px var(--edge, rgba(255, 255, 255, .3));
-  transition: transform .15s;
+    inset 0 0 0 1.5px rgba(255, 255, 255, .34),
+    inset 0 12px 20px rgba(255, 255, 255, .12),
+    inset 0 -16px 26px -12px rgba(255, 255, 255, .14),
+    0 26px 44px -20px rgba(0, 0, 0, .65);
 }
-.plu-btn.pri {
-  background: linear-gradient(135deg, var(--acc, #0a84ff), #409cff);
-  color: #fff;
-  box-shadow: 0 8px 22px rgba(10, 132, 255, .35), inset 0 1px 1px rgba(255, 255, 255, .45);
+.plu-liq { position: absolute; left: 0; right: 0; bottom: 0; height: var(--lv, 0%); transition: height 1s cubic-bezier(.2, .8, .2, 1); z-index: -1; }
+.plu-liq-b { position: absolute; inset: 0; background: rgba(10, 132, 255, .42); }
+.plu-wave { position: absolute; left: 0; top: -11px; width: 200%; height: 12px; fill: rgba(10, 132, 255, .42); animation: plu-wave 7s linear infinite; will-change: transform; }
+@keyframes plu-wave { to { transform: translateX(-50%); } }
+.plu-orb.empty .plu-liq { display: none; }
+.plu-orb::after { /* vệt phản chiếu */
+  content: ""; position: absolute; left: 13%; top: 8%; width: 44%; height: 20%; border-radius: 50%;
+  background: rgba(255, 255, 255, .26); transform: rotate(-28deg); pointer-events: none;
 }
-.plu-btn.bad {
-  background: rgba(255, 69, 58, .16);
-  color: #ff453a;
-}
-.plu-btn:active { transform: scale(.96); }
+.plu-orb-t { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.plu-orb-t b { font-size: 42px; font-weight: 800; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.plu-orb-t span { font-size: 12px; color: var(--i); opacity: .7; margin-top: 4px; }
+.plu-orb-l { font-size: 12px; color: var(--m); text-align: center; line-height: 1.5; }
 
-/* Thống kê & Danh sách tra cứu */
-.plu-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
+/* Thanh 3 mục: một viên kính dài, ngăn bằng đường mảnh */
+.plu-seg { --r: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px; }
+.plu-sg {
+  position: relative; min-width: 0; border: 0; background: transparent; color: var(--i); cursor: pointer; border-radius: 24px;
+  display: grid; justify-items: center; gap: 1px; padding: 14px 8px 13px; transition: background .2s, transform .1s;
 }
-.plu-st {
-  padding: 14px;
-  border-radius: 20px;
+.plu-sg + .plu-sg::before { content: ""; position: absolute; left: -1px; top: 22%; bottom: 22%; width: 1px; background: var(--e2); }
+.plu-sg:hover:not(:disabled) { background: rgba(255, 255, 255, .09); }
+.plu-sg:active:not(:disabled) { transform: scale(.97); }
+.plu-sg:disabled { opacity: .42; cursor: default; }
+.plu-sg b { font-size: 36px; font-weight: 750; letter-spacing: -.04em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.plu-sg span { font-size: 13px; font-weight: 650; }
+.plu-sg small { font-size: 11.5px; color: var(--m); }
+
+/* Dòng thi thử: chữ thường + nút chữ, không khung */
+.plu-examline { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 8px; font-size: 13px; color: var(--m); margin-top: -8px; }
+.plu-examline b { color: var(--i); font-weight: 750; }
+.plu-link { flex: none; border: 0; background: transparent; color: var(--a); font-size: 13px; font-weight: 700; cursor: pointer; padding: 7px 12px; border-radius: 999px; transition: background .2s; }
+.plu-link:hover { background: var(--bt); }
+
+/* Nhóm hàng: nhãn kính, nền "đầy dần" theo số mã đã nhớ */
+.plu-tags-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 8px 12px; }
+.plu-tags-h small { font-size: 11.5px; color: var(--m); }
+.plu-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.plu-tag {
+  position: relative; overflow: hidden; border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; color: var(--i);
+  display: inline-flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 0 0 1px rgba(255, 255, 255, .11);
+  transition: background .2s, transform .1s;
 }
-.plu-st b {
-  display: block;
-  font-size: 24px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+.plu-tag::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); background: rgba(255, 255, 255, .17); }
+.plu-tag > * { position: relative; }
+.plu-tag:hover { background: rgba(255, 255, 255, .13); }
+.plu-tag:active { transform: scale(.97); }
+.plu-tag .tc { font: 600 11.5px var(--mono); color: var(--m); }
+
+/* ---------- Tiến độ ---------- */
+.plu-sts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.plu-st { --r: 20px; padding: 14px 16px; }
+.plu-st b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.plu-st span { font-size: 12px; color: var(--m); }
+.plu-sec { font-size: 13px; font-weight: 700; margin: 18px 4px 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.plu-sec small { font-size: 11.5px; color: var(--m); font-weight: 500; }
+.plu-hm-grp { --r: 24px; padding: 14px 14px 12px; margin-bottom: 10px; }
+.plu-hm-grp .hd { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; margin-bottom: 10px; }
+.plu-hm-grp .hd small { margin-left: auto; color: var(--m); font-weight: 500; }
+.plu-hm-g { display: flex; flex-wrap: wrap; gap: 6px; }
+.plu-hm {
+  border: 0; min-width: 46px; height: 34px; padding: 0 8px; border-radius: 11px; cursor: pointer; color: var(--m);
+  font: 700 12px var(--mono); background: var(--f); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3); transition: transform .1s;
 }
-.plu-st span {
-  font-size: 12px;
-  color: var(--mute);
-}
+.plu-hm:hover { transform: translateY(-1px); color: var(--i); }
+.plu-hm.l1 { color: var(--warn); background: rgba(255, 159, 10, .13); box-shadow: inset 0 0 0 1px rgba(255, 159, 10, .35); }
+.plu-hm.l2 { color: var(--ok); background: rgba(48, 209, 88, .13); box-shadow: inset 0 0 0 1px rgba(48, 209, 88, .35); }
+.plu-hm.l3 { color: var(--no); background: rgba(255, 69, 58, .14); box-shadow: inset 0 0 0 1px rgba(255, 69, 58, .4); }
+.plu-hm.sel { outline: 2px solid var(--tint); outline-offset: 2px; }
+.plu-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--m); margin: 0 4px 10px; }
+.plu-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--f); box-shadow: inset 0 0 0 1px var(--e1); }
+.plu-legend i.l1 { background: var(--warn); box-shadow: none; } .plu-legend i.l2 { background: var(--ok); box-shadow: none; } .plu-legend i.l3 { background: var(--no); box-shadow: none; }
+.plu-detail { --r: 20px; padding: 12px 16px; font-size: 13px; color: var(--m); min-height: 46px; display: flex; align-items: center; margin-bottom: 4px; }
+.plu-detail b { color: var(--i); font-family: var(--mono); margin-right: 6px; }
+.plu-cf { --r: 22px; overflow: hidden; }
+.plu-cfr { display: flex; align-items: center; gap: 10px; padding: 11px 16px; font-size: 13px; border-bottom: 1px solid var(--e2); }
+.plu-cfr:last-child { border-bottom: 0; }
+.plu-cfr b { font: 800 14px var(--mono); }
+.plu-cfr .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plu-cfr .x { color: var(--m); font-size: 11px; }
+.plu-cfr .c { font: 700 12px var(--mono); color: var(--no); }
+
+/* ---------- Tra cứu ---------- */
 .plu-sch {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--edge2, rgba(255, 255, 255, .14));
-  border-radius: 18px;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-  font: 600 14px inherit;
-  background: var(--field, rgba(0, 0, 0, .22));
-  color: var(--ink);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .18);
+  width: 100%; margin-bottom: 12px; padding: 14px 18px 14px 46px; border: 0; border-radius: 20px; color: var(--i);
+  font-size: 15px; font-weight: 600; -webkit-user-select: text; user-select: text;
+  background: var(--f) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%238e95a6' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-5-5'/></svg>") no-repeat 16px center;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .3), inset 0 0 0 1px var(--e2);
 }
-.plu-sch:focus {
-  outline: none;
-  border-color: var(--acc, #0a84ff);
-}
-.plu-list {
-  overflow: hidden;
-}
-.plu-li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  font-size: 13.5px;
-  border-bottom: 1px solid var(--edge2, rgba(255, 255, 255, .07));
-}
+.plu-sch:focus { outline: none; box-shadow: inset 0 3px 8px rgba(0, 0, 0, .3), 0 0 0 2px var(--tint); }
+.plu-sch::placeholder { color: var(--m); font-weight: 500; }
+.plu-list { --r: 24px; overflow: hidden; }
+.plu-li { display: flex; align-items: center; gap: 12px; padding: 11px 16px; font-size: 13.5px; border-bottom: 1px solid var(--e2); content-visibility: auto; contain-intrinsic-size: auto 58px; }
 .plu-li:last-child { border-bottom: 0; }
-.plu-li .ic {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--btn);
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  flex: none;
-}
 .plu-li b {
-  flex: none;
-  width: 48px;
-  font: 800 15px ui-monospace, monospace;
+  flex: none; min-width: 54px; text-align: center; padding: 6px 0; border-radius: 10px; font: 800 15px var(--mono); letter-spacing: .04em;
+  color: var(--i); background: var(--f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35);
 }
-.plu-li .n {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 500;
+.plu-li .n { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plu-li .n small { display: block; font-size: 11px; font-weight: 500; color: var(--m); margin-top: 1px; }
+.plu-lv { flex: none; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--bt); color: var(--m); }
+.plu-lv.k { background: rgba(48, 209, 88, .15); color: var(--ok); }
+.plu-lv.w { background: rgba(255, 159, 10, .15); color: var(--warn); }
+.plu-warn { padding: 11px 15px; border-radius: 16px; margin-bottom: 10px; font-size: 12px; line-height: 1.5; color: var(--warn); background: rgba(255, 159, 10, .12); box-shadow: inset 0 0 0 1px rgba(255, 159, 10, .3); }
+.plu-empty { padding: 26px 16px; text-align: center; color: var(--m); font-size: 13px; }
+
+/* ---------- Điện thoại ---------- */
+@media (max-width: 760px) {
+  .plu-shell {
+    padding-top: calc(max(var(--plu-top, 0px), var(--fit-top, 0px)) + 8px);
+    padding-bottom: calc(max(var(--plu-bot, 0px), var(--fit-bot, 0px), env(safe-area-inset-bottom)) + 8px);
+    padding-left: calc(max(var(--plu-l, 0px), var(--fit-l, 0px)) + 10px);
+    padding-right: calc(max(var(--plu-r, 0px), var(--fit-r, 0px)) + 10px);
+  }
+  .plu-main { gap: 8px; }
+  .plu-head { padding: 7px 8px 7px 12px; gap: 8px; --r: 20px; }
+  .plu-sub { display: none; }
+  .plu-ttl h2 { font-size: 15.5px; }
+  .plu-pill { padding: 5px 9px 5px 7px; font-size: 12px; }
+  .plu-ib { width: 34px; height: 34px; }
+  .plu-tabs { --r: 18px; padding: 3px; }
+  .plu-nv { padding: 8px 11px; }
+  .plu-nv span { display: none; }
+  .plu-nv.on span { display: inline; }
+  .plu-q { padding: 18px 14px 14px; --r: 26px; }
+  .plu-lens-wrap { width: 92px; margin: 2px 0 8px; }
+  .plu-emo { font-size: 42px; }
+  .plu-name { font-size: 21px; }
+  .plu-code { --dw: 44px; gap: 6px; }
+  .plu-fb { min-height: 40px; margin-top: 6px; }
+  .plu-pad { padding: 10px; gap: 8px; --r: 24px; }
+  .plu-key { height: 48px; font-size: 21px; border-radius: 16px; }
+  .plu-opts { gap: 8px; }
+  .plu-opt { min-height: 68px; border-radius: 18px; font-size: 14px; }
+  .plu-face { min-height: 280px; padding: 20px 16px; }
+  .plu-home { gap: 20px; }
+  .plu-hero2 { flex-direction: column; text-align: center; gap: 18px; padding: 0; }
+  .plu-orb-w { order: -1; }
+  .plu-orb { width: 140px; }
+  .plu-orb-t b { font-size: 34px; }
+  .plu-hero-t .plu-row.left { justify-content: center; }
+  .plu-hero-t p { margin: 0 auto; }
+  .plu-seg { --r: 26px; padding: 4px; }
+  .plu-sg { padding: 12px 4px 11px; border-radius: 20px; }
+  .plu-sg b { font-size: 30px; }
+  .plu-examline { margin-top: -4px; font-size: 12.5px; }
 }
-.plu-warn {
-  background: rgba(255, 159, 10, .14);
-  border: 1px solid rgba(255, 159, 10, .35);
-  border-radius: 16px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #ff9f0a;
-  margin-bottom: 10px;
+@media (max-height: 720px) {
+  .plu-lens-wrap { width: 100px; margin-bottom: 8px; }
+  .plu-emo { font-size: 46px; }
+  .plu-face { min-height: 250px; }
+  .plu-key { height: 44px; }
+  .plu-q { padding-top: 20px; }
+  .plu-orb { width: 124px; }
 }
-.plu-lv {
-  display: inline-flex;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--btn);
-  color: var(--mute);
-}
-.plu-lv.k {
-  background: rgba(48, 209, 88, .18);
-  color: #30d158;
+@media (max-width: 380px) { .plu-code { --dw: 38px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  #plu *, #plu *::before, #plu *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
 
-/* Tối ưu riêng cho Smartphone (SP) */
-@media (max-width: 600px) {
-  .plu-box { padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)); gap: 7px; }
-  .plu-top { padding: 8px 10px; border-radius: 18px; }
-  .plu-sub { display: none; }
-  .plu-card { padding: 14px 12px; border-radius: 22px; }
-  .plu-img { width: 72px; height: 72px; font-size: 34px; margin-bottom: 6px; border-radius: 22px; }
-  .plu-card .nm2 { font-size: 19px; margin: 3px 0; }
-  .plu-card .big { font-size: 40px; margin: 4px 0; }
-  .plu-digit { width: 44px; height: 50px; font-size: 26px; }
-  .plu-numpad { padding: 10px; gap: 7px; border-radius: 22px; }
-  .plu-key { height: 46px; font-size: 20px; border-radius: 14px; }
-  .plu-opt { min-height: 60px; padding: 12px 8px; font-size: 14.5px; }
+/* ---------- Bổ sung hiệu năng / tra cứu ---------- */
+#plu [hidden] { display: none !important; }
+.plu-flip { will-change: transform; }
+.plu-bg { contain: strict; }
+.plu-sch-wrap { position: sticky; top: 0; z-index: 3; margin: 0 -2px; padding: 2px 2px 12px; background: linear-gradient(var(--b) 78%, transparent); }
+.plu-sch-wrap .plu-sch { margin-bottom: 0; }
+
+/* ---------- Kết quả sát hạch (tiền tố plu-xr-, không trùng class cũ) ---------- */
+
+/* Khung ngoài: căn giữa, giới hạn chiều rộng */
+.plu-xr { width: 100%; max-width: 640px; margin: auto; animation: plu-rise .3s ease-out; }
+
+/* Thẻ kính duy nhất chứa mọi thứ */
+.plu-xr-card { --r: 30px; padding: 22px 22px 20px; display: grid; gap: 16px; min-width: 0; }
+.plu-xr-k { text-align: center; }
+
+/* Hàng trên: vòng % + 3 chỉ số */
+.plu-xr-top { display: flex; align-items: center; justify-content: center; gap: 22px; min-width: 0; }
+.plu-xr-stats { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.plu-xr-st { padding: 12px 6px; border-radius: 16px; text-align: center; background: var(--f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .3); }
+.plu-xr-st b { display: block; font-size: 19px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plu-xr-st span { display: block; margin-top: 2px; font-size: 11px; color: var(--m); }
+
+/* Dải kết luận: trọn chiều rộng thẻ, reset để không bị CSS host/PLUCounter đè */
+.plu-xr-v {
+  position: static; float: none; transform: none;
+  display: block; width: 100%; max-width: 100%; height: auto; min-height: 0;
+  margin: 0; padding: 11px 16px; border: 0; border-radius: 16px;
+  text-align: center; font-size: 15px; font-weight: 750; line-height: 1.3;
+  white-space: normal; text-wrap: balance; overflow: visible;
+}
+.plu-xr-v::before, .plu-xr-v::after { content: none; display: none; }
+.plu-xr-v.is-pass { color: var(--ok); background: rgba(48, 209, 88, .15); }
+.plu-xr-v.is-fail { color: var(--warn); background: rgba(255, 159, 10, .15); }
+
+/* Tiêu đề + danh sách mã cần xem lại (PC: 2 cột, cuộn trong thẻ) */
+.plu-xr-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 13px; font-weight: 700; }
+.plu-xr-hd small { font-size: 11.5px; font-weight: 600; color: var(--m); }
+.plu-xr-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: min(30vh, 260px); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; scrollbar-width: thin; scrollbar-color: var(--e2) transparent; }
+.plu-xr-it { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 14px; min-width: 0; background: var(--f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .25); }
+.plu-xr-it b { flex: none; min-width: 48px; padding: 5px 0; border-radius: 9px; text-align: center; font: 800 13px var(--mono); letter-spacing: .04em; color: var(--no); background: rgba(255, 69, 58, .12); }
+.plu-xr-it span { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.plu-xr-clean { padding: 18px 12px; text-align: center; font-size: 14px; font-weight: 650; color: var(--ok); }
+
+/* Nút: 2 nút chia đều chiều ngang thẻ */
+.plu-xr-act { display: flex; gap: 10px; }
+.plu-xr-act .plu-btn { flex: 1; min-width: 0; }
+
+/* Điện thoại: xếp 1 cột, danh sách 1 cột, nút xếp dọc full ngang */
+@media (max-width: 760px) {
+  .plu-xr-card { --r: 26px; padding: 18px 14px 14px; gap: 14px; }
+  .plu-xr-top { flex-direction: column; gap: 14px; }
+  .plu-xr-stats { width: 100%; flex: none; }
+  .plu-xr-list { grid-template-columns: minmax(0, 1fr); max-height: none; overflow: visible; }
+  .plu-xr-act { flex-direction: column; }
 }

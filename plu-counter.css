@@ -1,0 +1,300 @@
+/* ==========================================================================
+   PLU COUNTER – Quầy POS 3D cho chế độ "Thi đứng quầy"
+   Thêm vào CUỐI file CSS chính (hoặc nạp sau nó). Mọi selector nằm trong #plu.
+   Góc nghiêng mặt quầy: --tilt (khớp với CFG.tilt trong plu-counter.js).
+   ========================================================================== */
+
+#plu .pc { --tilt: 60deg; --isz: 64px; position: relative; flex: 1 0 auto; width: 100%; max-width: 1080px; min-height: 620px; margin: 0 auto; display: flex; flex-direction: column; animation: plu-rise .3s ease-out; }
+
+/* ---------- HUD ---------- */
+.pc-hud { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.pc-hud .plu-pips { flex: 1; max-width: none; margin: 0; padding: 0 4px; }
+.pc-tag { font: 700 12px var(--mono); color: var(--m); letter-spacing: .04em; white-space: nowrap; }
+.pc-help { margin-top: 8px; text-align: center; font-size: 11.5px; color: var(--m); }
+.pc-help b { color: var(--i); font-weight: 650; }
+
+/* ---------- Cảnh ---------- */
+.pc-scene { position: relative; flex: 1 1 auto; min-height: 540px; }
+.pc-world { position: absolute; inset: 0; transform-origin: 50% 70%; transition: transform .25s ease-out; will-change: transform; }
+.pc-wall {
+  position: absolute; inset: 0 0 30% 0; border-radius: 26px;
+  background:
+    radial-gradient(ellipse at 50% 0, rgba(120, 160, 255, .13), transparent 62%),
+    repeating-linear-gradient(0deg, transparent 0 78px, rgba(255, 255, 255, .035) 78px 80px);
+}
+
+/* ---------- Màn hình POS đặt trên quầy ---------- */
+.pc-mon { position: absolute; left: 50%; top: 0; z-index: 4; width: min(96%, 900px); height: 64%; display: flex; flex-direction: column; transform: perspective(1500px) translateX(-50%) rotateX(3deg); transform-origin: 50% 100%; }
+.pc-bezel {
+  position: relative; flex: 1; min-height: 0; display: flex; padding: 12px 12px 22px; border-radius: 22px;
+  background: linear-gradient(160deg, #2b303c, #10131a 62%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px rgba(255, 255, 255, .06), 0 30px 50px -26px rgba(0, 0, 0, .85);
+}
+.pc-bezel::after { content: "PLU · POS"; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font: 700 9px var(--mono); letter-spacing: .32em; color: #596075; }
+.pc-screen { position: relative; flex: 1; min-width: 0; border-radius: 12px; overflow: hidden; background: #0b1220; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 0 44px rgba(10, 132, 255, .14); }
+.pc-screen::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, rgba(255, 255, 255, .07), transparent 38%); }
+.pc-neck { flex: none; align-self: center; width: 84px; height: 22px; background: linear-gradient(90deg, #161922, #3a4050 50%, #161922); }
+.pc-foot { flex: none; align-self: center; width: 240px; height: 14px; margin-top: -4px; border-radius: 50%; background: radial-gradient(#3d4354, #12151c); box-shadow: 0 12px 20px -6px rgba(0, 0, 0, .7); }
+
+/* ---------- Mặt quầy 3D ---------- */
+.pc-deck { position: absolute; left: 0; right: 0; bottom: 0; height: 42%; z-index: 3; perspective: 1100px; perspective-origin: 50% 35%; pointer-events: none; }
+.pc-top {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 420px; border-radius: 18px 18px 0 0; pointer-events: none;
+  transform-origin: 50% 100%; transform: rotateX(var(--tilt)); transform-style: preserve-3d;
+  background: linear-gradient(180deg, #232834, #2f3544 45%, #3a4153);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.pc-belt {
+  position: absolute; left: 1.5%; top: 14%; width: 36%; height: 70%; border-radius: 10px;
+  background: repeating-linear-gradient(90deg, #13151b 0 18px, #1b1e26 18px 36px);
+  box-shadow: inset 0 0 0 2px #0a0b0f, inset 0 6px 14px rgba(0, 0, 0, .6);
+}
+.pc-belt.run { animation: pc-belt .9s linear infinite; }
+@keyframes pc-belt { to { background-position: 36px 0; } }
+.pc-scan {
+  position: absolute; left: 41%; top: 28%; width: 20%; height: 46%; border-radius: 10px;
+  background: linear-gradient(135deg, #0d2a44, #16507a 50%, #0d2a44);
+  box-shadow: inset 0 0 0 3px #1c212b, inset 0 0 18px rgba(80, 180, 255, .35), 0 0 0 3px #12151c;
+  transition: box-shadow .2s;
+}
+.pc-scan i { position: absolute; left: 6%; right: 6%; top: 10%; height: 2px; background: #ff453a; box-shadow: 0 0 10px 2px rgba(255, 69, 58, .8); opacity: 0; }
+.pc-scan.on i { opacity: 1; animation: pc-laser .45s ease-in-out infinite alternate; }
+@keyframes pc-laser { to { top: 88%; } }
+.pc-scan.fail { box-shadow: inset 0 0 0 3px #1c212b, inset 0 0 24px rgba(255, 69, 58, .65), 0 0 0 3px #12151c, 0 0 26px rgba(255, 69, 58, .35); }
+.pc-bagzone { position: absolute; left: 68%; top: 12%; width: 29%; height: 74%; border-radius: 12px; background: rgba(255, 255, 255, .045); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .09); }
+.pc-shadow { position: absolute; height: 34px; margin: -17px 0 0 0; transform: translateX(-50%); border-radius: 50%; background: rgba(0, 0, 0, .5); filter: blur(7px); }
+
+/* Vật đứng thẳng trên mặt quầy (rổ, túi): xoay ngược góc nghiêng */
+.pc-basket, .pc-bag { position: absolute; transform: translateX(-50%) rotateX(calc(var(--tilt) * -1)); transform-origin: 50% 100%; }
+.pc-basket { left: 19%; bottom: 30%; width: 150px; height: 92px; cursor: pointer; pointer-events: auto; }
+.pc-bk-handle { position: absolute; left: 16px; right: 16px; top: -10px; height: 42px; border: 5px solid #e5483a; border-bottom: 0; border-radius: 40px 40px 0 0; }
+.pc-bk-pile { position: absolute; left: 6px; right: 6px; top: -8px; height: 40px; display: flex; justify-content: center; align-items: flex-end; font-size: 30px; line-height: 1; }
+.pc-bk-body { position: absolute; left: 0; right: 0; top: 28px; bottom: 0; border-radius: 6px 6px 18px 18px; background: repeating-linear-gradient(90deg, #c0392b 0 10px, #a93226 10px 12px); box-shadow: inset 0 -8px 14px rgba(0, 0, 0, .32); }
+.pc-bk-rim { position: absolute; left: -5px; right: -5px; top: 24px; height: 9px; border-radius: 6px; background: #e5483a; }
+.pc-bk-n { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 700 11px var(--mono); color: rgba(255, 255, 255, .9); }
+.pc-basket.ready .pc-bk-pile { animation: pc-nudge .8s ease-in-out infinite; }
+@keyframes pc-nudge { 50% { transform: translateY(-8px); } }
+
+.pc-bag { left: 83%; bottom: 28%; width: 96px; height: 104px; }
+.pc-bag-b { position: absolute; left: 0; right: 0; top: 18px; bottom: 0; border-radius: 6px 6px 12px 12px; background: linear-gradient(90deg, #b88a5a, #d3a874 50%, #b88a5a); box-shadow: inset 0 -10px 16px rgba(0, 0, 0, .2); display: grid; place-items: center; font: 800 26px var(--mono); color: rgba(60, 38, 18, .85); }
+.pc-bag-h { position: absolute; left: 22px; right: 22px; top: 0; height: 26px; border: 4px solid #a67a4c; border-bottom: 0; border-radius: 22px 22px 0 0; }
+.pc-bag.pop { animation: pc-pop .35s; }
+@keyframes pc-pop { 40% { transform: translateX(-50%) rotateX(calc(var(--tilt) * -1)) scale(1.12); } }
+
+/* ---------- Món hàng bay trên quầy ---------- */
+.pc-it { position: absolute; left: 0; top: 0; z-index: 5; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3, .7, .2, 1); will-change: transform; }
+.pc-it-sh { position: absolute; left: -28px; top: -13px; width: 56px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, .5); filter: blur(4px); }
+.pc-it-b {
+  position: absolute; left: 0; top: 0; width: var(--isz); height: var(--isz); display: grid; place-items: center; border-radius: 50%; overflow: hidden;
+  font-size: calc(var(--isz) * .6); line-height: 1; --s: 1;
+  transform-origin: 0 0; transform: rotateX(calc(var(--tilt) * -1)) scale(var(--s)) translate(-50%, -100%);
+  background: radial-gradient(circle at 32% 20%, rgba(255, 255, 255, .42), rgba(255, 255, 255, .1) 55%, rgba(255, 255, 255, .05));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35), 0 8px 14px -6px rgba(0, 0, 0, .6);
+  transition: transform .4s, opacity .3s;
+  animation: pc-in .4s ease-out;
+}
+.pc-it-b img { width: 100%; height: 100%; object-fit: cover; }
+.pc-it-b.big { --s: 1.3; }
+.pc-it-b.hop { animation: pc-hop .6s cubic-bezier(.3, .7, .2, 1); }
+.pc-it-b.gone { opacity: 0; --s: .3; }
+@keyframes pc-in { from { opacity: 0; } }
+@keyframes pc-hop { 50% { transform: translateZ(80px) rotateX(calc(var(--tilt) * -1)) scale(calc(var(--s) * 1.15)) translate(-50%, -100%); } }
+
+/* ==========================================================================
+   GIAO DIỆN POS MẶC ĐỊNH (.pos) – thay bằng PLUCounter.registerPOS(...) nếu muốn custom
+   Chia cột: --pos-l / --pos-r (mặc định 70fr / 30fr, đặt bằng CFG.split)
+   ========================================================================== */
+.pos { position: absolute; inset: 0; display: grid; grid-template-columns: var(--pos-l, 70fr) var(--pos-r, 30fr); color: #e9eef8; background: linear-gradient(180deg, #0e1626, #0a101c); }
+.pos-tm { position: absolute; left: 0; right: 0; top: 0; height: 3px; z-index: 2; background: rgba(255, 255, 255, .08); }
+.pos-tm i { display: block; height: 100%; background: #4aa8ff; transform-origin: left center; transform: scaleX(1); will-change: transform; }
+.pos-l { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 12px; border-right: 1px solid rgba(255, 255, 255, .08); }
+.pos-bar { display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #8fa0bf; white-space: nowrap; }
+.pos-bar b { color: #e9eef8; font-weight: 700; }
+.pos-state { margin-left: auto; padding: 4px 11px; border-radius: 999px; font-weight: 700; background: rgba(255, 255, 255, .08); }
+.pos-state.scan { color: #4aa8ff; background: rgba(74, 168, 255, .14); }
+.pos-state.nobar { color: #ff9f0a; background: rgba(255, 159, 10, .14); }
+.pos-state.ok { color: #30d158; background: rgba(48, 209, 88, .14); }
+.pos-state.bad { color: #ff453a; background: rgba(255, 69, 58, .14); }
+.pos-item { flex: none; display: flex; align-items: center; gap: 18px; min-height: 116px; padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.pos-pic { flex: none; width: 84px; height: 84px; display: grid; place-items: center; border-radius: 20px; font-size: 48px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.pos-pic img { width: 100%; height: 100%; object-fit: cover; }
+.pos-info { min-width: 0; display: grid; gap: 4px; }
+.pos-nm { font-size: clamp(20px, 2.6vw, 30px); font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+.pos-meta { font-size: 12.5px; color: #8fa0bf; }
+.pos-ans { min-height: 18px; font-size: 13px; color: #8fa0bf; }
+.pos-ans b.g { color: #30d158; } .pos-ans b.r { color: #ff453a; }
+.pos-ans code { font: 800 13px var(--mono); padding: 1px 7px; border-radius: 7px; background: rgba(255, 255, 255, .1); color: #fff; }
+.pos-rcpt { flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: rgba(0, 0, 0, .25); }
+.pos-rh, .pos-rl { display: grid; grid-template-columns: 64px 1fr 84px 24px; gap: 8px; align-items: center; padding: 7px 12px; font-size: 12.5px; }
+.pos-rh { flex: none; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6f819f; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.pos-rls { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.pos-rl { border-top: 1px solid rgba(255, 255, 255, .05); animation: plu-rise .25s ease-out; }
+.pos-rl .c { font: 800 12.5px var(--mono); }
+.pos-rl .n { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pos-rl .w { font: 600 12px var(--mono); color: #8fa0bf; text-align: right; }
+.pos-rl .k.y { color: #30d158; } .pos-rl .k.x { color: #ff453a; }
+.pos-r { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 12px 12px; background: rgba(0, 0, 0, .18); }
+.pos-lcd { flex: none; display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; background: #050a12; box-shadow: inset 0 2px 8px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(255, 255, 255, .07); transition: box-shadow .2s; }
+.pos-lcd small { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6f819f; }
+.pos-lcd-v { display: flex; align-items: center; gap: .18em; min-height: 1.15em; font: 700 clamp(26px, 3.4vw, 38px)/1.1 var(--mono); color: #7dffb0; text-shadow: 0 0 12px rgba(125, 255, 176, .4); }
+.pos-lcd-v .p { color: #2c3a52; text-shadow: none; }
+.pos-lcd-v .p.cur { color: #7dffb0; animation: plu-blink 1s steps(2) infinite; }
+.pos-lcd.good { box-shadow: inset 0 2px 8px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(48, 209, 88, .6); }
+.pos-lcd.bad { box-shadow: inset 0 2px 8px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(255, 69, 58, .6); animation: plu-sh .3s; }
+.pos-lcd.bad .pos-lcd-v { color: #ff6b61; text-shadow: 0 0 12px rgba(255, 69, 58, .4); }
+.pos-pad { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 7px; }
+.pos-k { min-height: 38px; border: 0; border-radius: 12px; cursor: pointer; color: #e9eef8; font: 700 22px var(--mono); background: rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); transition: transform .07s, background .15s; }
+.pos-k:hover { background: rgba(255, 255, 255, .15); }
+.pos-k:active, .pos-k.hit { transform: scale(.94); background: rgba(255, 255, 255, .24); }
+.pos-k.fn { font: 650 13px inherit; font-family: inherit; color: #8fa0bf; }
+.pos-k.ok { font: 700 14px inherit; font-family: inherit; color: #fff; background: var(--a); }
+
+/* ---------- Điện thoại: quầy ở trên, màn hình POS + bàn phím ở dưới (tầm ngón cái) ---------- */
+@media (max-width: 760px) {
+  #plu .pc { --isz: 50px; min-height: 0; }
+  .pc-scene { min-height: 0; }
+  .pc-world { position: relative; inset: auto; display: flex; flex-direction: column; min-height: 600px; }
+  .pc-wall { display: none; }
+  .pc-deck { position: relative; order: 1; flex: none; height: 210px; }
+  .pc-top { height: 330px; }
+  .pc-basket { transform: translateX(-50%) rotateX(calc(var(--tilt) * -1)) scale(.78); }
+  .pc-bag { transform: translateX(-50%) rotateX(calc(var(--tilt) * -1)) scale(.8); }
+  .pc-mon { position: relative; left: auto; top: auto; order: 2; flex: 1; width: 100%; height: auto; transform: none; margin-top: 4px; }
+  .pc-neck, .pc-foot { display: none; }
+  .pc-bezel { padding: 8px 8px 16px; border-radius: 18px; }
+  .pc-screen { min-height: 330px; }
+  .pos { position: relative; min-height: 100%; grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .pos-l { padding: 12px 12px 8px; border-right: 0; gap: 8px; }
+  .pos-rcpt, .pos-bar span:nth-child(2), .pos-bar span:nth-child(3) { display: none; }
+  .pos-item { min-height: 0; padding: 10px 12px; gap: 12px; }
+  .pos-pic { width: 56px; height: 56px; font-size: 32px; border-radius: 14px; }
+  .pos-nm { font-size: 19px; }
+  .pos-r { padding: 4px 12px 12px; }
+  .pos-k { min-height: 42px; font-size: 20px; }
+  .pc-help { display: none; }
+}
+@media (max-height: 720px) and (min-width: 761px) { .pc-scene { min-height: 480px; } #plu .pc { min-height: 540px; } }
+
+/* ==========================================================================
+   VIEW WEBGL (plu-counter-gl.js v3): toàn bộ cảnh trong canvas, UI POS chiếu lên màn hình 3D
+   ========================================================================== */
+.pc-scene.loading { display: grid; place-items: center; }
+.pc-loading { color: var(--m); font-size: 13px; }
+.pc-scene.gl { min-height: 640px; }
+.pcg { position: absolute; inset: 0; }
+.pcg-cv { position: absolute; inset: 0; border-radius: 24px; overflow: hidden; background: #0a0d14; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 18px 40px -22px rgba(0, 0, 0, .6); }
+.pcg-cv canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+
+/* Mặt phẳng UI POS: kích thước logic cố định (JS đặt), matrix3d do JS tính mỗi khung hình */
+.pcg-pos { position: absolute; left: 0; top: 0; z-index: 2; visibility: hidden; transform-origin: 0 0; overflow: hidden; border-radius: 10px; background: #0b1220; will-change: transform; touch-action: manipulation; }
+
+.pcg-pos::after { content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; background: linear-gradient(115deg, rgba(255, 255, 255, .07), transparent 38%); }
+
+/* Màn hình POS logic 720×450 nhỏ hơn khung desktop cũ: chỉnh cỡ chữ cho vừa */
+@media (min-width: 761px) {
+  .pcg-pos .pos-nm { font-size: 24px; }
+  .pcg-pos .pos-lcd-v { font-size: 32px; }
+  .pcg-pos .pos-k { font-size: 20px; }
+}
+@media (max-width: 760px) {
+  .pc-scene.gl { min-height: 680px; }
+  .pcg-cv { border-radius: 20px; }
+}
+
+/* ==========================================================================
+   POS trong canvas 3D: bố cục theo khung cố định (720×450 ngang / 400×500 dọc),
+   không dùng media query của cửa sổ. Ghi đè toàn bộ rule điện thoại của .pos.
+   ========================================================================== */
+.pcg-pos .pos { position: absolute; inset: 0; min-height: 0; display: grid; grid-template-columns: 1fr 270px; grid-template-rows: 100%; }
+.pcg-pos .pos-tm { height: 4px; }
+
+/* Cột trái: thanh trạng thái, món hàng, hoá đơn */
+.pcg-pos .pos-l { padding: 14px 14px 12px; gap: 10px; border-right: 1px solid rgba(255, 255, 255, .08); }
+.pcg-pos .pos-bar { gap: 12px; font-size: 11px; }
+.pcg-pos .pos-bar span { display: inline; }
+.pcg-pos .pos-bar .pos-state { display: inline-block; margin-left: auto; padding: 4px 10px; }
+.pcg-pos .pos-item { min-height: 0; padding: 12px 14px; gap: 14px; }
+.pcg-pos .pos-pic { width: 68px; height: 68px; font-size: 38px; border-radius: 16px; }
+.pcg-pos .pos-nm { font-size: 22px; }
+.pcg-pos .pos-meta { font-size: 11.5px; }
+.pcg-pos .pos-rcpt { display: flex; }
+.pcg-pos .pos-rh, .pcg-pos .pos-rl { grid-template-columns: 54px 1fr 64px 20px; padding: 6px 10px; font-size: 12px; }
+
+/* Cột phải: màn hình nhập + bàn phím lấp đầy chiều cao */
+.pcg-pos .pos-r { padding: 14px 14px 14px 12px; gap: 10px; }
+.pcg-pos .pos-lcd { padding: 8px 12px 10px; }
+.pcg-pos .pos-lcd-v { font-size: 34px; justify-content: center; }
+.pcg-pos .pos-pad { flex: 1; gap: 8px; }
+.pcg-pos .pos-k { min-height: 0; font-size: 26px; border-radius: 14px; }
+.pcg-pos .pos-k.fn { font-family: inherit; font-size: 15px; font-weight: 650; }
+.pcg-pos .pos-k.ok { font-family: inherit; font-size: 16px; font-weight: 700; }
+
+/* ---------- Khung dọc (400×500): thông tin món ở trên, bàn phím to ở dưới ---------- */
+.pcg-pos.por .pos { grid-template-columns: 100%; grid-template-rows: auto 1fr; }
+.pcg-pos.por .pos-l { padding: 12px 12px 6px; gap: 8px; border-right: 0; }
+.pcg-pos.por .pos-bar span:nth-child(2), .pcg-pos.por .pos-bar span:nth-child(3) { display: none; }
+.pcg-pos.por .pos-rcpt { display: none; }
+.pcg-pos.por .pos-item { padding: 10px 12px; gap: 12px; }
+.pcg-pos.por .pos-pic { width: 56px; height: 56px; font-size: 32px; border-radius: 14px; }
+.pcg-pos.por .pos-nm { font-size: 19px; }
+.pcg-pos.por .pos-r { padding: 6px 12px 12px; }
+.pcg-pos.por .pos-lcd-v { font-size: 30px; }
+.pcg-pos.por .pos-k { font-size: 24px; }
+
+/* Bỏ các chỉnh cỡ chữ cũ của khối WebGL (đã gộp ở trên) */
+@media (min-width: 761px) {
+  .pcg-pos .pos-nm { font-size: 22px; }
+  .pcg-pos .pos-lcd-v { font-size: 34px; }
+  .pcg-pos .pos-k { font-size: 26px; }
+}
+
+/* ===== POS trong canvas 3D: bố cục cứng bằng toạ độ tuyệt đối, thắng mọi rule cũ ===== */
+.pcg-pos .pos { position: absolute !important; inset: 0 !important; display: block !important; min-height: 0 !important; }
+
+/* Ngang (720×450): cột trái co giãn, cột phải 270px */
+.pcg-pos .pos-l  { position: absolute !important; left: 0 !important; top: 0 !important; bottom: 0 !important; right: 270px !important; width: auto !important; display: flex !important; flex-direction: column !important; padding: 14px 14px 12px !important; gap: 10px !important; border-right: 1px solid rgba(255,255,255,.08) !important; overflow: hidden; }
+.pcg-pos .pos-r  { position: absolute !important; right: 0 !important; top: 0 !important; bottom: 0 !important; left: auto !important; width: 270px !important; display: flex !important; flex-direction: column !important; padding: 14px !important; gap: 10px !important; }
+.pcg-pos .pos-bar span { display: inline !important; }
+.pcg-pos .pos-rcpt { display: flex !important; }
+.pcg-pos .pos-item { min-height: 0 !important; padding: 12px 14px !important; gap: 14px !important; }
+.pcg-pos .pos-pic { width: 68px !important; height: 68px !important; font-size: 38px !important; }
+.pcg-pos .pos-nm { font-size: 22px !important; }
+.pcg-pos .pos-rh, .pcg-pos .pos-rl { grid-template-columns: 54px 1fr 64px 20px !important; }
+.pcg-pos .pos-lcd { flex: none !important; }
+.pcg-pos .pos-lcd-v { font-size: 34px !important; justify-content: center; }
+.pcg-pos .pos-pad { flex: 1 !important; min-height: 0 !important; display: grid !important; grid-template-columns: repeat(3, 1fr) !important; grid-template-rows: repeat(4, 1fr) !important; gap: 8px !important; }
+.pcg-pos .pos-k { min-height: 0 !important; font-size: 26px !important; }
+.pcg-pos .pos-k.fn, .pcg-pos .pos-k.ok { font-family: inherit !important; font-size: 15px !important; }
+
+/* Dọc (400×500): thông tin món ở trên, bàn phím ở dưới */
+.pcg-pos.por .pos-l { right: 0 !important; bottom: auto !important; height: 150px !important; border-right: 0 !important; padding: 12px 12px 6px !important; gap: 8px !important; }
+.pcg-pos.por .pos-r { left: 0 !important; width: auto !important; top: 150px !important; padding: 6px 12px 12px !important; }
+.pcg-pos.por .pos-bar span:nth-child(2), .pcg-pos.por .pos-bar span:nth-child(3), .pcg-pos.por .pos-rcpt { display: none !important; }
+.pcg-pos.por .pos-pic { width: 52px !important; height: 52px !important; font-size: 30px !important; }
+.pcg-pos.por .pos-nm { font-size: 18px !important; }
+.pcg-pos.por .pos-lcd-v { font-size: 30px !important; }
+
+/* ===== Thanh trạng thái POS: không cho chữ đè nhau ===== */
+.pcg-pos .pos-bar { display: flex !important; align-items: center !important; gap: 10px !important; min-width: 0 !important; overflow: hidden !important; }
+.pcg-pos .pos-bar > span { flex: none !important; }
+.pcg-pos .pos-bar > span:nth-child(2),
+.pcg-pos .pos-bar > span:nth-child(3) { display: none !important; }   /* bỏ "THU NGÂN" và giờ cho đỡ chật */
+.pcg-pos .pos-bar .pos-state {
+  flex: 0 1 auto !important; min-width: 0 !important; max-width: 100% !important; margin-left: auto !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+  padding: 4px 10px !important; font-size: 11px !important;
+}
+
+/* Thẻ món hàng: tên và mô tả tự xuống dòng, không tràn */
+.pcg-pos .pos-info { min-width: 0 !important; flex: 1 !important; }
+.pcg-pos .pos-nm, .pcg-pos .pos-meta, .pcg-pos .pos-ans { overflow-wrap: anywhere !important; white-space: normal !important; }
+.pcg-pos .pos-item { overflow: hidden !important; }
+
+/* chừa chỗ cho nút X ở góc phải, nút Tiếp/Không biết không bị đè */
+.pc-hud { padding-right: 52px; }
+.pc-hud .plu-pips { min-width: 0; }
+.pc-skip { flex: none; white-space: nowrap; }
+.pc-skip.dont { opacity: .9; }
+@media (max-width: 760px) { .pc-hud { padding-right: 48px; gap: 8px; } }
+
+.pc-loading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; text-align: center; padding: 0 16px; }
