@@ -91,6 +91,35 @@ function enterFull(sceneEl, ctx) {
   function easeIO(k) { return k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k); }
   function easeOut(k) { return 1 - Math.pow(1 - k, 3); }
 
+
+  /* Khung giao diện Vynamic POS (chỉ để trang trí, không bắt chạm) */
+var VX_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+var VX_HTML =
+  '<div class="vx-top">' +
+    VX_SVG.replace("<svg", '<svg class="vx-home"') + '<path d="M3.5 11.5L12 4l8.5 7.5M6 10v10h12V10M10 20v-5.5h4V20"/></svg>' +
+    '<div class="vx-kg"><b>--,-- kg</b><i>± 1 kg</i></div>' +
+    '<div class="vx-scale"><i>&lt;scale-min&gt;0 kg</i><i>&lt;scale-max&gt;2,147,483 kg</i></div>' +
+    '<div class="vx-ttl"><b>VYNAMIC POS CLIENT</b><span class="vx-clk">2:48 PM  |  11/2/2026</span></div>' +
+    VX_SVG.replace("<svg", '<svg class="vx-srch"') + '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>' +
+  '</div>' +
+  '<div class="vx-mid">' +
+    '<span class="vx-pill" style="top:46px">IN LẠI BIÊN LAI</span>' +
+    '<span class="vx-pill" style="top:160px">HỦY ĐƠN</span>' +
+    '<div class="vx-pg">' +
+      '<i class="c">' + VX_SVG + '<path d="M14.5 6l-6 6 6 6"/></svg></i>' +
+      '<i class="d on"></i><i class="d"></i><i class="d"></i>' +
+      '<i class="c">' + VX_SVG + '<path d="M9.5 6l6 6-6 6"/></svg></i>' +
+    '</div>' +
+  '</div>' +
+  '<div class="vx-sum"><div class="l"><span>KHUYẾN MÃI VND<i>-</i></span><span>THUẾ VND<i>-</i></span><span>SỐ<i>-</i></span></div>' +
+    '<div class="r"><span>TỔNG CỘNG VND<i>-</i></span></div></div>' +
+  '<div class="vx-bot">' +
+    '<b class="vx-dn">Dn</b>' +
+    '<div class="vx-acc">Tài khoản điều hành: <b>207301</b><br>POS: 6</div>' +
+    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>' +
+    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg>' +
+  '</div>';
+
   /* ---------- hằng số bố cục ---------- */
   var CT = { x0: -5.4, x1: 5.4, z0: -2.0, z1: 2.2 };                 /* mặt quầy, dày 1.0 (y: -1 → 0) */
   var BASKET = { x: -2.6, z: 1.15, w: 1.95, d: 1.5, floor: -0.9 };   /* ô lõm vừa khít rổ */
@@ -218,7 +247,7 @@ renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preven
 
     /* ---------- máy POS 3D: đế, cổ, màn hình ngả, máy quét gắn dưới màn hình ---------- */
     var bezelM = mat(0x161a23, 0.35, 0.5);
-    var glassScrM = new THREE.MeshBasicMaterial({ color: 0x0b1220 }); disposables.push(glassScrM);
+var glassScrM = new THREE.MeshBasicMaterial({ color: 0xeceef8 }); disposables.push(glassScrM);
     var ledM = new THREE.MeshBasicMaterial({ color: 0x30d158 }); disposables.push(ledM);
 
     scene.add(mesh(geo(new THREE.BoxGeometry(1.9, 0.09, 1.0)), mat(0x1c212b, 0.4, 0.5), 0, 0.045, MON.z + 0.05));
@@ -250,14 +279,17 @@ renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preven
     function buildMonitor(portrait) {
       screenDisp.forEach(function (g) { g.dispose(); }); screenDisp = [];
       [monStatic, monTilt].forEach(function (grp) { while (grp.children.length) grp.remove(grp.children[0]); });
-      if (portrait) { SW = 2.8; PW = 400; PH = 500; } else { SW = 3.4; PW = 720; PH = 450; }
+if (portrait) { SW = 2.8; PW = 400; PH = 500; } else { SW = 3.2; PW = 640; PH = 480; }   /* ngang: 4:3 như màn thật */
       SH = SW * PH / PW;
       var cy = MON.bottom + SH / 2;
       monTilt.position.set(0, cy, MON.z);
       monTilt.rotation.x = -MON.tilt * Math.PI / 180;
-      monTilt.add(mesh(sgeo(new THREE.BoxGeometry(SW + 0.36, SH + 0.36, 0.16)), bezelM, 0, 0, -0.08));
+      /* viền đen dày hơn ở cằm, giống máy thật */
+monTilt.add(mesh(sgeo(new THREE.BoxGeometry(SW + 0.28, SH + 0.40, 0.16)), bezelM, 0, -0.06, -0.08));
+
       var scr = new THREE.Mesh(sgeo(new THREE.PlaneGeometry(SW, SH)), glassScrM); scr.position.z = 0.002; monTilt.add(scr);
-      var led = new THREE.Mesh(sgeo(new THREE.SphereGeometry(0.028, 10, 8)), ledM); led.position.set(0, -(SH / 2 + 0.1), 0.01); monTilt.add(led);
+/* đèn LED xanh dời sang góc phải dưới */
+var led = new THREE.Mesh(sgeo(new THREE.SphereGeometry(0.028, 10, 8)), ledM); led.position.set(SW / 2 - 0.12, -(SH / 2 + 0.14), 0.01); monTilt.add(led);
       var neckH = cy - 0.09;
       monStatic.add(mesh(sgeo(new THREE.BoxGeometry(0.42, neckH, 0.24)), bezelM, 0, 0.09 + neckH / 2, MON.z - 0.2));
       monTilt.updateMatrixWorld(true);
@@ -1118,6 +1150,26 @@ B.egg = function (g, o) {
     }
     raf = requestAnimationFrame(loop);
 
+    /* ---------- khung Vynamic POS: tự chèn lại nếu engine vẽ lại POS; gắn data-d cho phím số ---------- */
+var vx = document.createElement("div"); vx.className = "vx"; vx.innerHTML = VX_HTML;
+var vxClk = vx.querySelector(".vx-clk");
+function vxTick() {
+  var d = new Date();
+  vxClk.textContent = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + "  |  " + (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
+}
+function vxSync() {
+  if (vx.parentNode !== posMount) posMount.appendChild(vx);
+  var ks = posMount.querySelectorAll(".pos-k");
+  for (var i = 0; i < ks.length; i++) {
+    var k = ks[i];
+    if (!k.classList.contains("fn") && !k.classList.contains("ok")) k.setAttribute("data-d", (k.textContent || "").trim());
+  }
+}
+var vxObs = new MutationObserver(vxSync);
+vxObs.observe(posMount, { childList: true, subtree: true });
+vxSync(); vxTick();
+var vxTimer = setInterval(vxTick, 1000);
+
     /* ---------- giao diện view ---------- */
     return {
       kind: "gl",
@@ -1151,6 +1203,8 @@ B.egg = function (g, o) {
       },
       destroy: function () {
         alive = false; cancelAnimationFrame(raf);
+
+        vxObs.disconnect(); clearInterval(vxTimer);
         if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
         cv.removeEventListener("pointermove", onMove); cv.removeEventListener("pointerleave", onLeave);
         renderer.domElement.removeEventListener("pointerdown", onDown);
