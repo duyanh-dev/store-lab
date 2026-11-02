@@ -298,3 +298,47 @@
 @media (max-width: 760px) { .pc-hud { padding-right: 48px; gap: 8px; } }
 
 .pc-loading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; text-align: center; padding: 0 16px; }
+
+
+/* ===== Toàn màn hình khi vào thi (WebGL) ===== */
+#plu .pc.pc-full, .pc.pc-full {
+  position: fixed !important; inset: 0 !important; z-index: 9999 !important;
+  width: 100% !important; max-width: none !important; margin: 0 !important;
+  height: 100vh !important; height: 100dvh !important; min-height: 0 !important;
+  box-sizing: border-box; animation: none !important;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: #0a0d14;
+}
+.pc-full .pc-help { display: none !important; }
+.pc-full .pc-hud { margin-bottom: 6px; padding-right: 48px; }
+.pc-full .pc-scene,
+.pc-full .pc-scene.gl { flex: 1 1 0 !important; min-height: 0 !important; }
+.pc-full .pcg-cv { border-radius: 16px; }
+
+.pc-x {
+  position: absolute; z-index: 20;
+  top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right));
+  width: 38px; height: 38px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer; color: #fff;
+  background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.pc-x:active { transform: scale(.92); background: rgba(255,69,58,.5); }
+
+/* điện thoại nằm ngang / màn hình thấp: HUD gọn hơn để nhường chỗ cho cảnh */
+@media (max-height: 520px) {
+  .pc-full .pc-hud { margin-bottom: 2px; }
+  .pc-full .pc-tag { font-size: 11px; }
+}
+
+/* ===== Vào thi: ẩn toàn bộ thanh điều hướng ===== */
+body.plu-full header.mn-host,
+body.plu-full header.mn-host .mn-keep,
+body.plu-full .mn-menu,
+body.plu-full #pcName,
+body.plu-full #mnPanel,
+body.plu-full .mn-panel,
+body.plu-full .mn-backdrop,
+body.plu-full .mn-scrim {
+  display: none !important;
+}

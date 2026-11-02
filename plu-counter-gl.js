@@ -47,6 +47,42 @@ function loadThree(cfg) {
   return p3;
 }
 
+/* Chế độ toàn màn hình: .pc phủ kín viewport, chỉ còn HUD + canvas WebGL + nút X */
+function enterFull(sceneEl, ctx) {
+  var host = sceneEl.closest ? sceneEl.closest(".pc") : null;
+  if (!host) return { leave: function () {} };
+  var root = document.documentElement, prevOv = root.style.overflow, left = false;
+  host.classList.add("pc-full");
+  root.style.overflow = "hidden";
+    document.body.classList.add("plu-full");
+
+  var xb = document.createElement("button");
+  xb.type = "button"; xb.className = "pc-x"; xb.setAttribute("aria-label", "Thoát");
+  xb.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  host.appendChild(xb);
+
+  function leave() {
+    if (left) return; left = true;
+    host.classList.remove("pc-full");
+    root.style.overflow = prevOv;
+        document.body.classList.remove("plu-full");
+    document.removeEventListener("keydown", onKey);
+    if (xb.parentNode) xb.parentNode.removeChild(xb);
+  }
+  function exit() {
+    /* ưu tiên hàm thoát của engine nếu có, rồi tới sự kiện "plu:exit" */
+    var fn = ctx.exit || ctx.close || ctx.quit || ctx.onExit;
+    if (typeof fn === "function") { fn(); return; }
+    var ev = new CustomEvent("plu:exit", { bubbles: true, cancelable: true });
+    if (!host.dispatchEvent(ev)) return;      /* engine đã xử lý (preventDefault) */
+    leave();                                   /* không ai xử lý: ít nhất thoát toàn màn hình */
+  }
+  function onKey(e) { if (e.key === "Escape") exit(); }
+  xb.addEventListener("click", exit);
+  document.addEventListener("keydown", onKey);
+  return { leave: leave };
+}
+
   function hueOf(s) {
     var h = 0; s = String(s || "");
     for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
@@ -1130,12 +1166,18 @@ B.egg = function (g, o) {
 
 /* Đăng ký view gl: build lỗi thì giải phóng context rồi ném lỗi cho engine thử lại */
 window.PLUCounter.registerView("gl", function (sceneEl, ctx) {
+  var full = enterFull(sceneEl, ctx);
   return loadThree(ctx.cfg).then(function (THREE) {
-    try { return build(THREE, sceneEl, ctx); }
-    catch (e) {
+    try {
+      var v = build(THREE, sceneEl, ctx);
+      if (!v) { full.leave(); return v; }
+      var d = v.destroy;
+      v.destroy = function () { full.leave(); d(); };
+      return v;
+    } catch (e) {
       if (ctx._r) { try { ctx._r.dispose(); ctx._r.forceContextLoss(); } catch (_) {} ctx._r = null; }
-      throw e;
+      full.leave(); throw e;
     }
-  });
+  }, function (e) { full.leave(); throw e; });   /* nạp Three lỗi: trả về UI CSS cũ */
 });
 })();
