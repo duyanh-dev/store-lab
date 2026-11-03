@@ -547,3 +547,18 @@ body.plu-full .mn-scrim {
 .pcg-tm .rp.g { border-color: #30d158; animation: pcg-tm-rp .8s ease-out; }
 .pcg-tm .rp.b { border-color: #ff453a; animation: pcg-tm-rp .8s ease-out; }
 @keyframes pcg-tm-rp { from { opacity: .85; transform: scale(1); } to { opacity: 0; transform: scale(2.1); } }
+
+/* ===================== KHỐI 5 – CSS (thêm cuối file CSS) ===================== */
+.pcg-auto {
+  position: absolute; z-index: 6;
+  left: max(12px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top));
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 600 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #2b2f38; background: rgba(255,255,255,.92);
+  box-shadow: 0 2px 10px rgba(0,0,0,.18), inset 0 0 0 1px rgba(0,0,0,.06);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.pcg-auto[hidden] { display: none; }
+.pcg-auto:active { transform: scale(.96); }
+@media (max-width: 760px) { .pcg-auto { padding: 9px 14px; } }
+.pcg-cv canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

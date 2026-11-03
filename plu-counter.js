@@ -32,7 +32,7 @@
 (function () {
   "use strict";
 
-  var CFG = { split: 70, autoPick: true, tilt: 60, renderer: "auto", threeUrl: "" };
+var CFG = { split: 70, autoPick: false, tilt: 60, renderer: "auto", threeUrl: "" };
   var sess = null;
   var posFactory = defaultPOS;
   var views = {};
@@ -285,6 +285,20 @@ function useFallback() {
   try { useView(cssView(sceneEl, ctx)); } catch (e) { console.error("PLUCounter: view CSS lỗi", e); }
 }
 
+/* món có mã vạch? (cùng quy ước với view, view dùng cfg.isScannable để dán tem) */
+function isScan(it) {
+  var f = cfg.isScannable;
+  if (typeof f === "function") { try { return !!f(it); } catch (e) {} }
+  return !!(it && (it.barcode || it.ean || it.scannable || it.scan || it.bar));
+}
+/* tuỳ chọn: ngẫu nhiên, ví dụ PLUCounter.config.barcodeRate = 0.3 → khoảng 30% món có mã vạch */
+if (!cfg.isScannable && cfg.barcodeRate !== 0) {
+  /* mỗi lượt thi bốc một tỉ lệ ngẫu nhiên 10%–60%; muốn cố định thì đặt cfg.barcodeRate = số */
+  var rate = typeof cfg.barcodeRate === "number" ? cfg.barcodeRate : 0.1 + Math.random() * 0.5;
+  var rndBar = items.map(function () { return Math.random() < rate; });
+  cfg.isScannable = function (it) { return !!rndBar[items.indexOf(it)]; };
+}
+
 /* Chọn view: thử GL nhiều lần ngầm, xong thì hiển thị, hết lượt thì dùng CSS */
 function chooseView() {
   if (cfg.renderer === "css" || !views.gl) return useFallback();
@@ -367,22 +381,35 @@ chooseView();
       later(scan, d);
     }
 
-    function scan() {
-      state = "scan"; view.scanStart();
-      pos.setState("scan", "Đang quét…");
-      beep("tap");
-      later(function () {
-        view.scanFail();
-        beep("tap"); later(function () { beep("tap"); }, 110);
-        kg = (0.18 + Math.random() * 2.1).toFixed(3);
-pos.setState("nobar", "Không có mã vạch");
-        pos.showItem(cur, { kg: kg, icon: icon(cur) });
-        pos.setInput("", len, "");
-        state = "type"; t0 = Date.now();
-        setSkip("dont");
-        if (lim) { pos.startTimer(lim); s.limT = later(function () { answer(false, ""); }, lim); }
-      }, 700);
-    }
+  function scan() {
+  state = "scan"; view.scanStart();
+  pos.setState("scan", "Đang quét…");
+  beep("tap");
+  later(function () {
+    if (isScan(cur)) { scanned(); return; }          /* có mã vạch: quét thành công */
+    view.scanFail();
+    beep("tap"); later(function () { beep("tap"); }, 110);
+    kg = (0.18 + Math.random() * 2.1).toFixed(3);
+    pos.setState("nobar", "Không có mã vạch");
+    pos.showItem(cur, { kg: kg, icon: icon(cur) });
+    pos.setInput("", len, "");
+    state = "type"; t0 = Date.now();
+    setSkip("dont");
+    if (lim) { pos.startTimer(lim); s.limT = later(function () { answer(false, ""); }, lim); }
+  }, 700);
+}
+
+function scanned() {
+  if (view.scanOk) view.scanOk(); else view.scanClear();   /* view CSS không có scanOk */
+  beep("tap");
+  kg = (0.18 + Math.random() * 2.1).toFixed(3);
+  pos.setState("ok", "Đã quét · thêm vào hoá đơn");
+  pos.showItem(cur, { kg: kg, icon: icon(cur) });
+  pos.addLine({ code: cur.code, name: cur.name, kg: kg, ok: true });
+  if (pips[i]) pips[i].className = "ok";
+  state = "result"; wrongWait = false; setSkip("");
+  later(proceed, 700);                                      /* proceed() kiểm tra state === "result" rồi gọi view.bag() */
+}  
 
     function press(k) {
       if (state !== "type") return;

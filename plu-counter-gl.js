@@ -1336,6 +1336,31 @@ function kindOf(it) {
     //   if (/non/.test(cat) || em) return "pouch";                         /* emoji lạ → túi in đúng emoji đó */
     //   return "blob";
     // }
+
+  /* ===================== KHỐI 2 – tem mã vạch (dán trước makeItem) ===================== */
+function isScannable(it) {
+  var f = ctx.cfg && ctx.cfg.isScannable;
+  if (typeof f === "function") { try { return !!f(it); } catch (_) {} }
+  return !!(it && (it.barcode || it.ean || it.scannable || it.scan || it.bar));
+}
+function addBarcode(g, it, bb, sz, ctr) {
+  if (!isScannable(it)) return;
+  var code = String(it.barcode || it.ean || "");
+  if (!/^\d{8,13}$/.test(code)) { var r = rng(hueOf(it.name) + 77); code = "8934"; for (var i = 0; i < 9; i++) code += Math.floor(r() * 10); }
+  var tex = ltex("bc|" + code, 192, 112, function (c, w, h) {
+    c.fillStyle = "#fff"; c.fillRect(0, 0, w, h); c.fillStyle = "#111";
+    var r2 = rng(+code.slice(-6) + 3), x = 16;
+    while (x < w - 16) { var bw = 2 + Math.floor(r2() * 4); c.fillRect(x, 12, bw, h - 38); x += bw + 2 + Math.floor(r2() * 4); }
+    c.font = "600 15px ui-monospace,Menlo,Consolas,monospace"; c.textAlign = "center"; c.fillStyle = "#222";
+    c.fillText(code.length === 13 ? code.charAt(0) + " " + code.slice(1, 7) + " " + code.slice(7) : code, w / 2, h - 9);
+  });
+  var w = Math.max(0.14, Math.min(0.4, sz.x * 0.42));
+  var m = new THREE.Mesh(geo(new THREE.PlaneGeometry(w, w * 112 / 192)), mat(0xffffff, 0.55, 0, { map: tex }));
+  m.position.set(ctr.x, bb.min.y + sz.y * 0.3, bb.max.z + 0.006); g.add(m);
+}
+/* ===================== HẾT KHỐI 2 ===================== */
+
+
     function makeItem(it, idx) {
       var kind = kindOf(it), nm = norm(it.name), em = String(icon(it) || "").replace(/\uFE0F/g, "");
       var o = {
@@ -1352,6 +1377,9 @@ catch (err) {                                                      /* một mô 
 }
       var root = new THREE.Group(); root.add(g); root.updateMatrixWorld(true);
       var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new V3()), ctr = bb.getCenter(new V3());
+
+      addBarcode(g, it, bb, sz, ctr);
+
       g.position.set(-ctr.x, -ctr.y, -ctr.z);                           /* tâm mô hình về gốc để logic bay/xếp giữ nguyên */
       root.scale.setScalar(o.size / Math.max(sz.x, sz.y, sz.z, 0.01));
       root.userData.pack = (kind === "pouch" || kind === "bottle" || kind === "can") ? kind : null;   /* hàng đóng gói: ngả nhẹ ở máy quét */
@@ -1666,15 +1694,19 @@ var X = (function () {
   var tagM = new THREE.SpriteMaterial({ map: tagT, transparent: true, depthWrite: false, opacity: 0 }); disposables.push(tagM);
   var tag = new THREE.Sprite(tagM); tag.scale.set(1.9, 0.57, 1); tag.position.set(BASKET.x, 1.95, BASKET.z); tag.visible = false; scene.add(tag);
   var tagKey = "", restN = items.length;
-  function drawTag(n) {
-    if (tagKey === "" + n) return; tagKey = "" + n;
-    var g = tagC.getContext("2d"); g.clearRect(0, 0, 320, 96);
-    g.shadowColor = "rgba(0,0,0,.25)"; g.shadowBlur = 8; g.shadowOffsetY = 2;
-    g.fillStyle = "#ffffff"; rrect(g, 10, 8, 300, 62, 12); g.fill(); g.shadowColor = "transparent";
-    g.fillStyle = "#ffffff"; g.beginPath(); g.moveTo(140, 69); g.lineTo(160, 88); g.lineTo(180, 69); g.closePath(); g.fill();
-    g.fillStyle = "#2b2f38"; g.font = "600 25px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("Chạm giỏ · còn " + n + " món", 160, 39); tagT.needsUpdate = true;
-  }
+
+  var dragOn = false;
+
+         function drawTag() {
+         if (tagKey === "t") return; tagKey = "t";
+         var g = tagC.getContext("2d"); g.clearRect(0, 0, 320, 96);
+         g.shadowColor = "rgba(0,0,0,.25)"; g.shadowBlur = 8; g.shadowOffsetY = 2;
+         g.fillStyle = "#ffffff"; rrect(g, 10, 8, 300, 62, 12); g.fill(); g.shadowColor = "transparent";
+         g.beginPath(); g.moveTo(140, 69); g.lineTo(160, 88); g.lineTo(180, 69); g.closePath(); g.fill();
+         g.fillStyle = "#2b2f38"; g.font = "600 24px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+         g.fillText("Kéo món lên máy quét", 160, 39); tagT.needsUpdate = true;
+       }
+
  
   /* ================= 4. SCAN: laser nhiều tia như máy thật, món lướt qua kính ================= */
   var pat = [];                                                          /* tia quét chéo (nháy nhẹ khi quét) */
@@ -1710,31 +1742,38 @@ var X = (function () {
     lampM.color.setHex(lc);
  
     /* thẻ gợi ý trên giỏ */
-    var show = ready && restN > 0;
-    if (show) drawTag(restN);
+    var show = ready && restN > 0 && !dragOn;
+
+    if (show) drawTag();
+
     tagM.opacity += ((show ? 1 : 0) - tagM.opacity) * (1 - Math.exp(-dt * 10));
     tag.visible = tagM.opacity > 0.02; tag.position.y = 1.95 + Math.sin(time * 2.2) * 0.04;
  
     /* scan: tia laser chéo + món lướt nhẹ qua kính như tay thu ngân đưa hàng */
     for (var i = 0; i < pat.length; i++) pat[i].visible = scanning && ((Math.floor(time * 30) + i) % 3 !== 0);
     if (scanning && curEnt && curEnt.free && curEnt.mesh.visible && time > pickAt + 0.66) {
-      curEnt.mesh.position.x = SCAN.x + Math.sin(time * 5.5) * 0.14;
-      curEnt.mesh.position.y = SCAN_Y + 0.05 + Math.sin(time * 11) * 0.012;
-      curEnt.mesh.rotation.y += Math.cos(time * 5.5) * dt * 0.5;
-    }
+         if (curEnt.manual) {                                  /* người dùng tự đặt: chỉ rung rất nhẹ, không trượt đi chỗ khác */
+           curEnt.mesh.position.y = curEnt.scanTo.y + Math.sin(time * 14) * 0.004;
+         } else {
+           curEnt.mesh.position.x = SCAN.x + Math.sin(time * 5.5) * 0.14;
+           curEnt.mesh.position.y = SCAN_Y + 0.05 + Math.sin(time * 11) * 0.012;
+           curEnt.mesh.rotation.y += Math.cos(time * 5.5) * dt * 0.5;
+         }
+       }
     custUpdate(dt); walkUpdate(dt);
   }
  
   return {
     update: update,
-    update: update,
+    setDrag: function (b) { dragOn = !!b; },
+       pickDone: function () { pickAt = -9; },
+
     /* Cho phép bên ngoài phát tiếng bíp (dùng cho tiếng tích đồng hồ) */
     beep: beep,
     /* Khách hàng tỏ ra sốt ruột khi sắp hết giờ (không ghi đè khi đang có phản ứng khác) */
     hurry: function () { if (cm.n === "idle") setMood("impatient", 1.2); },
     onRest: function (n) { restN = n; },
 
-    onRest: function (n) { restN = n; },
     onPick: function () { pickAt = time; setMood("watch", 3); },
     onScanStart: function () { setMood("watch", 3); },
     onFail: function () { setMood("impatient", 12); beep(420, 110, 0.05); beep(420, 110, 0.05, 0.16); },
@@ -2042,16 +2081,135 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
     cv.addEventListener("pointermove", onMove);
     cv.addEventListener("pointerleave", onLeave);
 
-    var ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
-    var onDown = function (e) {
-      if (!ready || !basketCb) return;
-      var r = renderer.domElement.getBoundingClientRect();
-      ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-      ray.setFromCamera(ptr, camera);
-      var targets = [basketG].concat(ents.filter(function (x) { return x.mesh.visible && !x.free; }).map(function (x) { return x.mesh; }));
-      if (ray.intersectObjects(targets, true).length) basketCb();
-    };
-    renderer.domElement.addEventListener("pointerdown", onDown);
+   /* ===================== KHỐI 1 – thay cho khối raycaster/onDown cũ ===================== */
+var ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), tmpP = new V3();
+var cvEl = renderer.domElement;
+cvEl.style.touchAction = "none";                              /* cảm ứng: kéo món không bị cuộn trang / cắt pointer */
+var HOVER_Y = 1.0, ZONE_PAD = 0.3;                            /* độ cao món khi cầm; dung sai quanh kính (đơn vị cảnh) */
+var HOLD = new THREE.Plane(new V3(0, 1, 0), -HOVER_Y);
+var pend = null, drag = null, dropping = false, manualDrop = null, hintT = 0, zoneBad = 0;
+function clampv(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function vibe(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {} }
+ 
+/* khung gợi ý vị trí quét trên mặt kính (mảnh, mờ; xanh khi món đang ở trên vùng quét) */
+var zoneM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }); disposables.push(zoneM);
+(function () {
+  var x0 = sx0 + 0.1, x1 = sx1 - 0.1, z0 = sz0 + 0.1, z1 = sz1 - 0.1, t = 0.035;
+  scene.add(box(x0, x1, -0.056, -0.048, z0, z0 + t, zoneM, false)); scene.add(box(x0, x1, -0.056, -0.048, z1 - t, z1, zoneM, false));
+  scene.add(box(x0, x0 + t, -0.056, -0.048, z0, z1, zoneM, false)); scene.add(box(x1 - t, x1, -0.056, -0.048, z0, z1, zoneM, false));
+})();
+ 
+function setNdc(cx, cy, off) {
+  var r = cvEl.getBoundingClientRect();
+  ptr.set(((cx - r.left) / r.width) * 2 - 1, -((cy - off - r.top) / r.height) * 2 + 1);
+}
+function planePt(cx, cy, off) { setNdc(cx, cy, off); ray.setFromCamera(ptr, camera); return ray.ray.intersectPlane(HOLD, tmpP); }
+function inZone(x, z, pad) { return x > sx0 - pad && x < sx1 + pad && z > sz0 - pad && z < sz1 + pad; }
+function topEnt() {                                           /* món trên cùng trong rổ = món engine sẽ lấy (rest[0]) */
+  for (var i = 0; i < ents.length; i++) if (ents[i].slot === 0 && ents[i].mesh.visible && !ents[i].free) return ents[i];
+  return null;
+}
+ 
+var onDown = function (e) {
+  if (!ready || !basketCb || drag || pend || dropping || manualDrop) return;
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  setNdc(e.clientX, e.clientY, 0); ray.setFromCamera(ptr, camera);
+  var targets = [basketG].concat(ents.filter(function (x) { return x.mesh.visible && !x.free; }).map(function (x) { return x.mesh; }));
+  if (!ray.intersectObjects(targets, true).length) return;
+  var t = topEnt(); if (!t) return;
+  pend = { e: t, id: e.pointerId, x0: e.clientX, y0: e.clientY, cx: e.clientX, cy: e.clientY, touch: e.pointerType !== "mouse" };
+  try { cvEl.setPointerCapture(e.pointerId); } catch (_) {}
+  e.preventDefault();
+};
+function beginDrag() {
+  drag = pend; pend = null; drag.px = drag.e.mesh.position.x; drag.pz = drag.e.mesh.position.z; drag.over = false;
+  var it = drag.e; it.free = true; X.setDrag(true); cvEl.style.cursor = "grabbing"; vibe(8);
+}
+var onDragMove = function (e) {
+  var s = drag || pend; if (!s || e.pointerId !== s.id) return;
+  s.cx = e.clientX; s.cy = e.clientY;
+  if (pend && !drag && Math.hypot(e.clientX - pend.x0, e.clientY - pend.y0) > 8) beginDrag();   /* chạm nhẹ không nhấc món lên */
+};
+var onDragEnd = function (e) {
+  var s = drag || pend; if (!s || e.pointerId !== s.id) return;
+  try { cvEl.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (pend) { pend = null; hintT = 1.6; return; }             /* chỉ chạm: nháy khung gợi ý chỗ đặt món */
+  var d = drag; drag = null; X.setDrag(false); cvEl.style.cursor = "";
+  if (e.type !== "pointercancel" && d.over && ready && basketCb) dropOnScanner(d); else sendBack(d.e, e.type !== "pointercancel");
+};
+function sendBack(it, bad) {                                  /* trả món về rổ: update() tự lướt về đúng ô */
+  it.manual = false; it.free = false;
+  if (bad) { zoneBad = 1; vibe(18); }
+  var r0 = { x: it.mesh.rotation.x, z: it.mesh.rotation.z };
+  tween(300, function (k) { it.mesh.rotation.x = r0.x * (1 - k); it.mesh.rotation.z = r0.z * (1 - k); });
+}
+function dropOnScanner(d) {
+  var it = d.e, to = new V3(clampv(d.px, SCAN.x - 0.4, SCAN.x + 0.4), it.scanTo.y, clampv(d.pz, SCAN.z - 0.18, SCAN.z + 0.18));
+  var from = it.mesh.position.clone(), m = it.mesh, r0 = { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z };
+  var rt = it.rotTo || { x: 0, y: r0.y, z: 0 }, dy = rt.y - r0.y; dy -= Math.round(dy / TAU) * TAU;
+  dropping = true; it.manual = true;
+  tween(180, function (k) {
+    var t = easeOut(k); m.position.lerpVectors(from, to, t);
+    m.rotation.set(r0.x + (rt.x - r0.x) * t, r0.y + dy * t, r0.z + ((rt.z || 0) - r0.z) * t);
+  }, function () {
+    dropping = false;
+    if (!alive || !ready || !basketCb) { sendBack(it, false); return; }
+    manualDrop = { e: it }; vibe(10);
+    basketCb();                                               /* = người dùng "bấm lấy món" như trước; engine gọi view.pick(it) */
+    if (manualDrop) setTimeout(function () {                  /* engine chưa nhận sau 0,5s → trả món về rổ */
+      if (manualDrop && manualDrop.e === it) { manualDrop = null; sendBack(it, false); }
+    }, 500);
+  });
+}
+cvEl.addEventListener("pointerdown", onDown);
+cvEl.addEventListener("pointermove", onDragMove);
+cvEl.addEventListener("pointerup", onDragEnd);
+cvEl.addEventListener("pointercancel", onDragEnd);
+cvEl.addEventListener("lostpointercapture", onDragEnd);
+ 
+/* nút "Tự động quét": hành vi cũ (engine tự lấy món, món tự bay lên kính) */
+var abtn = document.createElement("button");
+abtn.type = "button"; abtn.className = "pcg-auto"; abtn.hidden = true; abtn.textContent = "Tự động quét";
+abtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+abtn.addEventListener("click", function () {
+  if (!ready || !basketCb || drag || pend || dropping || manualDrop) return;
+  abtn.hidden = true; abtnOn = false; basketCb();
+});
+cv.appendChild(abtn);
+var abtnOn = false;
+function autoUI() {
+  var on = !!(ready && basketCb && rest.length && !drag && !pend && !dropping && !manualDrop && focusT === 0);
+  if (on !== abtnOn) { abtnOn = on; abtn.hidden = !on; if (!drag) cvEl.style.cursor = on ? "grab" : ""; }
+}
+ 
+/* mỗi khung hình: món đang cầm bám theo con trỏ trên mặt phẳng cao 1.0; khung gợi ý sáng lên */
+function dragUpdate(dt) {
+  if (drag) {
+    if (!ready || !basketCb) { var d0 = drag; drag = null; X.setDrag(false); cvEl.style.cursor = ""; sendBack(d0.e, false); }
+    else {
+      var it = drag.e, m = it.mesh, p = planePt(drag.cx, drag.cy, drag.touch ? 60 : 0);   /* cảm ứng: món nổi trên ngón tay 60px */
+      if (p) { drag.px = clampv(p.x, -4.2, 4.2); drag.pz = clampv(p.z, -0.5, 2.0); }
+      drag.over = inZone(drag.px, drag.pz, ZONE_PAD);
+      var ty = drag.over ? it.scanTo.y + 0.5 : HOVER_Y, k = 1 - Math.exp(-dt * 16), ox = m.position.x;
+      m.position.x += (drag.px - ox) * k; m.position.y += (ty - m.position.y) * k; m.position.z += (drag.pz - m.position.z) * k;
+      var vx = (m.position.x - ox) / Math.max(dt, 1e-3);
+      m.rotation.z += (clampv(-vx * 0.05, -0.35, 0.35) - m.rotation.z) * k;               /* nghiêng nhẹ theo chiều kéo */
+      m.rotation.x += ((it.rotTo ? it.rotTo.x * 0.6 : 0) - m.rotation.x) * k;
+    }
+  }
+  var zt = drag ? (drag.over ? 0.95 : 0.5) : (hintT > 0 ? 0.9 * Math.min(1, hintT) * (0.7 + 0.3 * Math.sin(time * 12)) : 0);
+  hintT = Math.max(0, hintT - dt * 0.9);
+  if (zoneBad > 0) { zoneBad = Math.max(0, zoneBad - dt * 2.2); zoneM.color.setHex(0xd0382e); zt = Math.max(zt, zoneBad); }
+  else zoneM.color.setHex(drag && drag.over ? 0x2fb25a : 0xffffff);
+  zoneM.opacity += (zt - zoneM.opacity) * (1 - Math.exp(-dt * 12));
+}
+function disposeManual() {
+  cvEl.removeEventListener("pointerdown", onDown); cvEl.removeEventListener("pointermove", onDragMove);
+  cvEl.removeEventListener("pointerup", onDragEnd); cvEl.removeEventListener("pointercancel", onDragEnd);
+  cvEl.removeEventListener("lostpointercapture", onDragEnd);
+  if (abtn.parentNode) abtn.parentNode.removeChild(abtn);
+}
+/* ===================== HẾT KHỐI 1 ===================== */
 
     /* ---------- vòng lặp ---------- */
     var raf = 0, last = 0;
@@ -2071,6 +2229,8 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
         e.mesh.position.y += (e.tp.y + (e.slot === 0 ? 0.14 * readyBlend : 0) + bob - e.mesh.position.y) * lf;
         e.mesh.position.z += (e.tp.z - e.mesh.position.z) * lf;
       });
+
+      dragUpdate(dt); autoUI();
 
       laser.visible = scanning;
       if (scanning) laser.position.z = SCAN.z + Math.sin(time * 14) * 0.42;
@@ -2093,6 +2253,7 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
       }
 
       X.update(dt);
+      D.update(dt);
             /* Căng thẳng: tiến về giá trị đích mượt, ánh sáng từ màn POS ấm dần khi sắp hết giờ */
       tension += (tensionT - tension) * (1 - Math.exp(-dt * 2));
       monGlow.color.setHex(0xffffff).lerp(warmC, tension);
@@ -2259,14 +2420,26 @@ var vxTimer = setInterval(vxTick, 15000);
       setRest: setRest,
       ready: function (on) { ready = !!on; },
       onBasket: function (fn) { basketCb = fn; },
+      /* ===================== KHỐI 3 – thay pick + thêm scanOk trong object trả về ===================== */
       pick: function (it) {
+          if (!manualDrop) console.trace("PICK TỰ ĐỘNG");
+
         var e = ents[items.indexOf(it)]; curEnt = e; e.free = true; e.slot = -1;
         e.mesh.visible = true; focusT = 0; zoomKT = 0; zoomUI();
-
         X.onPick(e);
+        if (manualDrop) {                                     /* người dùng đã tự đặt món lên kính */
+          var md = manualDrop; manualDrop = null;
+          if (md.e === e) { e.manual = true; X.pickDone(); return 60; }   /* không bay nữa, engine đi tiếp gần như ngay */
+          sendBack(md.e, false);                              /* engine chọn món khác: trả món vừa đặt về rổ */
+        }
+        e.manual = false;                                     /* quét tự động: bay như cũ */
         arc(e, e.mesh.position.clone(), e.scanTo, 1.2, 600, Math.PI * 0.6, null, e.rotTo);
         return 650;
       },
+      scanOk: function () {                                   /* engine gọi khi món có mã vạch quét thành công */
+        scanning = false; mode = "good"; modeUntil = time + 0.9; X.onResult(true);
+      },
+/* ===================== HẾT KHỐI 3 ===================== */
       scanStart: function () { scanning = true; mode = "idle"; X.onScanStart(); },
       /* Quét lỗi: camera nhìn vào màn POS, KHÔNG tự zoom bàn phím (giống PC) */
 scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0; zoomUI(); X.onFail(); },   /* quét lỗi → camera nhìn vào màn hình POS (điện thoại: phóng vào bàn phím) */
@@ -2293,7 +2466,8 @@ scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0;
         vxObs.disconnect(); X.dispose(); TR.dispose(); clearInterval(vxTimer);
                 if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
         cv.removeEventListener("pointermove", onMove); cv.removeEventListener("pointerleave", onLeave);
-        renderer.domElement.removeEventListener("pointerdown", onDown);
+        disposeManual();
+
         Object.keys(texCache).forEach(function (k) { texCache[k].dispose(); });
         screenDisp.forEach(function (g) { g.dispose(); });
         disposables.forEach(function (d) { try { d.dispose(); } catch (e) {} });
