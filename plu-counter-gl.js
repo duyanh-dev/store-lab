@@ -93,32 +93,42 @@ function enterFull(sceneEl, ctx) {
 
 
   /* Khung giao diện Vynamic POS (chỉ để trang trí, không bắt chạm) */
-var VX_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+/* Khung POS: thanh trạng thái trên (có màn hình cân) + thanh quầy dưới. Chỉ trang trí, không bắt chạm */
 var VX_HTML =
-  '<div class="vx-top">' +
-    VX_SVG.replace("<svg", '<svg class="vx-home"') + '<path d="M3.5 11.5L12 4l8.5 7.5M6 10v10h12V10M10 20v-5.5h4V20"/></svg>' +
-    '<div class="vx-kg"><b>--,-- kg</b><i>± 1 kg</i></div>' +
-    '<div class="vx-scale"><i>&lt;scale-min&gt;0 kg</i><i>&lt;scale-max&gt;2,147,483 kg</i></div>' +
-    '<div class="vx-ttl"><b>VYNAMIC POS CLIENT</b><span class="vx-clk">2:48 PM  |  11/2/2026</span></div>' +
-    VX_SVG.replace("<svg", '<svg class="vx-srch"') + '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>' +
+  '<div class="vp-top">' +
+    '<svg class="vp-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.5L12 4l8.5 7.5M6 10v10h12V10M10 20v-5.5h4V20"/></svg>' +
+    '<div class="vp-wt"><small>CÂN</small><b class="vp-kg">0,000</b><span>kg</span></div>' +
+    '<div class="vp-ttl"><b>PLU POS</b><small class="vp-clk"></small></div>' +
+    '<div class="vp-sig"><i></i><i></i><i></i><i></i></div>' +
   '</div>' +
-  '<div class="vx-mid">' +
-    '<span class="vx-pill" style="top:46px">IN LẠI BIÊN LAI</span>' +
-    '<span class="vx-pill" style="top:160px">HỦY ĐƠN</span>' +
-    '<div class="vx-pg">' +
-      '<i class="c">' + VX_SVG + '<path d="M14.5 6l-6 6 6 6"/></svg></i>' +
-      '<i class="d on"></i><i class="d"></i><i class="d"></i>' +
-      '<i class="c">' + VX_SVG + '<path d="M9.5 6l6 6-6 6"/></svg></i>' +
-    '</div>' +
-  '</div>' +
-  '<div class="vx-sum"><div class="l"><span>KHUYẾN MÃI VND<i>-</i></span><span>THUẾ VND<i>-</i></span><span>SỐ<i>-</i></span></div>' +
-    '<div class="r"><span>TỔNG CỘNG VND<i>-</i></span></div></div>' +
-  '<div class="vx-bot">' +
-    '<b class="vx-dn">Dn</b>' +
-    '<div class="vx-acc">Tài khoản điều hành: <b>207301</b><br>POS: 6</div>' +
-    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>' +
-    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg>' +
-  '</div>';
+  '<div class="vp-bot"><span>THU NGÂN <b>BẠN</b></span><span>QUẦY <b>03</b></span>' +
+    '<span class="vp-scn wait"><i></i><em>Máy quét sẵn sàng</em></span></div>';
+
+var VP_CSS = [
+".vp{position:absolute;inset:0;pointer-events:none;z-index:5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}",
+".vp-top{position:absolute;left:0;right:0;top:0;height:46px;display:flex;align-items:center;gap:16px;padding:0 14px;color:#fff;background:linear-gradient(#2d6199,#1d426b);border-bottom:2px solid #11294a}",
+".vp-home{width:24px;height:24px;flex:none;opacity:.9}",
+".vp-wt{display:flex;align-items:baseline;gap:5px;padding:3px 10px;background:#0b1a2b;border:1px solid #0a1422;border-radius:4px;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}",
+".vp-wt small{font-size:9px;letter-spacing:.1em;color:#7fa3c9}",
+".vp-kg{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:#6dff9c;min-width:62px;text-align:right}",
+".vp-wt span{font-size:11px;color:#9fc0e0}",
+".vp-ttl{margin-left:auto;text-align:right;line-height:1.15}",
+".vp-ttl b{display:block;font-size:13px;letter-spacing:.08em}",
+".vp-ttl small{font-size:10px;color:#a9c4e2}",
+".vp-sig{display:flex;align-items:flex-end;gap:2px;height:14px}",
+".vp-sig i{width:3px;background:#cfe3f8;border-radius:1px}",
+".vp-sig i:nth-child(1){height:4px}.vp-sig i:nth-child(2){height:7px}.vp-sig i:nth-child(3){height:10px}.vp-sig i:nth-child(4){height:14px}",
+".vp-bot{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;gap:18px;padding:0 14px;font-size:11px;color:#c4d4e6;background:linear-gradient(#26384f,#182638);border-top:2px solid #0e1a2a}",
+".vp-bot b{color:#fff}",
+".vp-scn{margin-left:auto;display:flex;align-items:center;gap:6px}",
+".vp-scn em{font-style:normal}",
+".vp-scn i{width:9px;height:9px;border-radius:50%;background:#2fb25a;box-shadow:0 0 6px #2fb25a}",
+".vp-scn.scan i{background:#ffb020;box-shadow:0 0 6px #ffb020}",
+".vp-scn.nobar i,.vp-scn.bad i{background:#ff3b30;box-shadow:0 0 6px #ff3b30}",
+/* chừa chỗ cho 2 thanh, bo góc màn hình, thêm vệt phản chiếu kính */
+
+".pcg-pos::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:9;background:linear-gradient(115deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 38%),radial-gradient(120% 90% at 50% 120%,rgba(0,0,0,.18),transparent 60%)}"
+].join("");
 
   /* ---------- hằng số bố cục ---------- */
   var CT = { x0: -5.4, x1: 5.4, z0: -2.0, z1: 2.2 };                 /* mặt quầy, dày 1.0 (y: -1 → 0) */
@@ -236,13 +246,17 @@ renderer.domElement.addEventListener("webglcontextlost", function (e) { e.preven
     /* ---------- máy quét kính chìm trong mặt quầy, hướng lên ---------- */
     var steelM = mat(0xa0a8b8, 0.3, 0.85);
     var glassM = mat(0x0e3a5c, 0.08, 0.3, { emissive: 0x1a6ea8, emissiveIntensity: 0.6 });
-    scene.add(mesh(geo(new THREE.BoxGeometry(SCAN.w - 0.14, 0.03, SCAN.d - 0.14)), glassM, SCAN.x, -0.075, SCAN.z, false));
+    var platM = mat(0xc9ced6, 0.32, 0.85);
+scene.add(mesh(geo(new THREE.BoxGeometry(SCAN.w - 0.14, 0.03, SCAN.d - 0.14)), platM, SCAN.x, -0.075, SCAN.z, false));   /* mâm cân inox */
+scene.add(mesh(geo(new THREE.BoxGeometry(1.1, 0.034, 0.26)), glassM, SCAN.x, -0.073, SCAN.z, false));                    /* ô kính quét */
+var ledBarM = new THREE.MeshBasicMaterial({ color: 0x1f6a3a }); disposables.push(ledBarM);
+scene.add(mesh(geo(new THREE.BoxGeometry(0.5, 0.012, 0.02)), ledBarM, SCAN.x, 0.003, SCAN.z + SCAN.d / 2 - 0.035, false)); /* LED báo trạng thái */
     [-1, 1].forEach(function (s) {
       scene.add(mesh(geo(new THREE.BoxGeometry(SCAN.w, 0.06, 0.07)), steelM, SCAN.x, -0.03, SCAN.z + s * (SCAN.d / 2 - 0.035), false));
       scene.add(mesh(geo(new THREE.BoxGeometry(0.07, 0.06, SCAN.d - 0.14)), steelM, SCAN.x + s * (SCAN.w / 2 - 0.035), -0.03, SCAN.z, false));
     });
     var laserM = new THREE.MeshBasicMaterial({ color: 0xff3b30 }); disposables.push(laserM);
-    var laser = new THREE.Mesh(geo(new THREE.BoxGeometry(SCAN.w - 0.3, 0.012, 0.025)), laserM);
+    var laser = new THREE.Mesh(geo(new THREE.BoxGeometry(SCAN.w - 1.0, 0.012, 0.025)), laserM);
     laser.position.set(SCAN.x, -0.04, SCAN.z); laser.visible = false; scene.add(laser);
 
     /* ---------- máy POS 3D: đế, cổ, màn hình ngả, máy quét gắn dưới màn hình ---------- */
@@ -1711,7 +1725,7 @@ var X = (function () {
   /* ================= 4. SCAN: laser nhiều tia như máy thật, món lướt qua kính ================= */
   var pat = [];                                                          /* tia quét chéo (nháy nhẹ khi quét) */
   [0.9, -0.9, 0.35].forEach(function (a) {
-    var l = new THREE.Mesh(geo(new THREE.BoxGeometry(SCAN.w - 0.5, 0.006, 0.012)), laserM);
+    var l = new THREE.Mesh(geo(new THREE.BoxGeometry(SCAN.w - 0.95, 0.006, 0.012)), laserM);
     l.rotation.y = a; l.position.set(SCAN.x, -0.045, SCAN.z); l.visible = false; scene.add(l); pat.push(l);
   });
   var pickAt = -9;
@@ -1751,8 +1765,8 @@ var X = (function () {
  
     /* scan: tia laser chéo + món lướt nhẹ qua kính như tay thu ngân đưa hàng */
     for (var i = 0; i < pat.length; i++) pat[i].visible = scanning && ((Math.floor(time * 30) + i) % 3 !== 0);
-    if (scanning && curEnt && curEnt.free && curEnt.mesh.visible && time > pickAt + 0.66) {
-         if (curEnt.manual) {                                  /* người dùng tự đặt: chỉ rung rất nhẹ, không trượt đi chỗ khác */
+if (scanning && curEnt && curEnt.free && curEnt.mesh.visible && !curEnt.held && time > pickAt + 0.66) {
+           if (curEnt.manual) {                                  /* người dùng tự đặt: chỉ rung rất nhẹ, không trượt đi chỗ khác */
            curEnt.mesh.position.y = curEnt.scanTo.y + Math.sin(time * 14) * 0.004;
          } else {
            curEnt.mesh.position.x = SCAN.x + Math.sin(time * 5.5) * 0.14;
@@ -2135,7 +2149,8 @@ var onDragEnd = function (e) {
   try { cvEl.releasePointerCapture(e.pointerId); } catch (_) {}
   if (pend) { pend = null; hintT = 1.6; return; }             /* chỉ chạm: nháy khung gợi ý chỗ đặt món */
   var d = drag; drag = null; X.setDrag(false); cvEl.style.cursor = "";
-  if (e.type !== "pointercancel" && d.over && ready && basketCb) dropOnScanner(d); else sendBack(d.e, e.type !== "pointercancel");
+if (d.committed) { settleHeld(d.e); return; }
+if (e.type !== "pointercancel" && d.over && ready && basketCb) dropOnScanner(d); else sendBack(d.e, e.type !== "pointercancel");
 };
 function sendBack(it, bad) {                                  /* trả món về rổ: update() tự lướt về đúng ô */
   it.manual = false; it.free = false;
@@ -2182,18 +2197,45 @@ function autoUI() {
   if (on !== abtnOn) { abtnOn = on; abtn.hidden = !on; if (!drag) cvEl.style.cursor = on ? "grab" : ""; }
 }
  
-/* mỗi khung hình: món đang cầm bám theo con trỏ trên mặt phẳng cao 1.0; khung gợi ý sáng lên */
+var HOLD_DWELL = 0.3, HOLD_LIFT = 0.35;      /* giữ trên kính bao lâu thì quét; độ cao tay cầm món */
+function commitHold(d) {
+  var it = d.e;
+  d.committed = true; it.held = true; manualDrop = { e: it }; vibe(12);
+  basketCb();                                 /* engine nhận → gọi view.pick(it) */
+  if (manualDrop) setTimeout(function () {    /* engine không nhận → huỷ, món vẫn trên tay */
+    if (manualDrop && manualDrop.e === it) { manualDrop = null; d.committed = false; it.held = false; d.dwell = 0; }
+  }, 500);
+}
+function settleHeld(it) {                     /* thả tay khi đang quét: món nằm xuống mâm cân */
+  it.held = false;
+  var m = it.mesh, from = m.position.clone(), to = new V3(from.x, it.scanTo.y, from.z), r0 = { x: m.rotation.x, z: m.rotation.z }, rt = it.rotTo || { x: 0, z: 0 };
+  tween(160, function (k) {
+    if (it.bagging) return;
+    var t = easeOut(k); m.position.lerpVectors(from, to, t);
+    m.rotation.x = r0.x + (rt.x - r0.x) * t; m.rotation.z = r0.z * (1 - t);
+  });
+}
 function dragUpdate(dt) {
   if (drag) {
-    if (!ready || !basketCb) { var d0 = drag; drag = null; X.setDrag(false); cvEl.style.cursor = ""; sendBack(d0.e, false); }
+    if (!drag.committed && (!ready || !basketCb)) { var d0 = drag; drag = null; X.setDrag(false); cvEl.style.cursor = ""; sendBack(d0.e, false); }
     else {
-      var it = drag.e, m = it.mesh, p = planePt(drag.cx, drag.cy, drag.touch ? 60 : 0);   /* cảm ứng: món nổi trên ngón tay 60px */
-      if (p) { drag.px = clampv(p.x, -4.2, 4.2); drag.pz = clampv(p.z, -0.5, 2.0); }
-      drag.over = inZone(drag.px, drag.pz, ZONE_PAD);
-      var ty = drag.over ? it.scanTo.y + 0.5 : HOVER_Y, k = 1 - Math.exp(-dt * 16), ox = m.position.x;
+      var it = drag.e, m = it.mesh, p = planePt(drag.cx, drag.cy, drag.touch ? 60 : 0);
+      if (p) {
+        drag.px = clampv(p.x, -4.2, 4.2); drag.pz = clampv(p.z, -0.5, 2.0);
+        if (drag.committed) {                 /* đang quét: tay chỉ rê trong vùng kính */
+          drag.px = clampv(drag.px, SCAN.x - 0.55, SCAN.x + 0.55); drag.pz = clampv(drag.pz, SCAN.z - 0.2, SCAN.z + 0.2);
+        }
+      }
+      drag.over = drag.committed || inZone(drag.px, drag.pz, ZONE_PAD);
+      if (!drag.committed) {
+        if (drag.over && ready && basketCb && !manualDrop && !dropping) { drag.dwell = (drag.dwell || 0) + dt; if (drag.dwell >= HOLD_DWELL) commitHold(drag); }
+        else drag.dwell = 0;
+      }
+      var ty = drag.over ? it.scanTo.y + HOLD_LIFT : HOVER_Y, k = 1 - Math.exp(-dt * 16), ox = m.position.x;
+      if (drag.committed) ty += Math.sin(time * 13) * 0.004;               /* tay run nhẹ */
       m.position.x += (drag.px - ox) * k; m.position.y += (ty - m.position.y) * k; m.position.z += (drag.pz - m.position.z) * k;
       var vx = (m.position.x - ox) / Math.max(dt, 1e-3);
-      m.rotation.z += (clampv(-vx * 0.05, -0.35, 0.35) - m.rotation.z) * k;               /* nghiêng nhẹ theo chiều kéo */
+      m.rotation.z += (clampv(-vx * 0.05, -0.35, 0.35) - m.rotation.z) * k;
       m.rotation.x += ((it.rotTo ? it.rotTo.x * 0.6 : 0) - m.rotation.x) * k;
     }
   }
@@ -2233,7 +2275,7 @@ function disposeManual() {
       dragUpdate(dt); autoUI();
 
       laser.visible = scanning;
-      if (scanning) laser.position.z = SCAN.z + Math.sin(time * 14) * 0.42;
+      if (scanning) laser.position.z = SCAN.z + Math.sin(time * 14) * 0.09;
       if ((mode === "good" || mode === "bad") && time > modeUntil) mode = "idle";
       var tI = 0, lc = 0x4aa8ff, gc = 0x1a6ea8, gi = 0.6, curA = 0, curC = 0xff2a1c, fgI = 0.15;
       if (scanning) { tI = 2.0; curA = 0.16 + 0.08 * Math.sin(time * 18); fgI = 1.0; }
@@ -2242,6 +2284,7 @@ function disposeManual() {
       else if (mode === "bad") { tI = 2.2; lc = 0xff3b30; gc = 0xc02820; gi = 0.9; curA = 0.2; fgI = 1.4; }
       scanLight.intensity += (tI - scanLight.intensity) * (1 - Math.exp(-dt * 10));
       scanLight.color.setHex(lc);
+      ledBarM.color.setHex(scanning ? 0xffb020 : mode === "good" ? 0x30d158 : (mode === "fail" || mode === "bad") ? 0xff3b30 : 0x1f6a3a);
       glassM.emissive.setHex(gc); glassM.emissiveIntensity = gi + (scanning ? 0.4 : 0);
       curtain.visible = curA > 0.001; curtainM.color.setHex(curC); curtainM.opacity = curA;
       fGlassM.emissive.setHex(curC); fGlassM.emissiveIntensity = fgI;
@@ -2292,12 +2335,17 @@ function disposeManual() {
     }
     raf = requestAnimationFrame(loop);
 
-    /* ---------- khung Vynamic POS: tự chèn lại nếu engine vẽ lại POS; gắn data-d cho phím số ---------- */
-var vx = document.createElement("div"); vx.className = "vx"; vx.innerHTML = VX_HTML;
-var vxClk = vx.querySelector(".vx-clk");
+   /* ---------- khung POS: chèn CSS, tự chèn lại nếu engine vẽ lại POS, đồng bộ cân + trạng thái máy quét ---------- */
+if (!document.getElementById("pcg-vp-css")) {
+  var vpSt = document.createElement("style"); vpSt.id = "pcg-vp-css"; vpSt.textContent = VP_CSS; document.head.appendChild(vpSt);
+}
+var vx = document.createElement("div"); vx.className = "vp"; vx.innerHTML = VX_HTML;
+var vpClk = vx.querySelector(".vp-clk"), vpKg = vx.querySelector(".vp-kg"), vpScn = vx.querySelector(".vp-scn"), vpTxt = vpScn.querySelector("em");
+var VP_ST = { wait: "Máy quét sẵn sàng", scan: "Đang quét…", nobar: "Không đọc được mã", ok: "Đã đọc mã", bad: "Sai mã PLU" };
+function p2(n) { return n < 10 ? "0" + n : "" + n; }
 function vxTick() {
   var d = new Date();
-  vxClk.textContent = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + "  |  " + (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
+  vpClk.textContent = p2(d.getHours()) + ":" + p2(d.getMinutes()) + "   " + p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + "/" + d.getFullYear();
 }
 function vxSync() {
   if (vx.parentNode !== posMount) posMount.appendChild(vx);
@@ -2306,11 +2354,18 @@ function vxSync() {
     var k = ks[i];
     if (!k.classList.contains("fn") && !k.classList.contains("ok")) k.setAttribute("data-d", (k.textContent || "").trim());
   }
+  /* chỉ ghi khi giá trị đổi, tránh MutationObserver tự gọi lại vô hạn */
+  var stEl = posMount.querySelector(".pos-state"), kind = "wait", m = stEl && /\b(wait|scan|nobar|ok|bad)\b/.exec(stEl.className);
+  if (m) kind = m[1];
+  var cls = "vp-scn " + kind; if (vpScn.className !== cls) vpScn.className = cls;
+  if (vpTxt.textContent !== VP_ST[kind]) vpTxt.textContent = VP_ST[kind];
+  var mt = posMount.querySelector(".pos-meta"), g = mt && /([\d.]+)\s*kg/.exec(mt.textContent);
+  var kg = (kind === "wait" || !g) ? "0,000" : g[1].replace(".", ",");
+  if (vpKg.textContent !== kg) vpKg.textContent = kg;
 }
 var vxObs = new MutationObserver(vxSync);
-vxObs.observe(posMount, { childList: true, subtree: true });
+vxObs.observe(posMount, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
 vxSync(); vxTick();
-/* Đồng hồ chỉ hiện giờ:phút nên 15 giây cập nhật một lần là đủ */
 var vxTimer = setInterval(vxTick, 15000);
 
         /* ===================== TIME RING v2: vòng đồng hồ + căng thẳng cảnh ===================== */
@@ -2422,7 +2477,6 @@ var vxTimer = setInterval(vxTick, 15000);
       onBasket: function (fn) { basketCb = fn; },
       /* ===================== KHỐI 3 – thay pick + thêm scanOk trong object trả về ===================== */
       pick: function (it) {
-          if (!manualDrop) console.trace("PICK TỰ ĐỘNG");
 
         var e = ents[items.indexOf(it)]; curEnt = e; e.free = true; e.slot = -1;
         e.mesh.visible = true; focusT = 0; zoomKT = 0; zoomUI();
@@ -2447,6 +2501,9 @@ scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0;
       result: function (good) { mode = good ? "good" : "bad"; modeUntil = time + 0.9; if (!good) shake = 0.12; X.onResult(good); TR.flash(good); },
             bag: function () {
         var e = curEnt; focusT = 0; zoomKT = 0; zoomUI();
+
+        e.bagging = true; e.held = false;
+if (drag && drag.e === e) { try { cvEl.releasePointerCapture(drag.id); } catch (_) {} drag = null; X.setDrag(false); cvEl.style.cursor = ""; }
         X.onBag();
         var jx = (Math.random() - 0.5) * 0.3, jz = (Math.random() - 0.5) * 0.24, k = bagEnts.length;
         var over = new V3(BAG.x + jx, 1.8, BAG.z + jz);                  /* cao hơn miệng túi để không xuyên thành túi */
