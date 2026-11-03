@@ -91,6 +91,9 @@
 
   /* ---------- biểu tượng SVG ---------- */
   var IC = {
+        clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alert: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.4v.1"/>',
+    spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/>',
     home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     cube: '<path d="M12 2.5l8.5 4.7v9.6L12 21.5l-8.5-4.7V7.2z"/><path d="M12 12l8.5-4.8M12 12v9.5M12 12L3.5 7.2"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
@@ -579,48 +582,63 @@ function examResult(r) {
   }
   function start(cat, m, limit) { curCat = cat; limitOnce = limit || 0; renderCats(); go(m); }
 
-  function home() {
+    function home() {
     setHue();
-    var c = counts(), tot = D.length, pct = tot ? c.known / tot : 0, p100 = Math.round(pct * 100);
+    var c = counts(), tot = D.length, p100 = tot ? Math.round(c.known / tot * 100) : 0;
     var plan = smartPlan(), ex = M.exam, cats = [];
     D.forEach(function (d) { if (cats.indexOf(d.cat) < 0) cats.push(d.cat); });
     var today = new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" });
-    var lv = p100 ? Math.max(p100, 8) : 0; /* mực nước tối thiểu 8% để thấy sóng */
+    var lv = p100 ? Math.max(p100, 8) : 0;
 
-    var segs = [
-      ["DUE", "Đến hạn ôn", "sắp quên", c.due, "reflex"],
-      ["WEAK", "Mã hay sai", "hay nhầm", c.weak, "reflex"],
-      ["NEW", "Mã mới", "chưa học", c.nw, "visual"]
+    var tiles = [
+      ["DUE", "Đến hạn ôn", "Mã sắp quên", c.due, "reflex", "clock"],
+      ["WEAK", "Mã hay sai", "Hay bị nhầm", c.weak, "reflex", "alert"],
+      ["NEW", "Mã mới", "Chưa học", c.nw, "visual", "spark"]
     ];
 
-    body.innerHTML = '<div class="plu-home">' +
-      '<section class="plu-hero2"><div class="plu-hero-t"><div class="plu-kicker">' + esc(today) + "</div><h3>" + plan.t + "</h3><p>" + plan.s + "</p>" +
-      '<div class="plu-row left"><button class="plu-btn pri lg" id="go">Bắt đầu' + ic("arrow") + "</button></div></div>" +
-      '<div class="plu-orb-w"><div class="plu-orb' + (p100 ? "" : " empty") + '" style="--lv:' + lv + '%">' +
-      '<div class="plu-liq"><svg class="plu-wave" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M0 10Q25 0 50 10T100 10T150 10T200 10V20H0Z"/></svg><div class="plu-liq-b"></div></div>' +
-      '<div class="plu-orb-t"><b>' + p100 + '%</b><span>đã nhớ</span></div></div>' +
-      '<div class="plu-orb-l">' + c.known + " đã nhớ · " + c.learn + " đang học · " + c.nw + " chưa học</div></div></section>" +
+    body.innerHTML = '<div class="plu-t">' +
 
-      '<section class="plu-seg g">' + segs.map(function (s) {
-        return '<button class="plu-sg" data-q="' + s[0] + '" data-m="' + s[4] + '"' + (s[3] ? "" : " disabled") + "><b>" + s[3] + "</b><span>" + s[1] + "</span><small>" + s[2] + "</small></button>";
+      '<section class="plu-t-hero plu-t-glass">' +
+        '<div class="plu-t-copy"><div class="plu-kicker">' + esc(today) + "</div>" +
+          "<h3>" + plan.t + "</h3><p>" + plan.s + "</p>" +
+          '<button class="plu-btn pri lg plu-t-go" id="go">Bắt đầu' + ic("arrow") + "</button></div>" +
+        '<div class="plu-t-orb">' +
+          '<div class="plu-t-ball' + (p100 ? "" : " empty") + '" style="--lv:' + lv + '%">' +
+            '<div class="plu-t-liq"><svg class="plu-t-wave" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M0 10Q25 0 50 10T100 10T150 10T200 10V20H0Z"/></svg><div class="plu-t-liqb"></div></div>' +
+            '<div class="plu-t-bt"><b>' + p100 + "%</b><span>đã nhớ</span></div></div>" +
+          '<div class="plu-t-facts"><div><b>' + c.known + "</b><span>đã nhớ</span></div><div><b>" + c.learn + "</b><span>đang học</span></div><div><b>" + c.nw + "</b><span>chưa học</span></div></div>" +
+        "</div></section>" +
+
+      '<section class="plu-t-tiles">' + tiles.map(function (s) {
+        return '<button class="plu-t-tile plu-t-glass" data-q="' + s[0] + '" data-m="' + s[4] + '"' + (s[3] ? "" : " disabled") + ">" +
+          '<span class="plu-t-tico">' + ic(s[5]) + "</span><b>" + s[3] + '</b><span class="plu-t-tlab">' + s[1] + "</span><small>" + s[2] + "</small></button>";
       }).join("") + "</section>" +
 
-      '<div class="plu-examline"><span>' + (ex
-        ? "Thi gần nhất <b>" + ex.acc + "%</b> · " + ex.avg + "s mỗi câu · " + (ex.pass ? "đạt chuẩn" : "chưa đạt")
-        : "Chưa thi lần nào · đạt từ 90% và dưới 5 giây mỗi câu") +
-      '</span><button class="plu-link" id="ex">' + (ex ? "Thi lại" : "Thi thử") + "</button></div>" +
+      '<div class="plu-t-lower">' +
 
-      "<section><div class=\"plu-tags-h\"><div class=\"plu-kicker\">Theo nhóm hàng</div><small>Chạm để luyện riêng một nhóm</small></div><div class=\"plu-tags\">" +
-      cats.map(function (cat) {
-        var items = D.filter(function (d) { return d.cat === cat; }), k = 0;
-        items.forEach(function (d) { if (box(d.code) === 2) k++; });
-        return '<button class="plu-tag" data-cat="' + esc(cat) + '" style="--p:' + (k / items.length * 100).toFixed(0) + '%"><span class="tn">' + esc(cat) + '</span><span class="tc">' + k + "/" + items.length + "</span></button>";
-      }).join("") + "</div></section></div>";
+        '<section class="plu-t-cats plu-t-glass"><div class="plu-t-hd"><div class="plu-kicker">Theo nhóm hàng</div><small>Chạm để luyện riêng</small></div>' +
+        '<div class="plu-t-cgrid">' + cats.map(function (cat) {
+          var items = D.filter(function (d) { return d.cat === cat; }), k = 0;
+          items.forEach(function (d) { if (box(d.code) === 2) k++; });
+          return '<button class="plu-t-cat" data-cat="' + esc(cat) + '" style="--p:' + (k / items.length * 100).toFixed(0) + '%">' +
+            '<span class="plu-t-cname">' + esc(cat) + '</span><span class="plu-t-ccnt">' + k + "/" + items.length + '</span><i class="plu-t-cbar"></i></button>';
+        }).join("") + "</div></section>" +
+
+        '<section class="plu-t-exam plu-t-glass"><div class="plu-kicker">Sát hạch quầy</div>' +
+        (ex
+          ? '<div class="plu-t-exn"><b>' + ex.acc + "%</b><span>" + ex.avg + 's mỗi câu</span></div><div class="plu-t-badge ' + (ex.pass ? "is-pass" : "is-fail") + '">' + (ex.pass ? "Đạt chuẩn" : "Chưa đạt") + "</div>"
+          : '<div class="plu-t-exn"><b>–</b><span>Chưa thi lần nào</span></div>') +
+        "<p>Đạt từ 90% và dưới 5 giây mỗi câu.</p>" +
+        '<button class="plu-btn lg" id="ex">' + (ex ? "Thi lại" : "Thi thử") + "</button></section>" +
+
+      "</div></div>";
 
     $("#go").onclick = function () { start(plan.cat, plan.mode, plan.limit); };
     $("#ex").onclick = function () { start("ALL", "exam"); };
-    $$(".plu-sg").forEach(function (b) { b.onclick = function () { start(b.dataset.q, b.dataset.m, b.dataset.q === "NEW" ? 10 : 0); }; });
-    $$(".plu-tag").forEach(function (b) {
+    $$(".plu-t-tile").forEach(function (b) {
+      b.onclick = function () { start(b.dataset.q, b.dataset.m, b.dataset.q === "NEW" ? 10 : 0); };
+    });
+    $$(".plu-t-cat").forEach(function (b) {
       b.onclick = function () {
         var items = D.filter(function (d) { return d.cat === b.dataset.cat; });
         var k = items.filter(function (d) { return box(d.code) === 2; }).length;

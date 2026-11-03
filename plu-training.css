@@ -526,4 +526,215 @@
 }
 
 
+/* ==========================================================================
+   HÔM NAY v5.2 – vừa khít 1 màn hình, không cuộn
+   Chỉ CSS. Mọi selector nằm trong #plu.
+   ========================================================================== */
+#plu .plu-body > .plu-t { flex: 1 1 0; min-height: 0; }
 
+#plu .plu-t {
+  --liq: rgba(10, 132, 255, .42);
+  position: relative; float: none; inset: auto; transform: none;
+  width: 100%; max-width: 1040px; max-height: 780px; height: auto; margin: auto;
+  display: grid; gap: 14px; animation: plu-rise .35s ease-out;
+  /* PC: hero + tiles bên trái, exam + cats bên phải */
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hero  exam"
+    "hero  cats"
+    "tiles cats";
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  #plu .plu-t { --liq: color-mix(in srgb, var(--a) 44%, transparent); }
+}
+#plu .plu-t-lower { display: contents; }
+#plu .plu-t-hero  { grid-area: hero; }
+#plu .plu-t-tiles { grid-area: tiles; }
+#plu .plu-t-exam  { grid-area: exam; }
+#plu .plu-t-cats  { grid-area: cats; }
+#plu .plu-t > *, #plu .plu-t-lower > * { position: relative; float: none; inset: auto; transform: none; height: auto; margin: 0; min-width: 0; min-height: 0; }
+
+/* Tấm kính: viền sáng lệch góc + làm mờ nền, không gradient */
+#plu .plu-t-glass {
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .075);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, .38),
+    inset -1px -1px 0 rgba(255, 255, 255, .10),
+    inset 0 0 28px rgba(255, 255, 255, .05),
+    0 28px 50px -26px rgba(0, 0, 0, .65);
+}
+
+/* ---------- Thẻ chính ---------- */
+#plu .plu-t-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; align-content: center; gap: 28px;
+  padding: clamp(20px, 4vh, 40px) clamp(22px, 3vw, 42px); border-radius: 36px;
+}
+#plu .plu-t-copy { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+#plu .plu-t-copy h3 { font-size: clamp(26px, 3.3vw, 44px); font-weight: 800; letter-spacing: -.04em; line-height: 1.06; text-wrap: balance; }
+#plu .plu-t-copy p { font-size: 14px; color: var(--m); line-height: 1.55; max-width: 40ch; }
+#plu .plu-t-go { margin-top: 8px; border-radius: 999px; padding: 14px 26px; }
+
+#plu .plu-t-orb { display: grid; justify-items: center; gap: clamp(10px, 2vh, 18px); }
+#plu .plu-t-ball {
+  position: relative; width: clamp(120px, 27vh, 200px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; isolation: isolate;
+  background: rgba(255, 255, 255, .06);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, .36),
+    inset 0 14px 22px rgba(255, 255, 255, .12),
+    inset 0 -18px 28px -12px rgba(255, 255, 255, .16),
+    0 30px 50px -22px rgba(0, 0, 0, .7);
+}
+#plu .plu-t-liq { position: absolute; left: 0; right: 0; bottom: 0; height: var(--lv, 0%); z-index: -1; transition: height 1s cubic-bezier(.2, .8, .2, 1); }
+#plu .plu-t-liqb { position: absolute; inset: 0; background: var(--liq); }
+#plu .plu-t-wave { position: absolute; left: 0; top: -12px; width: 200%; height: 13px; fill: var(--liq); animation: plu-t-wave 7s linear infinite; will-change: transform; }
+@keyframes plu-t-wave { to { transform: translateX(-50%); } }
+#plu .plu-t-ball.empty .plu-t-liq { display: none; }
+#plu .plu-t-ball::after { content: ""; position: absolute; left: 14%; top: 8%; width: 44%; height: 20%; border-radius: 50%; background: rgba(255, 255, 255, .26); transform: rotate(-28deg); pointer-events: none; }
+#plu .plu-t-bt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+#plu .plu-t-bt b { font-size: clamp(30px, 6.2vh, 48px); font-weight: 800; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+#plu .plu-t-bt span { font-size: 12px; opacity: .7; margin-top: 4px; }
+
+#plu .plu-t-facts { display: flex; align-items: stretch; }
+#plu .plu-t-facts > div { position: relative; display: grid; justify-items: center; gap: 1px; padding: 0 14px; }
+#plu .plu-t-facts > div + div::before { content: ""; position: absolute; left: 0; top: 14%; bottom: 14%; width: 1px; background: var(--e2); }
+#plu .plu-t-facts b { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#plu .plu-t-facts span { font-size: 11px; color: var(--m); white-space: nowrap; }
+
+/* ---------- 3 ô số liệu ---------- */
+#plu .plu-t-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+#plu .plu-t-tile {
+  border: 0; text-align: left; cursor: pointer; color: var(--i); font: inherit;
+  display: grid; justify-items: start; align-content: start; gap: 1px; padding: 16px 18px;
+  transition: transform .18s, background .2s;
+}
+#plu .plu-t-tile:hover:not(:disabled) { transform: translateY(-3px); background: rgba(255, 255, 255, .12); }
+#plu .plu-t-tile:active:not(:disabled) { transform: scale(.98); }
+#plu .plu-t-tile:disabled { opacity: .45; cursor: default; }
+#plu .plu-t-tico {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 8px;
+  background: rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 0 0 1px var(--e2);
+}
+#plu .plu-t-tico svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#plu .plu-t-tile b { font-size: clamp(30px, 4.6vh, 40px); font-weight: 800; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+#plu .plu-t-tlab { font-size: 13px; font-weight: 700; margin-top: 4px; }
+#plu .plu-t-tile small { font-size: 11.5px; color: var(--m); }
+
+/* ---------- Sát hạch ---------- */
+#plu .plu-t-exam { display: grid; gap: 8px; padding: 18px 20px; align-content: start; }
+#plu .plu-t-exn { display: flex; align-items: baseline; gap: 10px; margin: 0; }
+#plu .plu-t-exn b { font-size: clamp(34px, 6vh, 48px); font-weight: 800; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+#plu .plu-t-exn span { font-size: 12.5px; color: var(--m); }
+#plu .plu-t-badge {
+  position: static; inset: auto; transform: none; width: auto; height: auto; float: none;
+  justify-self: start; font-size: 12px; font-weight: 750; padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+}
+#plu .plu-t-badge.is-pass { color: var(--ok); background: rgba(48, 209, 88, .15); }
+#plu .plu-t-badge.is-fail { color: var(--warn); background: rgba(255, 159, 10, .15); }
+#plu .plu-t-exam p { font-size: 12px; color: var(--m); line-height: 1.45; }
+#plu .plu-t-exam .plu-btn { width: 100%; border-radius: 999px; padding: 12px 20px; margin-top: 2px; }
+
+/* ---------- Nhóm hàng: tự giãn đều theo chiều cao còn lại ---------- */
+#plu .plu-t-cats { display: flex; flex-direction: column; padding: 18px; }
+#plu .plu-t-hd { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding: 0 2px; }
+#plu .plu-t-hd small { font-size: 11.5px; color: var(--m); }
+#plu .plu-t-cgrid {
+  flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); grid-auto-rows: minmax(40px, 1fr); gap: 8px;
+}
+#plu .plu-t-cgrid::-webkit-scrollbar { display: none; }
+#plu .plu-t-cat {
+  position: relative; border: 0; cursor: pointer; color: var(--i); font: inherit; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 12px 10px; border-radius: 16px; min-width: 0;
+  background: rgba(255, 255, 255, .06);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .08);
+  transition: background .2s, transform .1s;
+}
+#plu .plu-t-cat:hover { background: rgba(255, 255, 255, .12); }
+#plu .plu-t-cat:active { transform: scale(.97); }
+#plu .plu-t-cname { min-width: 0; font-size: 12.5px; font-weight: 650; line-height: 1.2; overflow-wrap: anywhere; }
+#plu .plu-t-ccnt { flex: none; font: 600 11px var(--mono); color: var(--m); }
+#plu .plu-t-cbar { position: absolute; left: 12px; right: 12px; bottom: 6px; display: block; height: 2px; border-radius: 2px; background: rgba(127, 127, 140, .28); overflow: hidden; }
+#plu .plu-t-cbar::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); border-radius: 2px; background: var(--a); }
+
+/* ==========================================================================
+   Máy tính bảng / cửa sổ hẹp: hero xếp dọc cho đỡ chật
+   ========================================================================== */
+@media (min-width: 761px) and (max-width: 1000px) {
+  #plu .plu-t-hero { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: 16px; }
+  #plu .plu-t-orb { order: -1; }
+  #plu .plu-t-ball { width: clamp(110px, 22vh, 160px); }
+  #plu .plu-t-copy { justify-items: center; }
+  #plu .plu-t-facts { display: none; }
+  #plu .plu-t-tile small { display: none; }
+}
+@media (min-width: 761px) and (max-height: 760px) {
+  #plu .plu-t-tile small, #plu .plu-t-copy p { display: none; }
+  #plu .plu-t-tico { display: none; }
+}
+
+/* ==========================================================================
+   ĐIỆN THOẠI: 1 cột, tất cả trong 1 màn hình
+   ========================================================================== */
+@media (max-width: 760px) {
+  #plu .plu-t {
+    max-height: none; margin: 0 auto; gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-areas: "hero" "tiles" "exam" "cats";
+  }
+  #plu .plu-t-glass { border-radius: 24px; }
+
+  /* Thẻ chính: viên kính trái, chữ + nút phải */
+  #plu .plu-t-hero { grid-template-columns: auto minmax(0, 1fr); gap: 16px; padding: 16px; border-radius: 28px; text-align: left; }
+  #plu .plu-t-orb { order: -1; }
+  #plu .plu-t-ball { width: 96px; }
+  #plu .plu-t-bt b { font-size: 26px; }
+  #plu .plu-t-bt span { font-size: 10.5px; margin-top: 2px; }
+  #plu .plu-t-wave { top: -8px; height: 9px; }
+  #plu .plu-t-facts { display: none; }
+  #plu .plu-t-copy { justify-items: start; gap: 4px; }
+  #plu .plu-t-copy .plu-kicker { font-size: 10.5px; }
+  #plu .plu-t-copy h3 { font-size: 20px; line-height: 1.12; letter-spacing: -.03em; }
+  #plu .plu-t-copy p { display: none; }
+  #plu .plu-t-go { width: 100%; justify-content: center; margin-top: 6px; padding: 11px 16px; font-size: 14px; }
+
+  /* 3 ô số liệu gọn */
+  #plu .plu-t-tiles { gap: 8px; }
+  #plu .plu-t-tile { padding: 11px 12px; border-radius: 20px; gap: 0; }
+  #plu .plu-t-tico, #plu .plu-t-tile small { display: none; }
+  #plu .plu-t-tile b { font-size: 28px; }
+  #plu .plu-t-tlab { font-size: 12px; margin-top: 3px; }
+
+  /* Sát hạch: 1 hàng ngang */
+  #plu .plu-t-exam { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 12px 14px; }
+  #plu .plu-t-exam .plu-kicker { grid-column: 1; grid-row: 1; font-size: 10.5px; }
+  #plu .plu-t-badge { grid-column: 1; grid-row: 1; justify-self: end; font-size: 11px; padding: 3px 9px; }
+  #plu .plu-t-exn { grid-column: 1; grid-row: 2; }
+  #plu .plu-t-exn b { font-size: 26px; }
+  #plu .plu-t-exn span { font-size: 11.5px; }
+  #plu .plu-t-exam p { display: none; }
+  #plu .plu-t-exam .plu-btn { grid-column: 2; grid-row: 1 / span 2; width: auto; margin: 0; padding: 11px 22px; font-size: 14px; }
+
+  /* Nhóm hàng: 2 cột, lấp đầy phần còn lại */
+  #plu .plu-t-cats { padding: 12px; }
+  #plu .plu-t-hd { margin-bottom: 8px; }
+  #plu .plu-t-cgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(36px, 1fr); gap: 6px; }
+  #plu .plu-t-cat { padding: 5px 10px 9px; border-radius: 14px; }
+  #plu .plu-t-cname { font-size: 12px; }
+  #plu .plu-t-cbar { left: 10px; right: 10px; bottom: 5px; }
+}
+@media (max-width: 380px) {
+  #plu .plu-t-ball { width: 84px; }
+  #plu .plu-t-copy h3 { font-size: 18px; }
+  #plu .plu-t-tile b { font-size: 24px; }
+}
+@media (max-width: 760px) and (max-height: 640px) {
+  #plu .plu-t-copy .plu-kicker { display: none; }
+  #plu .plu-t-hero { padding: 12px; }
+  #plu .plu-t-tile { padding: 8px 12px; }
+  #plu .plu-t-exam { padding: 10px 14px; }
+}
