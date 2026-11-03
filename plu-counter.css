@@ -502,14 +502,15 @@ body.plu-full .mn-scrim {
 .pcg-tm svg { position: absolute; inset: 5px; width: 44px; height: 44px; transform: rotate(-90deg); }
 .pcg-tm circle { fill: none; stroke-width: 4; }
 .pcg-tm .bg { stroke: rgba(255, 255, 255, .14); }
-.pcg-tm .fg { stroke: #30d158; stroke-linecap: round; transition: stroke-dashoffset .12s linear, stroke .3s; }
+/* Cung tiến độ: màu lấy từ biến --tc (JS tính liên tục theo thời gian còn lại) */
+.pcg-tm .fg { stroke: var(--tc, #30d158); stroke-linecap: round; transition: stroke-dashoffset .12s linear; }
 
 /* Số giây còn lại ở giữa vòng */
 .pcg-tm b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 15px ui-monospace, Menlo, Consolas, monospace; color: #fff; }
 
 /* Đổi màu theo mức thời gian: cam khi còn dưới 1/3, đỏ + đập nhịp khi sắp hết */
-.pcg-tm.low .fg { stroke: #ff9f0a; }
-.pcg-tm.crit .fg { stroke: #ff453a; }
+/* .pcg-tm.low .fg { stroke: #ff9f0a; }
+.pcg-tm.crit .fg { stroke: #ff453a; } */
 .pcg-tm.crit .rg { animation: pcg-tm-beat .5s ease-in-out infinite alternate; }
 @keyframes pcg-tm-beat { to { transform: scale(1.1); box-shadow: inset 0 0 0 1px rgba(255, 69, 58, .6), 0 0 18px rgba(255, 69, 58, .55); } }
 
@@ -523,3 +524,26 @@ body.plu-full .mn-scrim {
 
 /* Viền đỏ mờ quanh màn hình khi sắp hết giờ */
 .pcg-tm-vig { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(255, 40, 30, .42) 100%); }
+
+/* ===== Time ring v2: đầu cung sáng, số trượt, vòng hiện ra, gợn sóng kết quả ===== */
+
+/* Đầu cung: lớp xoay quanh tâm vòng, chấm sáng nằm ở mép trên và đi theo tiến độ */
+.pcg-tm .hd { position: absolute; inset: 0; pointer-events: none; transition: transform .12s linear; }
+.pcg-tm .hd::after {
+  content: ""; position: absolute; left: 50%; top: 8px; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 6px 1px var(--tc, #30d158), 0 0 12px 2px var(--tc, #30d158);
+}
+
+/* Số giây: trượt xuống nhẹ và hiện dần mỗi khi đổi số */
+.pcg-tm b.tk { animation: pcg-tm-num .28s ease-out; }
+@keyframes pcg-tm-num { from { opacity: 0; transform: translateY(-35%); } }
+
+/* Câu mới: vòng phóng nhẹ từ nhỏ lên, mượt như nhấc lên khỏi mặt kính */
+.pcg-tm.in .rg { animation: pcg-tm-in .45s cubic-bezier(.2, .8, .2, 1); }
+@keyframes pcg-tm-in { from { opacity: .35; transform: scale(.82); } }
+
+/* Gợn sóng kết quả: một vòng mảnh toả ra rồi tan, không hạt, không chớp */
+.pcg-tm .rp { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0; border: 2px solid transparent; }
+.pcg-tm .rp.g { border-color: #30d158; animation: pcg-tm-rp .8s ease-out; }
+.pcg-tm .rp.b { border-color: #ff453a; animation: pcg-tm-rp .8s ease-out; }
+@keyframes pcg-tm-rp { from { opacity: .85; transform: scale(1); } to { opacity: 0; transform: scale(2.1); } }

@@ -1429,6 +1429,8 @@ try {
     /* ---------- trạng thái ---------- */
     var mode = "idle", modeUntil = 0, time = 0, scanning = false, ready = false, readyBlend = 0;
     var focus = 0, focusT = 0, shake = 0, mx = 0, my = 0, px = 0, py = 0;
+        /* Độ căng thẳng 0..1 (do vòng đồng hồ đặt): điều khiển camera tiến vào và ánh sáng ấm dần */
+    var tension = 0, tensionT = 0, warmC = new THREE.Color(0xff9a5a);
     var curEnt = null, bagN = 0, bagEnts = [], bagSquash = 0, basketCb = null, alive = true;
     var scanPos = new V3(SCAN.x, SCAN_Y, SCAN.z);
 
@@ -2091,6 +2093,10 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
       }
 
       X.update(dt);
+            /* Căng thẳng: tiến về giá trị đích mượt, ánh sáng từ màn POS ấm dần khi sắp hết giờ */
+      tension += (tensionT - tension) * (1 - Math.exp(-dt * 2));
+      monGlow.color.setHex(0xffffff).lerp(warmC, tension);
+      monGlow.intensity = 0.25 + tension * 0.4;
 
       /* camera: chuyển mượt giữa tư thế rộng và tư thế nhìn màn hình, lắc khi sai */
       focus += (focusT - focus) * (1 - Math.exp(-dt * 3.2));
@@ -2109,6 +2115,9 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
         camPos.x += px * 0.4 * calm + Math.sin(time * 0.6) * 0.03 * calm + (Math.random() - 0.5) * sk;
         camPos.y += -py * 0.2 * calm + Math.sin(time * 0.8) * 0.025 * calm + (Math.random() - 0.5) * sk;
         camera.position.copy(camPos); camera.lookAt(camLook);
+                /* Camera tiến vào rất nhẹ (tối đa 2 độ FOV) khi căng thẳng tăng; cập nhật khi giá trị đổi */
+        var nf = (W / H < 0.9 ? 46 : 34) - tension * 2;
+        if (Math.abs(nf - camera.fov) > 0.002) { camera.fov = nf; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
         syncPOS();
       }
@@ -2143,7 +2152,7 @@ vxSync(); vxTick();
 /* Đồng hồ chỉ hiện giờ:phút nên 15 giây cập nhật một lần là đủ */
 var vxTimer = setInterval(vxTick, 15000);
 
-    /* ===================== TIME RING: vòng đồng hồ đếm ngược ===================== */
+        /* ===================== TIME RING v2: vòng đồng hồ + căng thẳng cảnh ===================== */
     var TR = (function () {
       var MODES = ["full", "calm", "off"];
       var LABEL = { full: "Đầy đủ", calm: "Nhẹ", off: "Tắt" };
@@ -2151,18 +2160,19 @@ var vxTimer = setInterval(vxTick, 15000);
       var mode = "full";
       try { var sv = localStorage.getItem("plu-timer-mode"); if (MODES.indexOf(sv) >= 0) mode = sv; } catch (e) {}
 
-      /* Dựng DOM: vòng SVG + số giây + nút đổi chế độ + lớp viền đỏ */
+      /* Dựng DOM: vòng SVG, đầu cung sáng (.hd), gợn sóng (.rp), số giây, nút chế độ, lớp viền đỏ */
       var el = document.createElement("div"); el.className = "pcg-tm";
       el.innerHTML =
         '<div class="rg"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/>' +
-        '<circle class="fg" cx="22" cy="22" r="19"/></svg><b>--</b></div>' +
+        '<circle class="fg" cx="22" cy="22" r="19"/></svg><i class="hd"></i><i class="rp"></i><b>--</b></div>' +
         '<button type="button" class="md"></button>';
       var fg = el.querySelector(".fg"), num = el.querySelector("b"), md = el.querySelector(".md");
+      var hd = el.querySelector(".hd"), rp = el.querySelector(".rp");
       var vig = document.createElement("div"); vig.className = "pcg-tm-vig";
       cv.appendChild(el); cv.appendChild(vig);
       fg.style.strokeDasharray = CIRC;
 
-      /* Áp chế độ hiện tại lên giao diện */
+      /* Áp chế độ hiện tại lên giao diện và lưu lại */
       function applyMode() {
         md.textContent = "Đồng hồ: " + LABEL[mode];
         cv.classList.toggle("tm-off", mode === "off");
@@ -2173,7 +2183,12 @@ var vxTimer = setInterval(vxTick, 15000);
       });
       applyMode();
 
-      /* Đọc tiến độ 0..1 từ thanh .pos-tm i của engine (đọc được cả khi engine dùng animation/transition) */
+      /* Màu liên tục theo tiến độ p: xanh (140) → hổ phách (40) ở p=0.33 → đỏ (5) */
+      function tmHue(p) {
+        return p > 0.33 ? 40 + (p - 0.33) / 0.67 * 100 : 5 + Math.max(0, p - 0.05) / 0.28 * 35;
+      }
+
+      /* Đọc tiến độ 0..1 từ thanh .pos-tm i của engine */
       function readProgress() {
         var i = posMount.querySelector(".pos-tm i");
         if (!i) return null;
@@ -2183,35 +2198,58 @@ var vxTimer = setInterval(vxTick, 15000);
         return m ? Math.max(0, Math.min(1, parseFloat(m[1].split(",")[0]))) : 1;
       }
 
-      var lastP = null, startAt = 0, startP = 1, lastSec = -1;
+      var lastP = null, startAt = 0, startP = 1, lastSec = -1, shownSec = "";
 
-      /* Mỗi 100ms: cập nhật vòng, màu, số giây, viền đỏ, tiếng tích, khách sốt ruột */
+      /* Mỗi 100ms: cập nhật vòng, màu, đầu cung, số giây, căng thẳng cảnh, viền đỏ, tiếng tích */
       function tick() {
         var p = readProgress(), now = performance.now();
-        if (p === null || mode === "off") { el.classList.remove("show"); vig.style.opacity = 0; lastP = null; return; }
+        if (p === null || mode === "off") {
+          el.classList.remove("show"); vig.style.opacity = 0; lastP = null; tensionT = 0; return;
+        }
         el.classList.add("show");
-        if (lastP === null || p > lastP + 0.2) { startAt = now; startP = p; lastSec = -1; }   /* câu mới */
+        if (lastP === null || p > lastP + 0.2) {                       /* câu mới: reset + vòng "hiện ra" nhẹ */
+          startAt = now; startP = p; lastSec = -1;
+          el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
+        }
         lastP = p;
 
         /* Ước lượng số giây còn lại từ tốc độ chạy của thanh */
         var used = startP - p, sec = null;
         if (used > 0.04) sec = Math.ceil(p / (used / ((now - startAt) / 1000)));
-        num.textContent = sec === null ? "" : sec;
+        var txt = sec === null ? "" : String(sec);
+        if (txt !== shownSec) {                                        /* số đổi: chạy lại animation trượt */
+          shownSec = txt; num.textContent = txt;
+          num.classList.remove("tk"); void num.offsetWidth; num.classList.add("tk");
+        }
 
+        /* Cung tiến độ + màu liên tục + đầu cung xoay theo p */
         fg.style.strokeDashoffset = CIRC * (1 - p);
-        var low = p < 0.33, crit = p < 0.15;
-        el.classList.toggle("low", low); el.classList.toggle("crit", crit && mode === "full");
+        el.style.setProperty("--tc", "hsl(" + tmHue(p).toFixed(0) + ",85%,55%)");
+        hd.style.transform = "rotate(" + (p * 360).toFixed(1) + "deg)";
+        el.classList.toggle("crit", p < 0.15 && mode === "full");
 
-        if (mode === "full" && crit) {
+        /* Căng thẳng cảnh: 0 khi còn trên 1/3, tăng dần tới 1 khi hết giờ (chỉ ở chế độ Đầy đủ) */
+        tensionT = mode === "full" ? Math.max(0, Math.min(1, 1 - p / 0.33)) : 0;
+
+        if (mode === "full" && p < 0.15) {
           vig.style.opacity = (1 - p / 0.15) * 0.9;
-          var s = Math.ceil(p * 100);
           if (sec !== null && sec !== lastSec) { lastSec = sec; X.beep(1100, 35, 0.03); X.hurry(); }
         } else vig.style.opacity = 0;
       }
       var timer = setInterval(tick, 100);
 
-      return { dispose: function () { clearInterval(timer); } };
+      /* Gợn sóng mảnh toả ra từ đồng hồ khi có kết quả: xanh = đúng, đỏ = sai */
+      function flash(good) {
+        if (mode === "off") return;
+        rp.className = "rp"; void rp.offsetWidth; rp.className = "rp " + (good ? "g" : "b");
+      }
+
+      /* Dọn dẹp khi huỷ view */
+      function dispose() { clearInterval(timer); tensionT = 0; }
+
+      return { dispose: dispose, flash: flash };
     })();
+    /* =================== HẾT TIME RING v2 =================== */
     /* =================== HẾT TIME RING =================== */
     
     /* ---------- giao diện view ---------- */
@@ -2233,8 +2271,8 @@ var vxTimer = setInterval(vxTick, 15000);
       /* Quét lỗi: camera nhìn vào màn POS, KHÔNG tự zoom bàn phím (giống PC) */
 scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0; zoomUI(); X.onFail(); },   /* quét lỗi → camera nhìn vào màn hình POS (điện thoại: phóng vào bàn phím) */
       scanClear: function () { scanning = false; if (mode === "fail") mode = "idle"; X.onClear(); },
-      result: function (good) { mode = good ? "good" : "bad"; modeUntil = time + 0.9; if (!good) shake = 0.12; X.onResult(good); },
-      bag: function () {
+      result: function (good) { mode = good ? "good" : "bad"; modeUntil = time + 0.9; if (!good) shake = 0.12; X.onResult(good); TR.flash(good); },
+            bag: function () {
         var e = curEnt; focusT = 0; zoomKT = 0; zoomUI();
         X.onBag();
         var jx = (Math.random() - 0.5) * 0.3, jz = (Math.random() - 0.5) * 0.24, k = bagEnts.length;
