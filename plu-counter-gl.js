@@ -1725,6 +1725,13 @@ var X = (function () {
  
   return {
     update: update,
+    update: update,
+    /* Cho phép bên ngoài phát tiếng bíp (dùng cho tiếng tích đồng hồ) */
+    beep: beep,
+    /* Khách hàng tỏ ra sốt ruột khi sắp hết giờ (không ghi đè khi đang có phản ứng khác) */
+    hurry: function () { if (cm.n === "idle") setMood("impatient", 1.2); },
+    onRest: function (n) { restN = n; },
+
     onRest: function (n) { restN = n; },
     onPick: function () { pickAt = time; setMood("watch", 3); },
     onScanStart: function () { setMood("watch", 3); },
@@ -1736,6 +1743,7 @@ var X = (function () {
     },
     onBag: function () { setMood("receive", 1.2); printFx(); },
     dispose: function () { try { if (auCtx) auCtx.close(); } catch (e) {} }
+    
   };
 })();
 /* =================== HẾT EXTRAS v5 =================== */
@@ -1955,6 +1963,24 @@ function zoomUI() {
 }
 zbtn.addEventListener("click", function () { zoomKT = zoomKT ? 0 : 1; zoomUI(); });
 
+/* Chạm vào vùng nhập/bàn phím khi đang nhìn cả màn hình (điện thoại): zoom vào bàn phím.
+   Lần chạm đầu chỉ dùng để zoom, không bấm nhầm phím ở cỡ nhỏ. */
+var tapGate = false, tapGateT = 0;
+var GATE_EVS = ["pointerdown", "mousedown", "touchstart", "pointerup", "mouseup", "touchend", "click"];
+function kbNeedsZoom() { return !!(isPortrait && poseK && focusT === 1 && zoomKT === 0); }
+function kbGate(e) {
+  var now = performance.now();
+  if (e.type === "pointerdown" && kbNeedsZoom() && e.target.closest && e.target.closest(".pos-r")) {
+    zoomKT = 1; zoomUI(); tapGate = true; tapGateT = now;       /* bật chặn cho cú chạm này */
+  }
+  if (tapGate && now - tapGateT < 700) {                          /* nuốt toàn bộ sự kiện của cú chạm zoom */
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    if (e.type === "click") tapGate = false;
+  } else if (tapGate) tapGate = false;
+}
+GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
+
     function resize() {
       W = Math.max(cv.clientWidth, 1); H = Math.max(cv.clientHeight, 1);
       renderer.setSize(W, H, false);
@@ -2114,8 +2140,80 @@ function vxSync() {
 var vxObs = new MutationObserver(vxSync);
 vxObs.observe(posMount, { childList: true, subtree: true });
 vxSync(); vxTick();
-var vxTimer = setInterval(vxTick, 1000);
+/* Đồng hồ chỉ hiện giờ:phút nên 15 giây cập nhật một lần là đủ */
+var vxTimer = setInterval(vxTick, 15000);
 
+    /* ===================== TIME RING: vòng đồng hồ đếm ngược ===================== */
+    var TR = (function () {
+      var MODES = ["full", "calm", "off"];
+      var LABEL = { full: "Đầy đủ", calm: "Nhẹ", off: "Tắt" };
+      var CIRC = 2 * Math.PI * 19;                    /* chu vi vòng (r = 19) */
+      var mode = "full";
+      try { var sv = localStorage.getItem("plu-timer-mode"); if (MODES.indexOf(sv) >= 0) mode = sv; } catch (e) {}
+
+      /* Dựng DOM: vòng SVG + số giây + nút đổi chế độ + lớp viền đỏ */
+      var el = document.createElement("div"); el.className = "pcg-tm";
+      el.innerHTML =
+        '<div class="rg"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/>' +
+        '<circle class="fg" cx="22" cy="22" r="19"/></svg><b>--</b></div>' +
+        '<button type="button" class="md"></button>';
+      var fg = el.querySelector(".fg"), num = el.querySelector("b"), md = el.querySelector(".md");
+      var vig = document.createElement("div"); vig.className = "pcg-tm-vig";
+      cv.appendChild(el); cv.appendChild(vig);
+      fg.style.strokeDasharray = CIRC;
+
+      /* Áp chế độ hiện tại lên giao diện */
+      function applyMode() {
+        md.textContent = "Đồng hồ: " + LABEL[mode];
+        cv.classList.toggle("tm-off", mode === "off");
+        try { localStorage.setItem("plu-timer-mode", mode); } catch (e) {}
+      }
+      md.addEventListener("click", function () {
+        mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length]; applyMode();
+      });
+      applyMode();
+
+      /* Đọc tiến độ 0..1 từ thanh .pos-tm i của engine (đọc được cả khi engine dùng animation/transition) */
+      function readProgress() {
+        var i = posMount.querySelector(".pos-tm i");
+        if (!i) return null;
+        var t = getComputedStyle(i).transform;
+        if (!t || t === "none") return 1;
+        var m = t.match(/matrix\(([^)]+)\)/);
+        return m ? Math.max(0, Math.min(1, parseFloat(m[1].split(",")[0]))) : 1;
+      }
+
+      var lastP = null, startAt = 0, startP = 1, lastSec = -1;
+
+      /* Mỗi 100ms: cập nhật vòng, màu, số giây, viền đỏ, tiếng tích, khách sốt ruột */
+      function tick() {
+        var p = readProgress(), now = performance.now();
+        if (p === null || mode === "off") { el.classList.remove("show"); vig.style.opacity = 0; lastP = null; return; }
+        el.classList.add("show");
+        if (lastP === null || p > lastP + 0.2) { startAt = now; startP = p; lastSec = -1; }   /* câu mới */
+        lastP = p;
+
+        /* Ước lượng số giây còn lại từ tốc độ chạy của thanh */
+        var used = startP - p, sec = null;
+        if (used > 0.04) sec = Math.ceil(p / (used / ((now - startAt) / 1000)));
+        num.textContent = sec === null ? "" : sec;
+
+        fg.style.strokeDashoffset = CIRC * (1 - p);
+        var low = p < 0.33, crit = p < 0.15;
+        el.classList.toggle("low", low); el.classList.toggle("crit", crit && mode === "full");
+
+        if (mode === "full" && crit) {
+          vig.style.opacity = (1 - p / 0.15) * 0.9;
+          var s = Math.ceil(p * 100);
+          if (sec !== null && sec !== lastSec) { lastSec = sec; X.beep(1100, 35, 0.03); X.hurry(); }
+        } else vig.style.opacity = 0;
+      }
+      var timer = setInterval(tick, 100);
+
+      return { dispose: function () { clearInterval(timer); } };
+    })();
+    /* =================== HẾT TIME RING =================== */
+    
     /* ---------- giao diện view ---------- */
     return {
       kind: "gl",
@@ -2132,7 +2230,8 @@ var vxTimer = setInterval(vxTick, 1000);
         return 650;
       },
       scanStart: function () { scanning = true; mode = "idle"; X.onScanStart(); },
-      scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = isPortrait ? 1 : 0; zoomUI(); X.onFail(); },   /* quét lỗi → camera nhìn vào màn hình POS (điện thoại: phóng vào bàn phím) */
+      /* Quét lỗi: camera nhìn vào màn POS, KHÔNG tự zoom bàn phím (giống PC) */
+scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0; zoomUI(); X.onFail(); },   /* quét lỗi → camera nhìn vào màn hình POS (điện thoại: phóng vào bàn phím) */
       scanClear: function () { scanning = false; if (mode === "fail") mode = "idle"; X.onClear(); },
       result: function (good) { mode = good ? "good" : "bad"; modeUntil = time + 0.9; if (!good) shake = 0.12; X.onResult(good); },
       bag: function () {
@@ -2153,8 +2252,8 @@ var vxTimer = setInterval(vxTick, 1000);
       destroy: function () {
         alive = false; cancelAnimationFrame(raf);
 
-        vxObs.disconnect(); X.dispose(); clearInterval(vxTimer);
-        if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
+        vxObs.disconnect(); X.dispose(); TR.dispose(); clearInterval(vxTimer);
+                if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
         cv.removeEventListener("pointermove", onMove); cv.removeEventListener("pointerleave", onLeave);
         renderer.domElement.removeEventListener("pointerdown", onDown);
         Object.keys(texCache).forEach(function (k) { texCache[k].dispose(); });

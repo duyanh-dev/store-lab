@@ -475,3 +475,51 @@ body.plu-full .mn-scrim {
 }
 .pcg-zoom[hidden] { display: none; }
 .pcg-zoom:active { transform: scale(.95); }
+
+
+/* Thanh đếm ngược: mảnh, mờ, sát mép dưới tiêu đề để không tranh sự chú ý với món hàng */
+.pcg-pos .pos-tm { height: 2px !important; background: transparent !important; opacity: .55; }
+.pcg-pos .pos-tm i { background: rgba(36, 87, 245, .55) !important; border-radius: 0 2px 2px 0; }
+
+/* TUỲ CHỌN: ẩn hẳn thanh (bỏ comment nếu muốn tắt hoàn toàn) */
+/* .pcg-pos .pos-tm { display: none !important; } */
+
+
+/* ===== Time ring: vòng đồng hồ đếm ngược trong cảnh ===== */
+/* Thanh .pos-tm cũ vẫn phải tồn tại để JS đọc tiến độ, nên chỉ làm trong suốt (KHÔNG dùng display:none vì animation sẽ dừng) */
+.pcg-pos .pos-tm { opacity: 0 !important; pointer-events: none; }
+
+/* Khung chứa vòng + nút chế độ (góc trái trên của canvas), ẩn khi chưa có câu hỏi */
+.pcg-tm {
+  position: absolute; left: 12px; top: 12px; z-index: 3; display: flex; align-items: center; gap: 8px;
+  opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .25s; pointer-events: none;
+}
+.pcg-tm.show { opacity: 1; transform: none; }
+.pcg-tm .md { pointer-events: auto; }
+
+/* Vòng tròn SVG: nền mờ + cung tiến độ quay từ 12 giờ */
+.pcg-tm .rg { position: relative; width: 54px; height: 54px; border-radius: 50%; background: rgba(20, 26, 44, .72); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.pcg-tm svg { position: absolute; inset: 5px; width: 44px; height: 44px; transform: rotate(-90deg); }
+.pcg-tm circle { fill: none; stroke-width: 4; }
+.pcg-tm .bg { stroke: rgba(255, 255, 255, .14); }
+.pcg-tm .fg { stroke: #30d158; stroke-linecap: round; transition: stroke-dashoffset .12s linear, stroke .3s; }
+
+/* Số giây còn lại ở giữa vòng */
+.pcg-tm b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 15px ui-monospace, Menlo, Consolas, monospace; color: #fff; }
+
+/* Đổi màu theo mức thời gian: cam khi còn dưới 1/3, đỏ + đập nhịp khi sắp hết */
+.pcg-tm.low .fg { stroke: #ff9f0a; }
+.pcg-tm.crit .fg { stroke: #ff453a; }
+.pcg-tm.crit .rg { animation: pcg-tm-beat .5s ease-in-out infinite alternate; }
+@keyframes pcg-tm-beat { to { transform: scale(1.1); box-shadow: inset 0 0 0 1px rgba(255, 69, 58, .6), 0 0 18px rgba(255, 69, 58, .55); } }
+
+/* Nút đổi chế độ: viên thuốc nhỏ cạnh vòng */
+.pcg-tm .md { padding: 6px 11px; border: 0; border-radius: 999px; cursor: pointer; font: 650 11px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; background: rgba(20, 26, 44, .6); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.pcg-tm .md:active { transform: scale(.95); }
+
+/* Chế độ Tắt: vẫn hiện nút để bật lại, nhưng ẩn vòng */
+.pcg-cv.tm-off .pcg-tm { opacity: 1; transform: none; }
+.pcg-cv.tm-off .pcg-tm .rg { display: none; }
+
+/* Viền đỏ mờ quanh màn hình khi sắp hết giờ */
+.pcg-tm-vig { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(255, 40, 30, .42) 100%); }
