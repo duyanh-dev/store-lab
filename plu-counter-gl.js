@@ -92,40 +92,92 @@ function enterFull(sceneEl, ctx) {
   function easeOut(k) { return 1 - Math.pow(1 - k, 3); }
 
 
-  /* Khung giao diện Vynamic POS (chỉ để trang trí, không bắt chạm) */
-/* Khung POS: thanh trạng thái trên (có màn hình cân) + thanh quầy dưới. Chỉ trang trí, không bắt chạm */
+ /* Khung giao diện Vynamic POS (chỉ để trang trí, không bắt chạm) */
+var VX_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
 var VX_HTML =
-  '<div class="vp-top">' +
-    '<svg class="vp-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.5L12 4l8.5 7.5M6 10v10h12V10M10 20v-5.5h4V20"/></svg>' +
-    '<div class="vp-wt"><small>CÂN</small><b class="vp-kg">0,000</b><span>kg</span></div>' +
-    '<div class="vp-ttl"><b>PLU POS</b><small class="vp-clk"></small></div>' +
-    '<div class="vp-sig"><i></i><i></i><i></i><i></i></div>' +
+  '<div class="vx-top">' +
+    VX_SVG.replace("<svg", '<svg class="vx-home"') + '<path d="M3.5 11.5L12 4l8.5 7.5M6 10v10h12V10M10 20v-5.5h4V20"/></svg>' +
+    '<div class="vx-kg"><b><span class="vp-kg">--,--</span> kg</b><i>± 1 kg</i></div>' +
+    '<div class="vx-scale"><i>&lt;scale-min&gt;0 kg</i><i>&lt;scale-max&gt;2,147,483 kg</i></div>' +
+    '<div class="vx-ttl"><b>VYNAMIC POS CLIENT</b><span class="vx-clk vp-clk"></span></div>' +
+    VX_SVG.replace("<svg", '<svg class="vx-srch"') + '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>' +
   '</div>' +
-  '<div class="vp-bot"><span>THU NGÂN <b>BẠN</b></span><span>QUẦY <b>03</b></span>' +
-    '<span class="vp-scn wait"><i></i><em>Máy quét sẵn sàng</em></span></div>';
+  '<div class="vx-mid">' +
+    '<span class="vx-pill" style="top:42px">IN LẠI BIÊN LAI</span>' +
+    '<span class="vx-pill" style="top:146px">HỦY ĐƠN</span>' +
+    '<div class="vx-pg">' +
+      '<i class="c">' + VX_SVG + '<path d="M14.5 6l-6 6 6 6"/></svg></i>' +
+      '<i class="d on"></i><i class="d"></i><i class="d"></i>' +
+      '<i class="c">' + VX_SVG + '<path d="M9.5 6l6 6-6 6"/></svg></i>' +
+    '</div>' +
+  '</div>' +
+  '<div class="vx-sum"><div class="l"><span>KHUYẾN MÃI VND<i>-</i></span><span>THUẾ VND<i>-</i></span><span>SỐ<i>-</i></span></div>' +
+    '<div class="r"><span>TỔNG CỘNG VND<i>-</i></span></div></div>' +
+  '<div class="vx-bot">' +
+    '<b class="vx-dn">Dn</b>' +
+    '<div class="vx-acc">Tài khoản điều hành: <b>207301</b><br>POS: 6</div>' +
+    '<span class="vp-scn wait"><i></i><em>Máy quét sẵn sàng</em></span>' +
+    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>' +
+    VX_SVG.replace("<svg", '<svg class="vx-ic"') + '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg>' +
+  '</div>';
 
 var VP_CSS = [
-".vp{position:absolute;inset:0;pointer-events:none;z-index:5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}",
-".vp-top{position:absolute;left:0;right:0;top:0;height:46px;display:flex;align-items:center;gap:16px;padding:0 14px;color:#fff;background:linear-gradient(#2d6199,#1d426b);border-bottom:2px solid #11294a}",
-".vp-home{width:24px;height:24px;flex:none;opacity:.9}",
-".vp-wt{display:flex;align-items:baseline;gap:5px;padding:3px 10px;background:#0b1a2b;border:1px solid #0a1422;border-radius:4px;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}",
-".vp-wt small{font-size:9px;letter-spacing:.1em;color:#7fa3c9}",
-".vp-kg{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:#6dff9c;min-width:62px;text-align:right}",
-".vp-wt span{font-size:11px;color:#9fc0e0}",
-".vp-ttl{margin-left:auto;text-align:right;line-height:1.15}",
-".vp-ttl b{display:block;font-size:13px;letter-spacing:.08em}",
-".vp-ttl small{font-size:10px;color:#a9c4e2}",
-".vp-sig{display:flex;align-items:flex-end;gap:2px;height:14px}",
-".vp-sig i{width:3px;background:#cfe3f8;border-radius:1px}",
-".vp-sig i:nth-child(1){height:4px}.vp-sig i:nth-child(2){height:7px}.vp-sig i:nth-child(3){height:10px}.vp-sig i:nth-child(4){height:14px}",
-".vp-bot{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;gap:18px;padding:0 14px;font-size:11px;color:#c4d4e6;background:linear-gradient(#26384f,#182638);border-top:2px solid #0e1a2a}",
-".vp-bot b{color:#fff}",
-".vp-scn{margin-left:auto;display:flex;align-items:center;gap:6px}",
+".vp{position:absolute;inset:0;pointer-events:none;z-index:5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#2b3552}",
+/* thanh trên: nền oải hương nhạt như máy thật */
+".vx-top{position:absolute;left:0;right:0;top:0;height:52px;display:flex;align-items:center;gap:14px;padding:0 14px;background:linear-gradient(#eef0fa,#dfe3f3);border-bottom:1px solid #b9c0dc}",
+".vx-home{width:24px;height:24px;flex:none;color:#2b3552}",
+".vx-kg{line-height:1.1}",
+".vx-kg b{font-size:19px;font-weight:700;letter-spacing:.01em}",
+".vx-kg i{display:block;font-style:normal;font-size:9px;color:#6b7391}",
+".vx-scale{display:flex;flex-direction:column;gap:5px}",
+".vx-scale i{font-style:normal;font-size:8px;color:#8b92ad;white-space:nowrap}",
+".vx-ttl{margin-left:auto;text-align:center;line-height:1.35}",
+".vx-ttl b{display:block;font-size:10px;letter-spacing:.1em;font-weight:700}",
+".vx-clk{display:block;font-size:10px;font-weight:600;white-space:pre}",
+".vx-srch{width:22px;height:22px;flex:none;color:#1d2540}",
+/* cột giữa: dải xanh chuyển màu + 2 nút trắng + phân trang */
+".vx-mid{position:absolute;left:var(--vx-mid-l,262px);width:var(--vx-mid-w,138px);top:52px;bottom:40px;background:linear-gradient(#7d86cf 0%,#5a72cf 45%,#4666c8 100%)}",
+".vx-pill{position:absolute;left:8px;right:8px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:15px;background:linear-gradient(#ffffff,#e9edf8);color:#3a4163;font-size:8.5px;font-weight:700;letter-spacing:.1em;box-shadow:0 1px 3px rgba(20,30,80,.35)}",
+".vx-pg{position:absolute;left:0;right:0;bottom:8px;display:flex;align-items:center;justify-content:center;gap:7px}",
+".vx-pg .c{width:26px;height:26px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;color:#2b3552;box-shadow:0 1px 3px rgba(20,30,80,.35)}",
+".vx-pg .c svg{width:14px;height:14px;stroke-width:2.6}",
+".vx-pg .d{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.65)}",
+".vx-pg .d.on{background:#10172e;box-shadow:0 0 0 2px #fff}",
+/* hàng tổng cộng */
+".vx-sum{position:absolute;left:0;width:var(--vx-mid-l,262px);bottom:40px;height:26px;display:flex;justify-content:space-between;align-items:center;padding:0 12px;border-top:1px solid #c9cfe6;background:rgba(238,240,250,.85)}",
+".vx-sum .l{display:flex;gap:12px}",
+".vx-sum span{display:flex;flex-direction:column;font-size:7.5px;font-weight:700;letter-spacing:.03em;color:#3a4163;line-height:1.15}",
+".vx-sum i{font-style:normal;font-weight:400;color:#8b92ad}",
+/* thanh dưới */
+".vx-bot{position:absolute;left:0;right:0;bottom:0;height:40px;display:flex;align-items:center;gap:12px;padding:0 14px;background:linear-gradient(#e4e8f5,#d5dbee);border-top:1px solid #b9c0dc;font-size:9px;color:#4a5273}",
+".vx-dn{font-size:17px;color:#26328a;letter-spacing:-.04em}",
+".vx-acc{line-height:1.3}",
+".vx-acc b{color:#1d2540}",
+".vx-ic{width:19px;height:19px;flex:none;color:#26328a}",
+/* trạng thái máy quét (logic cũ vẫn đổi class wait/scan/nobar/ok/bad) */
+".vx-bot .vp-scn{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:9px}",
 ".vp-scn em{font-style:normal}",
-".vp-scn i{width:9px;height:9px;border-radius:50%;background:#2fb25a;box-shadow:0 0 6px #2fb25a}",
-".vp-scn.scan i{background:#ffb020;box-shadow:0 0 6px #ffb020}",
-".vp-scn.nobar i,.vp-scn.bad i{background:#ff3b30;box-shadow:0 0 6px #ff3b30}",
-/* chừa chỗ cho 2 thanh, bo góc màn hình, thêm vệt phản chiếu kính */
+".vp-scn i{width:8px;height:8px;border-radius:50%;background:#2fb25a;box-shadow:0 0 5px #2fb25a}",
+".vp-scn.scan i{background:#ffb020;box-shadow:0 0 5px #ffb020}",
+".vp-scn.nobar i,.vp-scn.bad i{background:#ff3b30;box-shadow:0 0 5px #ff3b30}",
+
+".vx-srch,.vx-home,.vx-pill,.vx-pg .c,.vx-pg .d,.vx-ic{pointer-events:auto;cursor:pointer}",
+".vx-pill:active,.vx-pg .c:active{filter:brightness(.92);transform:translateY(1px)}",
+".vx-lk{position:absolute;left:0;right:0;top:52px;bottom:40px;display:none;flex-direction:column;background:#f4f6fc;z-index:6;pointer-events:auto}",
+".vx-lk.on{display:flex}",
+".vx-lk-h{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#e4e8f5;border-bottom:1px solid #b9c0dc}",
+".vx-lk-h input{flex:1;height:34px;border:1px solid #aab2d4;border-radius:17px;padding:0 14px;font-size:14px;outline:none;background:#fff;color:#1d2540}",
+".vx-lk-h .x{width:28px;height:28px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(20,30,80,.3)}",
+".vx-lk-l{flex:1;overflow-y:auto;padding:4px 10px;-webkit-overflow-scrolling:touch}",
+".vx-lk-l .r{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid #dde1f0}",
+".vx-lk-l .r i{font-style:normal;font-size:20px;width:28px;text-align:center}",
+".vx-lk-l .r span{flex:1;min-width:0;display:flex;flex-direction:column}",
+".vx-lk-l .r b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+".vx-lk-l .r small{font-size:9px;color:#8b92ad}",
+".vx-lk-l .r em{font-style:normal;font:700 15px ui-monospace,Menlo,Consolas,monospace;color:#26328a}",
+".vx-lk-l .e{padding:30px;text-align:center;color:#8b92ad;font-size:12px}",
+".vx-toast{position:absolute;left:50%;bottom:52px;transform:translate(-50%,6px);padding:7px 14px;border-radius:16px;background:rgba(20,26,48,.9);color:#fff;font-size:11px;opacity:0;transition:.2s;z-index:8;white-space:nowrap}",
+".vx-toast.on{opacity:1;transform:translate(-50%,0)}",
 
 ".pcg-pos::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:9;background:linear-gradient(115deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 38%),radial-gradient(120% 90% at 50% 120%,rgba(0,0,0,.18),transparent 60%)}"
 ].join("");
@@ -150,6 +202,8 @@ var VP_CSS = [
     sceneEl.className = "pc-scene gl";
     sceneEl.innerHTML = '<div class="pcg"><div class="pcg-cv"><div class="pcg-pos"></div></div></div>';
     var cv = sceneEl.querySelector(".pcg-cv"), posMount = sceneEl.querySelector(".pcg-pos");
+    /* thanh nút chung: mọi nút nổi (tự động quét, phóng, thu nhỏ) nằm trong đây, xếp ngang, không đè nhau */
+var bar = document.createElement("div"); bar.className = "pcg-bar"; cv.appendChild(bar);
 
     var renderer;
     try {
@@ -1797,6 +1851,7 @@ if (scanning && curEnt && curEnt.free && curEnt.mesh.visible && !curEnt.held && 
       else { setMood("angry", 1.4); beep(330, 260, 0.05); }
     },
     onBag: function () { setMood("receive", 1.2); printFx(); },
+    print: function () { if (!paper.visible) { printFx(); beep(1800, 50, 0.03); } },
     dispose: function () { try { if (auCtx) auCtx.close(); } catch (e) {} }
     
   };
@@ -2011,10 +2066,19 @@ var W = 1, H = 1, poseW = null, poseS = null, poseK = null, zoomK = 0, zoomKT = 
     /* nút chuyển giữa "phóng bàn phím" và "xem cả màn hình" (chỉ hiện trên điện thoại khi đang nhìn màn POS) */
 var zbtn = document.createElement("button");
 zbtn.type = "button"; zbtn.className = "pcg-zoom"; zbtn.hidden = true;
-cv.appendChild(zbtn);
+bar.appendChild(zbtn);
+var zout = document.createElement("button");
+zout.type = "button"; zout.className = "pcg-zoom"; zout.hidden = true; zout.textContent = "Thu nhỏ";
+var zout = document.createElement("button");
+zout.type = "button"; zout.className = "pcg-zoom"; zout.hidden = true; zout.textContent = "Thu nhỏ";
+bar.appendChild(zout);
+function setFocus(v) { focusT = v; zoomKT = 0; zoomUI(); }
+zout.addEventListener("click", function () { setFocus(0); });
+
 function zoomUI() {
   zbtn.hidden = !(isPortrait && poseK && focusT === 1);
   zbtn.textContent = zoomKT ? "Xem cả màn hình" : "Phóng bàn phím";
+  zout.hidden = !(isPortrait && focusT === 1);
 }
 zbtn.addEventListener("click", function () { zoomKT = zoomKT ? 0 : 1; zoomUI(); });
 
@@ -2025,10 +2089,14 @@ var GATE_EVS = ["pointerdown", "mousedown", "touchstart", "pointerup", "mouseup"
 function kbNeedsZoom() { return !!(isPortrait && poseK && focusT === 1 && zoomKT === 0); }
 function kbGate(e) {
   var now = performance.now();
-  if (e.type === "pointerdown" && kbNeedsZoom() && e.target.closest && e.target.closest(".pos-r")) {
-    zoomKT = 1; zoomUI(); tapGate = true; tapGateT = now;       /* bật chặn cho cú chạm này */
+  if (e.type === "pointerdown") {
+    if (isPortrait && poseS && focusT === 0) {            /* đang nhìn rộng: chạm màn hình = zoom vào màn */
+      focusT = 1; zoomKT = 0; zoomUI(); tapGate = true; tapGateT = now;
+    } else if (kbNeedsZoom() && e.target.closest && e.target.closest(".pos-r")) {
+      zoomKT = 1; zoomUI(); tapGate = true; tapGateT = now;
+    }
   }
-  if (tapGate && now - tapGateT < 700) {                          /* nuốt toàn bộ sự kiện của cú chạm zoom */
+  if (tapGate && now - tapGateT < 700) {
     e.stopPropagation();
     if (e.cancelable) e.preventDefault();
     if (e.type === "click") tapGate = false;
@@ -2190,7 +2258,7 @@ abtn.addEventListener("click", function () {
   if (!ready || !basketCb || drag || pend || dropping || manualDrop) return;
   abtn.hidden = true; abtnOn = false; basketCb();
 });
-cv.appendChild(abtn);
+bar.appendChild(abtn);
 var abtnOn = false;
 function autoUI() {
   var on = !!(ready && basketCb && rest.length && !drag && !pend && !dropping && !manualDrop && focusT === 0);
@@ -2344,11 +2412,43 @@ var vpClk = vx.querySelector(".vp-clk"), vpKg = vx.querySelector(".vp-kg"), vpSc
 var VP_ST = { wait: "Máy quét sẵn sàng", scan: "Đang quét…", nobar: "Không đọc được mã", ok: "Đã đọc mã", bad: "Sai mã PLU" };
 function p2(n) { return n < 10 ? "0" + n : "" + n; }
 function vxTick() {
-  var d = new Date();
-  vpClk.textContent = p2(d.getHours()) + ":" + p2(d.getMinutes()) + "   " + p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + "/" + d.getFullYear();
+  var d = new Date(), h = d.getHours(), ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12;
+  vpClk.textContent = h + ":" + p2(d.getMinutes()) + " " + ap + "  |  " + (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
 }
+
+var MID_W = 138;
+function vxOffLeft(el) {                         /* offsetLeft tính tới posMount, không bị ảnh hưởng bởi matrix3d */
+  var x = 0;
+  while (el && el !== posMount) { x += el.offsetLeft; el = el.offsetParent; }
+  return x;
+}
+function vxMakeRoom() {
+  var r = posMount.querySelector(".pos-r");
+  if (!r || !r.offsetWidth) return;
+  var L = vxOffLeft(r);                          /* mép trái thật của bàn phím */
+  var colL = L - MID_W;
+  if (vx.getAttribute("data-l") !== String(L)) {
+    vx.setAttribute("data-l", String(L));
+    vx.style.setProperty("--vx-mid-l", colL + "px");
+    vx.style.setProperty("--vx-mid-w", MID_W + "px");
+  }
+  /* tìm panel trái: phần tử bắt đầu ở x≈0, rộng ≈ L, không chứa .pos-r */
+  var all = posMount.querySelectorAll("*"), left = null;
+  for (var i = 0; i < all.length; i++) {
+    var e = all[i];
+    if (vx.contains(e) || e.contains(r) || r.contains(e)) continue;
+    var w = e.offsetWidth;
+    if (vxOffLeft(e) <= 2 && w >= L * 0.6 && w <= L + 2) { left = e; break; }
+  }
+  if (!left) return;
+  if (left.dataset.vxPad == null) left.dataset.vxPad = parseFloat(getComputedStyle(left).paddingRight) || 0;
+  left.style.boxSizing = "border-box";
+  left.style.paddingRight = (parseFloat(left.dataset.vxPad) + MID_W) + "px";
+}
+
 function vxSync() {
   if (vx.parentNode !== posMount) posMount.appendChild(vx);
+  vxMakeRoom();
   var ks = posMount.querySelectorAll(".pos-k");
   for (var i = 0; i < ks.length; i++) {
     var k = ks[i];
@@ -2360,13 +2460,79 @@ function vxSync() {
   var cls = "vp-scn " + kind; if (vpScn.className !== cls) vpScn.className = cls;
   if (vpTxt.textContent !== VP_ST[kind]) vpTxt.textContent = VP_ST[kind];
   var mt = posMount.querySelector(".pos-meta"), g = mt && /([\d.]+)\s*kg/.exec(mt.textContent);
-  var kg = (kind === "wait" || !g) ? "0,000" : g[1].replace(".", ",");
+var kg = (kind === "wait" || !g) ? "--,--" : g[1].replace(".", ",");
   if (vpKg.textContent !== kg) vpKg.textContent = kg;
+
+  if (lkOn && lkBlocked()) lkClose();
 }
 var vxObs = new MutationObserver(vxSync);
 vxObs.observe(posMount, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
 vxSync(); vxTick();
 var vxTimer = setInterval(vxTick, 15000);
+
+/* ---------- tương tác trên màn POS: kính lúp tra PLU, in lại biên lai, đổi trang, thông báo ---------- */
+var vxToast = document.createElement("div"); vxToast.className = "vx-toast"; vx.appendChild(vxToast);
+var toastTm = 0;
+function toast(t) {
+  vxToast.textContent = t; vxToast.classList.add("on");
+  clearTimeout(toastTm); toastTm = setTimeout(function () { vxToast.classList.remove("on"); }, 1700);
+}
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function pluOf(it) {
+  var ks = ["plu", "PLU", "code", "ma", "pluCode"];
+  for (var i = 0; i < ks.length; i++) if (it[ks[i]] != null && it[ks[i]] !== "") return String(it[ks[i]]);
+  return "";
+}
+
+var lk = document.createElement("div"); lk.className = "vx-lk";
+lk.innerHTML = '<div class="vx-lk-h"><input type="text" inputmode="search" autocomplete="off" placeholder="Tìm tên món hoặc mã PLU…"><b class="x">✕</b></div><div class="vx-lk-l"></div>';
+vx.appendChild(lk);
+var lkOn = false, lkIn = lk.querySelector("input"), lkList = lk.querySelector(".vx-lk-l");
+
+function lkBlocked() { return scanning || mode === "fail"; }       /* đang quét / đang chờ nhập mã thì không tra (tránh lộ đáp án) */
+function lkRender(q) {
+  q = norm(q).trim(); var out = [], n = 0;
+  items.forEach(function (it) {
+    var code = pluOf(it);
+    if (q && (norm(it.name) + " " + norm(it.cat) + " " + code).indexOf(q) < 0) return;
+    if (n++ < 60) out.push('<div class="r"><i>' + esc(icon(it) || "🏷️") + '</i><span><b>' + esc(it.name) + '</b><small>' + esc(it.cat || "") + '</small></span><em>' + (code || "—") + '</em></div>');
+  });
+  lkList.innerHTML = out.join("") || '<div class="e">Không tìm thấy</div>';
+}
+function lkOpen() {
+  if (lkBlocked()) { toast("Đang quét / chờ nhập mã — chưa tra được"); return; }
+  lkOn = true; lk.classList.add("on"); lkIn.value = ""; lkRender("");
+  setTimeout(function () { try { lkIn.focus({ preventScroll: true }); } catch (_) {} }, 60);
+}
+function lkClose() { lkOn = false; lk.classList.remove("on"); lkIn.blur(); }
+
+lkIn.addEventListener("input", function () { lkRender(lkIn.value); });
+["keydown", "keyup", "keypress"].forEach(function (n) {         /* không để phím gõ lọt xuống engine / phím Esc thoát toàn màn hình */
+  lkIn.addEventListener(n, function (e) { e.stopPropagation(); if (n === "keydown" && e.key === "Escape") lkClose(); });
+});
+
+var pgDots = vx.querySelectorAll(".vx-pg .d"), pgBtns = vx.querySelectorAll(".vx-pg .c"), pgI = 0;
+function setPg(n) {
+  pgI = (n + pgDots.length) % pgDots.length;
+  for (var i = 0; i < pgDots.length; i++) pgDots[i].classList.toggle("on", i === pgI);
+}
+vx.addEventListener("click", function (e) {
+  var t = e.target; if (!t || !t.closest) return;
+  if (t.closest(".vx-srch")) { lkOn ? lkClose() : lkOpen(); return; }
+  if (t.closest(".vx-lk .x")) { lkClose(); return; }
+  if (t.closest(".vx-lk")) return;
+  if (t.closest(".vx-home")) { if (lkOn) lkClose(); setFocus(0); return; }
+  var pill = t.closest(".vx-pill");
+  if (pill) {
+    if (/IN LẠI/.test(pill.textContent)) { X.print(); toast("Đang in lại biên lai…"); }
+    else toast("Đơn luyện tập — không hủy được");
+    return;
+  }
+  var c = t.closest(".vx-pg .c"); if (c) { setPg(pgI + (c === pgBtns[0] ? -1 : 1)); return; }
+  var d = t.closest(".vx-pg .d"); if (d) { setPg(Array.prototype.indexOf.call(pgDots, d)); return; }
+  var ic = t.closest(".vx-ic");
+  if (ic) { toast(ic === vx.querySelectorAll(".vx-ic")[0] ? "Cơ sở dữ liệu: đã kết nối" : "Ngôn ngữ: Tiếng Việt"); }
+});
 
         /* ===================== TIME RING v2: vòng đồng hồ + căng thẳng cảnh ===================== */
     var TR = (function () {
