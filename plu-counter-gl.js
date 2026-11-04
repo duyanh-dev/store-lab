@@ -2048,6 +2048,11 @@ var D = (function () {
 
     /* ---------- camera POV: 2 tư thế (rộng / màn hình), tự khớp khung ---------- */
 var W = 1, H = 1, poseW = null, poseS = null, poseK = null, zoomK = 0, zoomKT = 0;
+
+var panX = 0, push = 0, bagPan = false, bagPanTm = 0;   /* camera điện thoại: trượt ngang + đẩy vào khi quét */
+
+var camOX = 0, camOXT = 0, camZ = 0, camZT = 0;          /* người dùng tự trượt ngang / xích gần xa */
+var PAN_LIM = 1.3, ZOOM_IN = 0.28, ZOOM_OUT = -0.2;      /* giới hạn: chỉnh ở đây */
     var camPos = new V3(), camLook = new V3();
     function fit(T, dir, pts, lx, ly) {
       var v = new V3(), d = 2.5;
@@ -2121,6 +2126,14 @@ GATE_EVS.forEach(function (n) { posMount.addEventListener(n, kbGate, true); });
         v(-ex, 0.3, 2.1), v(ex, 0.3, 2.1), v(-ex, 0, -1.4), v(ex, 0, -1.4),
         v(-1.5, top, MON.z), v(1.5, top, MON.z), v(BAG.x, 1.7, BAG.z)
       ], 0.95, 0.92);
+
+      if (por) {                         /* điện thoại: chỉ ôm rổ + máy quét, không cố nhét cả túi vào khung */
+  poseW = fit(v(-1.3, 0.55, 1.0), v(0, 0.65, 0.76).normalize(), [
+    v(-3.6, 0, 0.35), v(-1.55, 0, 0.35), v(-3.6, 0, 1.95), v(-1.55, 0, 1.95),
+    v(-3.4, 1.15, 1.2), v(-0.95, 0, 0.17), v(0.95, 0, 0.17), v(-0.95, 0, 1.33), v(0.95, 0, 1.33),
+    v(1.1, 0.35, 0.75), v(-1.3, 0.5, -0.5)
+  ], 0.9, 0.88);
+}
 
       var corners = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(function (c) {
         return new V3(c[0] * SW / 2, c[1] * SH / 2, 0).applyMatrix4(monTilt.matrixWorld);
@@ -2319,6 +2332,56 @@ function disposeManual() {
   cvEl.removeEventListener("lostpointercapture", onDragEnd);
   if (abtn.parentNode) abtn.parentNode.removeChild(abtn);
 }
+
+/* ---------- camera tự do có giới hạn: kéo ngang, chụm 2 ngón / lăn chuột để xích gần xa, chạm đúp để về ---------- */
+var gp = {}, gN = 0, gPinch = null, gTap = { t: 0, x: 0, y: 0, moved: 0 };
+function gDown(e) {
+  if (pend || drag || dropping || manualDrop || focusT > 0.5) return;       /* chạm trúng rổ/món thì để logic kéo món lo */
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  gp[e.pointerId] = { x: e.clientX, y: e.clientY }; gN++;
+  try { cvEl.setPointerCapture(e.pointerId); } catch (_) {}
+  if (gN === 1) gTap.moved = 0;
+  if (gN === 2) {
+    var k = Object.keys(gp), a = gp[k[0]], b = gp[k[1]];
+    gPinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: camZT };
+  }
+}
+function gMove(e) {
+  var s = gp[e.pointerId]; if (!s || drag || pend) return;
+  var dx = e.clientX - s.x, dy = e.clientY - s.y; s.x = e.clientX; s.y = e.clientY;
+  if (gN === 1) {
+    gTap.moved += Math.abs(dx) + Math.abs(dy);
+    camOXT = clampv(camOXT - dx * 5 / Math.max(W, 1), -PAN_LIM, PAN_LIM);  /* món như dính theo ngón tay */
+  } else if (gN >= 2 && gPinch) {
+    var k = Object.keys(gp), a = gp[k[0]], b = gp[k[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
+    camZT = clampv(gPinch.z0 + (d - gPinch.d0) / Math.max(W, H) * 0.9, ZOOM_OUT, ZOOM_IN);
+  }
+}
+function gUp(e) {
+  if (!gp[e.pointerId]) return;
+  delete gp[e.pointerId]; gN = Math.max(0, gN - 1); gPinch = null;
+  try { cvEl.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (gN === 0 && e.type === "pointerup" && gTap.moved < 8) {              /* chạm đúp: về vị trí chuẩn */
+    var now = performance.now();
+    if (now - gTap.t < 320 && Math.hypot(e.clientX - gTap.x, e.clientY - gTap.y) < 30) { camOXT = 0; camZT = 0; gTap.t = 0; }
+    else { gTap.t = now; gTap.x = e.clientX; gTap.y = e.clientY; }
+  }
+}
+function gWheel(e) {
+  if (focusT > 0.5) return;
+  camZT = clampv(camZT - e.deltaY * 0.0006, ZOOM_OUT, ZOOM_IN); e.preventDefault();
+}
+cvEl.addEventListener("pointerdown", gDown);
+cvEl.addEventListener("pointermove", gMove);
+cvEl.addEventListener("pointerup", gUp);
+cvEl.addEventListener("pointercancel", gUp);
+cvEl.addEventListener("wheel", gWheel, { passive: false });
+function disposeGesture() {
+  cvEl.removeEventListener("pointerdown", gDown); cvEl.removeEventListener("pointermove", gMove);
+  cvEl.removeEventListener("pointerup", gUp); cvEl.removeEventListener("pointercancel", gUp);
+  cvEl.removeEventListener("wheel", gWheel);
+}
+
 /* ===================== HẾT KHỐI 1 ===================== */
 
     /* ---------- vòng lặp ---------- */
@@ -2379,6 +2442,21 @@ function disposeManual() {
         var f = easeIO(Math.min(1, Math.max(0, focus))), calm = 1 - 0.75 * f, sk = shake * (1 - 0.65 * f);
         camPos.lerpVectors(poseW.pos, poseS.pos, f);
         camLook.lerpVectors(poseW.look, poseS.look, f);
+
+        if (isPortrait) {
+  var pt = bagPan ? 2.4 : scanning ? 1.3 : drag ? clampv((drag.px + 1.3) * 0.35, -0.5, 0.6) : 0;
+  panX += (pt - panX) * (1 - Math.exp(-dt * 3));
+  push += ((scanning && !bagPan ? 1 : 0) - push) * (1 - Math.exp(-dt * 3.5));
+  var w0 = 1 - f;                                   /* khi nhìn màn POS thì tắt hiệu ứng này */
+  camPos.x += panX * w0; camLook.x += panX * w0;
+  if (push > 0.001) camPos.lerp(camLook, 0.13 * easeIO(push) * w0);
+}
+
+var uk = 1 - Math.exp(-dt * 6), uw = (1 - f) * (1 - Math.min(1, zoomK));
+camOX += (camOXT - camOX) * uk; camZ += (camZT - camZ) * uk;
+camPos.x += camOX * uw; camLook.x += camOX * uw;
+if (Math.abs(camZ) > 0.001) camPos.lerp(camLook, camZ * uw);
+
         if (poseK && zoomK > 0.001) {                       /* phóng vào bàn phím, camera đứng yên hơn */
           var zk = easeIO(Math.min(1, zoomK)) * f;
           camPos.lerp(poseK.pos, zk); camLook.lerp(poseK.look, zk);
@@ -2666,6 +2744,8 @@ scanFail: function () { scanning = false; mode = "fail"; focusT = 1; zoomKT = 0;
       scanClear: function () { scanning = false; if (mode === "fail") mode = "idle"; X.onClear(); },
       result: function (good) { mode = good ? "good" : "bad"; modeUntil = time + 0.9; if (!good) shake = 0.12; X.onResult(good); TR.flash(good); },
             bag: function () {
+
+              bagPan = true; clearTimeout(bagPanTm); bagPanTm = setTimeout(function () { bagPan = false; }, 1100);
         var e = curEnt; focusT = 0; zoomKT = 0; zoomUI();
 
         e.bagging = true; e.held = false;
@@ -2684,12 +2764,14 @@ if (drag && drag.e === e) { try { cvEl.releasePointerCapture(drag.id); } catch (
         return 820;
       },
       destroy: function () {
+        clearTimeout(bagPanTm);
         alive = false; cancelAnimationFrame(raf);
 
         vxObs.disconnect(); X.dispose(); TR.dispose(); clearInterval(vxTimer);
                 if (ro) ro.disconnect(); else window.removeEventListener("resize", resize);
         cv.removeEventListener("pointermove", onMove); cv.removeEventListener("pointerleave", onLeave);
         disposeManual();
+        disposeGesture();
 
         Object.keys(texCache).forEach(function (k) { texCache[k].dispose(); });
         screenDisp.forEach(function (g) { g.dispose(); });
