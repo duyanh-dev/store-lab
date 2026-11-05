@@ -422,6 +422,20 @@
       if (pv[i] !== v) { pv[i] = v; items[i].style.transform = v; ghosts[i].style.transform = v; }
     });
   }
+
+  const po = [];
+  /* tab thật mờ dần khi viên kính phủ lên (tan vào kính, không chồng chéo) */
+  function fade(se) {
+    const sw = 1 + 0.2 * se, hw = (G.w * sw) / 2, hh = (G.h * sw) / 2;
+    G.cells.forEach((c, i) => {
+      const ox = clamp((Math.min(S.x + hw, c.x + c.w) - Math.max(S.x - hw, c.x)) / c.w, 0, 1);
+      const oy = clamp((Math.min(S.y + hh, c.y + c.h) - Math.max(S.y - hh, c.y)) / c.h, 0, 1);
+      const t = clamp((ox * oy - 0.08) / 0.6, 0, 1);
+      const op = (1 - t * t * (3 - 2 * t)).toFixed(2); /* smoothstep */
+      if (po[i] !== op) { po[i] = op; items[i].style.opacity = op; }
+    });
+  }
+
   function draw() {
     if (!G) return;
     const L = S.x - G.w / 2, T = S.y - G.h / 2;
@@ -439,6 +453,7 @@
       win.style.filter = on ? "url(#mnRefr)" : "none";
       if (on) dm.setAttribute("scale", (2 * MX * se).toFixed(2));
     }
+        fade(se);
     push();
   }
   function frame(t) {

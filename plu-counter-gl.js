@@ -4712,15 +4712,178 @@
         P.brows[1].rotation.z = brow;
       }
 
+      /* ===================== KHỐI 1 – người v2 (dán trong X, sau hàm face) ===================== */
+function cloth(base, kind, rep) {                                       /* vải có vân + bump nhẹ; base là màu CSS */
+  var t = cvTex(64, 64, function (c, w, h) {
+    c.fillStyle = base; c.fillRect(0, 0, w, h);
+    if (kind === "knit") {
+      for (var y = 0; y < h; y += 4) for (var x = ((y / 4) % 2) * 2; x < w; x += 4) {
+        c.fillStyle = "rgba(255,255,255,.14)"; c.fillRect(x, y, 2, 2);
+        c.fillStyle = "rgba(0,0,0,.10)"; c.fillRect(x + 2, y + 2, 2, 2);
+      }
+    } else {
+      c.lineWidth = 1.2;
+      for (var i = -h; i < w; i += 4) {
+        c.strokeStyle = "rgba(255,255,255,.10)"; c.beginPath(); c.moveTo(i, h); c.lineTo(i + h, 0); c.stroke();
+        c.strokeStyle = "rgba(0,0,0,.09)"; c.beginPath(); c.moveTo(i + 2, h); c.lineTo(i + 2 + h, 0); c.stroke();
+      }
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep || 4, rep || 4);
+  var m = new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.6, roughness: 0.92, metalness: 0 });
+  disposables.push(m); return m;
+}
+function headGeo(skinHex) {                                             /* đầu: quai hàm thon, má hồng nhẹ, trán sáng hơn (vertex color) */
+  var r = 0.38, gm = new THREE.SphereGeometry(r, 36, 28), p = gm.attributes.position, n = p.count;
+  var col = new Float32Array(n * 3), base = new THREE.Color(skinHex), blush = new THREE.Color(0xe08a7a), c = new THREE.Color();
+  for (var i = 0; i < n; i++) {
+    var x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    if (y < 0) { var k = Math.pow(-y / r, 1.4); x *= 1 - 0.2 * k; z *= 1 - 0.1 * k; p.setX(i, x); p.setZ(i, z); }
+    var cx = (Math.abs(x) - 0.2) * 7, cy = (y + 0.04) * 7, ch = z > 0 ? Math.exp(-(cx * cx + cy * cy)) * 0.55 : 0;
+    c.copy(base).lerp(blush, ch).offsetHSL(0, 0, y > 0.15 && z > 0 ? 0.05 : 0);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  gm.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  gm.scale(0.92, 1.08, 0.98);
+  return gm;
+}
+/* o: { shirt:"#css", pants:"#css", skin:hex, hair:hex, glasses:bool, bag:bool }  — cùng giao diện với person() */
+function person2(o) {
+  var g = new THREE.Group(), L0 = { next: 1.5, until: 0, sac: 0, gx: 0, gy: 0 };
+  var P = { root: g, legs: [], cur: {}, eyes: [] };
+  var skinM = mat(o.skin, 0.55), headM = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.55 });
+  disposables.push(headM);
+  var shirtM = cloth(o.shirt, "knit", 5), pantM = cloth(o.pants, "twill", 4), hairM = mat(o.hair, 0.5);
+  var shoeM = mat(0xf1efe9, 0.55), soleM = mat(0xdedbd4, 0.7), beltM = mat(0x3a2a20, 0.6), metalM = mat(0xb9bec6, 0.3, 0.6);
+ 
+  /* chân: ống quần thon + gấu + giày thể thao */
+  [-1, 1].forEach(function (s) {
+    var hip = new THREE.Group(); hip.position.set(s * 0.34, 2.3, 0); g.add(hip);
+    hip.add(mesh(geo(new THREE.CylinderGeometry(0.3, 0.2, 2.05, 18)), pantM, 0, -1.05, 0));
+    hip.add(mesh(geo(new THREE.CylinderGeometry(0.205, 0.215, 0.07, 18)), mat(0x24262c, 0.9), 0, -2.04, 0, false));
+    var up = mesh(geo(new THREE.SphereGeometry(0.27, 18, 12)), shoeM, 0, -2.12, 0.1); up.scale.set(0.92, 0.62, 1.7); hip.add(up);
+    hip.add(mesh(geo(new THREE.BoxGeometry(0.5, 0.1, 1.02)), soleM, 0, -2.25, 0.12));
+    var cap = mesh(geo(new THREE.SphereGeometry(0.2, 14, 10)), soleM, 0, -2.15, 0.52, false); cap.scale.set(1.1, 0.55, 0.7); hip.add(cap);
+    P.legs.push(hip);
+  });
+  /* khung chậu + thắt lưng */
+  var pel = mesh(geo(lathe([[0.5, 2.1], [0.56, 2.3], [0.55, 2.55], [0.5, 2.72]], 28)), pantM, 0, 0, 0); pel.scale.z = 0.66; g.add(pel);
+  var belt = mesh(geo(new THREE.TorusGeometry(0.5, 0.035, 8, 28)), beltM, 0, 2.64, 0, false); belt.rotation.x = Math.PI / 2; belt.scale.set(1, 0.66, 1); g.add(belt);
+  g.add(mesh(geo(new THREE.BoxGeometry(0.11, 0.08, 0.02)), metalM, 0, 2.64, 0.36, false));
+ 
+  /* thân (nhóm riêng để "thở"): áo polo có cổ, nẹp áo, cúc */
+  var tor = new THREE.Group(); tor.position.set(0, 3.0, 0); g.add(tor); P.torso = tor;
+  var tb = mesh(geo(lathe([[0.52, -0.22], [0.51, 0.1], [0.54, 0.5], [0.58, 0.85], [0.6, 1.05], [0.5, 1.2], [0.3, 1.32], [0.19, 1.4]], 32)), shirtM, 0, 0, 0); tb.scale.z = 0.66; tor.add(tb);
+  var col = mesh(geo(new THREE.TorusGeometry(0.22, 0.045, 8, 22)), shirtM, 0, 1.36, 0, false); col.rotation.x = Math.PI / 2; col.scale.set(1, 0.85, 1); tor.add(col);
+  [-1, 1].forEach(function (s) {
+    var fl = mesh(geo(new THREE.BoxGeometry(0.2, 0.16, 0.03)), shirtM, s * 0.12, 1.28, 0.2, false); fl.rotation.z = -s * 0.5; fl.rotation.x = -0.35; tor.add(fl);
+  });
+  tor.add(mesh(geo(new THREE.BoxGeometry(0.07, 0.5, 0.02)), shirtM, 0, 1.0, 0.395, false));
+  [1.14, 0.94].forEach(function (y) { var b = mesh(geo(new THREE.CylinderGeometry(0.022, 0.022, 0.015, 8)), mat(0xf4f2ee, 0.4), 0, y, 0.41, false); b.rotation.x = Math.PI / 2; tor.add(b); });
+  if (o.bag) {                                                           /* dây túi đeo chéo bám theo mặt thân */
+    var bagM = mat(0x6b5545, 0.65), pts = [];
+    for (var i = 0; i <= 8; i++) { var u = i / 8, x = 0.46 - u * 0.96; pts.push(new THREE.Vector3(x, 1.08 - u * 1.25, 0.66 * Math.sqrt(Math.max(0.01, 0.56 * 0.56 - x * x)) + 0.03)); }
+    tor.add(mesh(geo(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.035, 6, false)), bagM, 0, 0, 0, false));
+    var bg2 = mesh(geo(new THREE.BoxGeometry(0.72, 0.56, 0.22)), bagM, -0.66, 2.55, -0.05); bg2.rotation.y = 0.1; g.add(bg2);
+    var fp = mesh(geo(new THREE.BoxGeometry(0.72, 0.2, 0.24)), mat(0x5a4637, 0.65), -0.66, 2.76, -0.05); fp.rotation.y = 0.1; g.add(fp);
+  }
+ 
+  /* cổ + đầu */
+  g.add(mesh(geo(new THREE.CylinderGeometry(0.15, 0.17, 0.3, 12)), skinM, 0, 4.42, 0, false));
+  var head = new THREE.Group(); head.position.set(0, 4.52, 0); g.add(head); P.head = head;
+  head.add(mesh(geo(headGeo(o.skin)), headM, 0, 0.3, 0));
+  [-1, 1].forEach(function (s) {                                          /* tai */
+    var ear = mesh(geo(new THREE.SphereGeometry(0.07, 12, 10)), skinM, s * 0.35, 0.3, -0.01, false); ear.scale.set(0.35, 1, 0.7); head.add(ear);
+  });
+  var nose = mesh(geo(new THREE.SphereGeometry(0.05, 14, 10)), skinM, 0, 0.255, 0.372, false); nose.scale.set(0.85, 1.2, 1); head.add(nose);
+  /* mắt: tròng trắng + mống + đồng tử + mí trên (chớp được) */
+  var irisM = flatM(o.iris || 0x4a3322), pupM = flatM(0x0c0a09);
+  [-1, 1].forEach(function (s) {
+    var eg = new THREE.Group(); eg.position.set(s * 0.14, 0.34, 0.325); head.add(eg);
+    eg.add(mesh(geo(new THREE.SphereGeometry(0.058, 16, 12)), mat(0xf3f1ee, 0.3), 0, 0, 0, false));
+    var ir = new THREE.Group(); eg.add(ir);
+    var iris = new THREE.Mesh(geo(new THREE.CircleGeometry(0.03, 20)), irisM); iris.position.z = 0.0575; ir.add(iris);
+    var pup = new THREE.Mesh(geo(new THREE.CircleGeometry(0.014, 14)), pupM); pup.position.z = 0.0582; ir.add(pup);
+    var lid = new THREE.Group(); eg.add(lid);
+    var lg = new THREE.SphereGeometry(0.064, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2); lg.rotateX(Math.PI / 2);
+    lid.add(new THREE.Mesh(geo(lg), skinM)); lid.rotation.x = -1.78;
+    P.eyes.push({ lid: lid, ir: ir });
+  });
+  P.brows = [-1, 1].map(function (s) {                                    /* lông mày (hình học đã xoay sẵn để face() chỉ nghiêng thêm) */
+    var bgm = new THREE.CapsuleGeometry(0.014, 0.1, 4, 8); bgm.rotateZ(Math.PI / 2);
+    var b = mesh(geo(bgm), hairM, s * 0.14, 0.46, 0.318, false); head.add(b); return b;
+  });
+  P.mouth = mesh(geo(new THREE.TorusGeometry(0.075, 0.011, 6, 16, Math.PI)), flatM(0xb46a64), 0, 0.12, 0.33, false); head.add(P.mouth);
+  /* tóc: mũ tóc + mái + mai tóc 2 bên + gáy */
+  var hg = new THREE.SphereGeometry(0.4, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.58); hg.scale(0.93, 1.08, 1.0);
+  head.add(mesh(geo(hg), hairM, 0, 0.31, -0.03, false));
+  var fr = mesh(geo(new THREE.SphereGeometry(0.2, 16, 10)), hairM, 0, 0.62, 0.17, false); fr.scale.set(1.5, 0.45, 1.0); fr.rotation.x = 0.55; head.add(fr);
+  [-1, 1].forEach(function (s) { var sb = mesh(geo(new THREE.SphereGeometry(0.09, 12, 8)), hairM, s * 0.33, 0.42, 0.06, false); sb.scale.set(0.6, 1.3, 1.0); head.add(sb); });
+  var nape = mesh(geo(new THREE.SphereGeometry(0.33, 16, 10)), hairM, 0, 0.1, -0.12, false); nape.scale.set(1.05, 0.7, 0.9); head.add(nape);
+  if (o.glasses) {                                                       /* kính cận gọng mảnh */
+    var frM = mat(0x2a2d33, 0.3, 0.5), lensM = new THREE.MeshBasicMaterial({ color: 0xbfd8ea, transparent: true, opacity: 0.12, depthWrite: false }); disposables.push(lensM);
+    [-1, 1].forEach(function (s) {
+      head.add(mesh(geo(new THREE.TorusGeometry(0.075, 0.008, 6, 18)), frM, s * 0.14, 0.34, 0.405, false));
+      var ln = new THREE.Mesh(geo(new THREE.CircleGeometry(0.073, 18)), lensM); ln.position.set(s * 0.14, 0.34, 0.406); head.add(ln);
+      head.add(mesh(geo(new THREE.BoxGeometry(0.01, 0.01, 0.4)), frM, s * 0.345, 0.35, 0.2, false));
+    });
+    head.add(mesh(geo(new THREE.BoxGeometry(0.07, 0.01, 0.01)), frM, 0, 0.35, 0.41, false));
+  }
+ 
+  /* tay: vai áo → bắp tay (tay áo ngắn) → khuỷu → cẳng tay → bàn tay có ngón */
+  function arm(s) {
+    var sh = new THREE.Group(); sh.position.set(s * 0.82, 4.0, 0); g.add(sh);
+    sh.add(mesh(geo(new THREE.SphereGeometry(0.24, 16, 12)), shirtM, 0, -0.02, 0));
+    sh.add(mesh(geo(new THREE.CapsuleGeometry(0.15, 0.85, 4, 12)), skinM, 0, -0.66, 0));
+    sh.add(mesh(geo(new THREE.CylinderGeometry(0.22, 0.2, 0.62, 16)), shirtM, 0, -0.4, 0));
+    var el = new THREE.Group(); el.position.set(0, -1.15, 0); sh.add(el);
+    el.add(mesh(geo(new THREE.SphereGeometry(0.14, 12, 10)), skinM, 0, 0, 0, false));
+    el.add(mesh(geo(new THREE.CylinderGeometry(0.14, 0.095, 0.95, 14)), skinM, 0, -0.5, 0));
+    var hand = new THREE.Group(); hand.position.set(0, -1.02, 0); el.add(hand);
+    var palm = mesh(geo(new THREE.SphereGeometry(0.12, 14, 10)), skinM, 0, -0.1, 0, false); palm.scale.set(0.95, 1.05, 0.55); hand.add(palm);
+    for (var k = 0; k < 4; k++) { var f = mesh(geo(new THREE.CapsuleGeometry(0.026, 0.09, 3, 6)), skinM, (k - 1.5) * 0.055, -0.25, 0.015, false); f.rotation.x = -0.3; hand.add(f); }
+    var th = mesh(geo(new THREE.CapsuleGeometry(0.03, 0.08, 3, 6)), skinM, -s * 0.12, -0.12, 0.05, false); th.rotation.z = s * 0.7; hand.add(th);
+    if (s < 0) {                                                         /* đồng hồ đeo tay trái */
+      el.add(mesh(geo(new THREE.CylinderGeometry(0.11, 0.11, 0.07, 16)), mat(0x2a2d33, 0.4, 0.4), 0, -0.86, 0, false));
+      el.add(mesh(geo(new THREE.BoxGeometry(0.1, 0.1, 0.02)), mat(0x15171c, 0.3, 0.5), 0, -0.86, 0.11, false));
+    }
+    return { sh: sh, el: el };
+  }
+  P.L = arm(-1); P.R = arm(1);
+  var ph = new THREE.Group(); ph.position.set(0, -1.12, 0.1); ph.visible = false; P.R.el.add(ph); P.phone = ph;
+  ph.add(mesh(geo(new THREE.BoxGeometry(0.25, 0.44, 0.035)), mat(0x1a1c22, 0.3, 0.3), 0, 0, 0, false));
+  var psc = new THREE.Mesh(geo(new THREE.PlaneGeometry(0.22, 0.38)), flatM(0x9ec9ff)); psc.position.z = 0.02; ph.add(psc);
+ 
+  /* cử động "sống": thở, chớp mắt, đảo mắt nhỏ, chuyển trọng tâm, nghiêng đầu */
+  P.life = function (dt, t, name) {
+    var L = L0;
+    if (t > L.next) { L.until = t + 0.14; L.next = t + 2.2 + Math.random() * 4.5; }
+    var open = (name === "happy" || name === "receive") ? -1.55 : name === "angry" ? -1.45 : name === "phone" ? -1.62 : -1.78;
+    var u = (L.until - t) / 0.14, bl = (u > 0 && u < 1) ? 1 - Math.abs(2 * u - 1) : 0, ang = open * (1 - bl);
+    if (t > L.sac) { L.gx = (Math.random() - 0.5) * 0.02; L.gy = (Math.random() - 0.5) * 0.012; L.sac = t + 0.4 + Math.random() * 1.6; }
+    var gy = name === "phone" ? -0.014 : L.gy, kk = 1 - Math.exp(-dt * 18);
+    P.eyes.forEach(function (e) {
+      e.lid.rotation.x = ang;
+      e.ir.position.x += (L.gx - e.ir.position.x) * kk; e.ir.position.y += (gy - e.ir.position.y) * kk;
+    });
+    var br = Math.sin(t * 1.8), sw = Math.sin(t * 0.35);
+    P.L.sh.position.y = P.R.sh.position.y = 4.0 + br * 0.012;
+    P.torso.scale.x = 1 + br * 0.008; P.torso.rotation.z = -sw * 0.015;
+    P.legs[0].rotation.z = sw * 0.025; P.legs[1].rotation.z = sw * 0.025;
+    P.head.rotation.z = Math.sin(t * 0.5) * 0.03 + (name === "happy" ? 0.05 : 0);
+  };
+  return P;
+}
+/* ===================== HẾT KHỐI 1 ===================== */
+
       /* --- khách hàng đứng đối diện (phản ứng bằng cử chỉ, không biểu tượng) --- */
       var CUST_Y = -2.9;
-      var cust = person({
-        shirt: 0x5d6b7c,
-        pants: 0x33373f,
-        skin: 0xd9a982,
-        hair: 0x2b2420,
-      });
-      cust.root.position.set(-3.7, CUST_Y, -2.9);
+    /* ===================== KHỐI 2 – thay 2 dòng tạo khách ===================== */
+var cust = person2({ shirt: "#7d8fa8", pants: "#b5a58a", skin: 0xd9a982, hair: 0x2b2420, glasses: true, bag: true });
+cust.root.position.set(-3.7, CUST_Y, -2.8);
+/* ===================== HẾT KHỐI 2 ===================== */
+
+
       cust.root.rotation.y = 0.1;
       scene.add(cust.root);
       var cm = { n: "idle", sub: "idle", until: 0, subUntil: 0, nextSub: 3 };
@@ -4826,6 +4989,7 @@
         }
         applyPose(cust, p, lf);
         face(cust, smile, flat, brow);
+        if (cust.life) cust.life(dt, t, name);
         cust.torso.scale.y = 1 + Math.sin(t * 1.8) * 0.012;
         cust.root.rotation.y = 0.1 + Math.sin(t * 0.4) * 0.05;
         cust.legs[0].rotation.x = p.tap ? -Math.abs(Math.sin(t * 9)) * 0.3 : 0;
@@ -4854,7 +5018,6 @@
         w.R.sh.rotation.x = -0.2;
         w.R.el.rotation.x = -1.2;
         w.L.sh.rotation.z = -0.1;
-        scene.add(w.root);
         walkers.push({ P: w, v: a[4], ph: Math.random() * 6 });
       });
       function walkUpdate(dt) {
@@ -5667,6 +5830,199 @@
       };
     })();
     /* =================== HẾT DETAILS v6 =================== */
+
+
+    /* ===================== KHỐI 3 – CẢNH PHÍA SAU QUẦY (dán ngay sau HẾT DETAILS v6) ===================== */
+var SF = (function () {
+  var PI = Math.PI, V = THREE.Vector3;
+  function tx(w, h, draw) {
+    var c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+    var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; disposables.push(t); return t;
+  }
+  function flat(c) { var m = new THREE.MeshBasicMaterial({ color: c }); disposables.push(m); return m; }
+  function lbl(txt, w, h, bg, fg, lit) {
+    var t = tx(512, Math.round(512 * h / w), function (c, W, H) {
+      c.fillStyle = bg; c.fillRect(0, 0, W, H); c.fillStyle = fg;
+      c.font = "700 " + Math.round(H * 0.46) + "px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+      c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(txt, W / 2, H / 2 + 2);
+    });
+    var m = lit ? new THREE.MeshBasicMaterial({ map: t }) : new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 });
+    disposables.push(m); return new THREE.Mesh(geo(new THREE.PlaneGeometry(w, h)), m);
+  }
+ 
+  /* 0) gỡ kệ hàng cũ + vài món trang trí đi kèm kệ (nhận diện theo kích thước hình học) */
+  (function () {
+    var kill = [];
+    scene.traverse(function (o) {
+      if (o.isInstancedMesh) { kill.push(o); return; }
+      var gp = o.isMesh && o.geometry && o.geometry.parameters; if (!gp) return;
+      var near = function (a, b) { return Math.abs(a - b) < 1e-4; };
+      if (gp.width === 20 && gp.depth !== undefined) kill.push(o);                                     /* ván kệ, thanh giá, chân kệ */
+      else if (near(gp.width, 0.06) && (near(gp.height, 5.4) || near(gp.height, 2.6))) kill.push(o);   /* cột kệ */
+      else if (gp.width === 2.4 && gp.height === 0.7) kill.push(o);                                    /* biển lối đi */
+      else if (gp.radiusTop === 0.012 && gp.height === 2.2) kill.push(o);                              /* ty treo biển */
+      else if (gp.width === 14 && near(gp.height, 0.01)) kill.push(o);                                 /* vạch xếp hàng cũ */
+      else if (gp.radiusTop === 0.7 && gp.radiusBottom === 0.55 && gp.height === 0.5) kill.push(o);    /* chồng rổ cũ */
+      else if (gp.radiusTop === 0.13 && gp.radiusBottom === 0.13 && gp.height === 0.7) kill.push(o);   /* bình chữa cháy (dời sang cột phải) */
+      else if (gp.radiusTop === 0.05 && gp.radiusBottom === 0.07 && gp.height === 0.12) kill.push(o);  /* van bình chữa cháy */
+    });
+    kill.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+  })();
+ 
+  var steel = PM({ color: 0xc6ccd3, roughness: 0.32, metalness: 0.9 }, 1);
+  var steelD = PM({ color: 0x8f959d, roughness: 0.4, metalness: 0.85 }, 1);
+  var rubM = mat(0x25272d, 0.85), pinkM = mat(0xe879a6, 0.5);
+ 
+  /* bóng đổ mềm dưới đồ vật cho khỏi "lơ lửng" */
+  var aoT = tx(128, 128, function (c, w, h) {
+    var gr = c.createRadialGradient(w / 2, h / 2, w * 0.1, w / 2, h / 2, w * 0.5);
+    gr.addColorStop(0, "rgba(0,0,0,.45)"); gr.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = gr; c.fillRect(0, 0, w, h);
+  });
+  var aoMat = new THREE.MeshBasicMaterial({ map: aoT, transparent: true, depthWrite: false }); disposables.push(aoMat);
+  function blob(x, z, w, d) {
+    var m = new THREE.Mesh(geo(new THREE.PlaneGeometry(w, d)), aoMat); m.rotation.x = -PI / 2; m.position.set(x, -2.892, z); scene.add(m);
+  }
+ 
+  /* 1) TỦ NƯỚC 1 CÁNH: vỏ trắng, hộp đèn tên, cửa kính khung nhôm + tay nắm, 4 tầng chai/lon */
+  (function fridge() {
+    var x0 = -5.3, x1 = -3.3, z0 = -4.85, z1 = -3.4, y0 = -2.9, y1 = 2.9, W = x1 - x0;
+    var white = mat(0xf2f2ef, 0.45), gray = mat(0x3a3d44, 0.6), inner = mat(0xf2f5f7, 0.6, 0, { emissive: 0xdde3e8, emissiveIntensity: 0.55 });
+    var al = PM({ color: 0xc9ced5, roughness: 0.35, metalness: 0.85 }, 1), slotM = flat(0x15161a), ledM = flat(0xffffff);
+    scene.add(box(x0, x0 + 0.1, y0, y1, z0, z1, white)); scene.add(box(x1 - 0.1, x1, y0, y1, z0, z1, white));
+    scene.add(box(x0, x1, y0, y1, z0, z0 + 0.08, white)); scene.add(box(x0, x1, y1 - 0.1, y1, z0, z1, white));
+    scene.add(box(x0, x1, 2.2, y1, z1 - 0.12, z1, white));                                   /* hộp đèn trên đầu tủ */
+    var sg = lbl("NƯỚC GIẢI KHÁT", W - 0.3, 0.5, "#ffffff", "#2f7a57", true); sg.position.set(x0 + W / 2, 2.55, z1 + 0.002); scene.add(sg);
+    scene.add(box(x0, x1, y0, -2.3, z1 - 0.1, z1, gray));                                    /* chân tủ + khe thoát nhiệt */
+    for (var i = 0; i < 6; i++) scene.add(box(x0 + 0.25, x1 - 0.25, -2.82 + i * 0.09, -2.78 + i * 0.09, z1 + 0.001, z1 + 0.012, slotM, false));
+    var fy0 = -2.3, fy1 = 2.2, fx0 = x0 + 0.1, fx1 = x1 - 0.1, fz0 = z1 - 0.01, fz1 = z1 + 0.05;   /* khung cửa nhôm */
+    scene.add(box(fx0, fx0 + 0.1, fy0, fy1, fz0, fz1, al)); scene.add(box(fx1 - 0.1, fx1, fy0, fy1, fz0, fz1, al));
+    scene.add(box(fx0, fx1, fy1 - 0.1, fy1, fz0, fz1, al)); scene.add(box(fx0, fx1, fy0, fy0 + 0.1, fz0, fz1, al));
+    var ix0 = fx0 + 0.1, ix1 = fx1 - 0.1;                                                    /* lòng tủ sáng, có đèn LED 2 bên */
+    scene.add(box(ix0, ix1, fy0 + 0.1, fy1 - 0.1, z0 + 0.08, z0 + 0.1, inner, false));
+    scene.add(box(ix0, ix0 + 0.04, fy0 + 0.1, fy1 - 0.1, z0 + 0.1, z1 - 0.02, inner, false));
+    scene.add(box(ix1 - 0.04, ix1, fy0 + 0.1, fy1 - 0.1, z0 + 0.1, z1 - 0.02, inner, false));
+    scene.add(box(ix0 + 0.04, ix0 + 0.07, fy0 + 0.2, fy1 - 0.2, z1 - 0.14, z1 - 0.1, ledM, false));
+    scene.add(box(ix1 - 0.07, ix1 - 0.04, fy0 + 0.2, fy1 - 0.2, z1 - 0.14, z1 - 0.1, ledM, false));
+    var ys = [-2.1, -0.85, 0.4, 1.65], shM = mat(0xe6e9ec, 0.5), railM = mat(0xffffff, 0.5);
+    ys.forEach(function (y) {
+      scene.add(box(ix0, ix1, y - 0.03, y + 0.01, z0 + 0.1, z1 - 0.06, shM, false));
+      scene.add(box(ix0, ix1, y - 0.07, y, z1 - 0.09, z1 - 0.06, railM, false));
+    });
+    /* hàng hoá: 2 tầng dưới chai PET, 2 tầng trên lon; mỗi cột một nhãn hiệu (màu) */
+    var drinkC = [0xc0392b, 0x2d6cb5, 0x3f8f5a, 0xe08a2c, 0xe6c24a, 0xdfe3e8, 0x6a4a35, 0x2f9aa6, 0xa13d6a], cc = new THREE.Color(), m4 = new THREE.Matrix4();
+    var bodyM = PM({ color: 0xffffff, roughness: 0.25, metalness: 0.1, clearcoat: 0.6 }, 1);
+    var canM = PM({ color: 0xffffff, roughness: 0.3, metalness: 0.6, clearcoat: 0.5 }, 1);
+    var labM = mat(0xffffff, 0.5, 0, { side: THREE.DoubleSide }), capM = mat(0xf0f0f0, 0.4), lidM = PM({ color: 0xcfd5de, roughness: 0.3, metalness: 0.9 }, 1);
+    var nb = 30, nc = 36;
+    var iB = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.13, 0.14, 0.78, 14)), bodyM, nb);
+    var iBc = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 10)), capM, nb);
+    var iBl = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.142, 0.142, 0.3, 14, 1, true)), labM, nb);
+    var iC = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.15, 0.15, 0.5, 16)), canM, nc);
+    var iCl = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.135, 0.15, 0.03, 16)), lidM, nc);
+    var bi = 0, ci = 0, xm = (ix0 + ix1) / 2;
+    function putB(x, y, z, hex) {
+      var base = y + 0.01;
+      m4.makeTranslation(x, base + 0.39, z); iB.setMatrixAt(bi, m4); iB.setColorAt(bi, cc.setHex(hex).offsetHSL(0, 0, (Math.random() - 0.5) * 0.08));
+      m4.makeTranslation(x, base + 0.83, z); iBc.setMatrixAt(bi, m4);
+      m4.makeTranslation(x, base + 0.36, z); iBl.setMatrixAt(bi, m4); iBl.setColorAt(bi, cc.setHex(hex).offsetHSL(0, -0.1, 0.35)); bi++;
+    }
+    function putC(x, y, z, hex) {
+      var base = y + 0.01;
+      m4.makeTranslation(x, base + 0.25, z); iC.setMatrixAt(ci, m4); iC.setColorAt(ci, cc.setHex(hex).offsetHSL(0, 0, (Math.random() - 0.5) * 0.08));
+      m4.makeTranslation(x, base + 0.515, z); iCl.setMatrixAt(ci, m4); ci++;
+    }
+    for (var r = 0; r < 3; r++) {
+      var z = z1 - 0.3 - r * 0.33;
+      for (var c = 0; c < 5; c++) { var xb = xm + (c - 2) * 0.36; putB(xb, ys[0], z, drinkC[(c + 1) % 9]); putB(xb, ys[1], z, drinkC[(c * 2 + 3) % 9]); }
+      for (var d = 0; d < 6; d++) { var xc = xm + (d - 2.5) * 0.3; putC(xc, ys[2], z, drinkC[(d + 2) % 9]); putC(xc, ys[3], z, drinkC[(d * 2 + 5) % 9]); }
+    }
+    [iB, iBc, iBl, iC, iCl].forEach(function (im) {
+      im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.frustumCulled = false; scene.add(im);
+    });
+    var gl = new THREE.Mesh(geo(new THREE.PlaneGeometry(fx1 - fx0 - 0.2, fy1 - fy0 - 0.2)),   /* kính cửa */
+      PM({ color: 0xd6e8f2, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.16, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false }, 1.4));
+    gl.position.set((fx0 + fx1) / 2, (fy0 + fy1) / 2, z1 + 0.03); gl.renderOrder = 3; scene.add(gl);
+    scene.add(mesh(geo(new THREE.CylinderGeometry(0.04, 0.04, 2.0, 10)), al, fx1 - 0.05, 0, z1 + 0.14, false));   /* tay nắm dọc */
+    [-0.8, 0.8].forEach(function (y) {
+      var so = mesh(geo(new THREE.CylinderGeometry(0.025, 0.025, 0.09, 8)), al, fx1 - 0.05, y, z1 + 0.095, false); so.rotation.x = PI / 2; scene.add(so);
+    });
+    blob((x0 + x1) / 2, (z0 + z1) / 2, W + 0.8, z1 - z0 + 0.8);
+  })();
+ 
+  /* 2) CHỒNG RỔ MUA SẮM: 9 rổ nhựa đỏ lồng nhau (dùng lại texture rổ đục lỗ) */
+  (function basketStack() {
+    var cx = -2.2, cz = -4.2, w = 1.5, d = 1.05, h = 0.78, N = 9, step = 0.2;
+    var bg = geo(new THREE.CylinderGeometry(0.70711, 0.70711 * 0.8, h, 4, 1, true)); bg.rotateY(PI / 4); bg.scale(w, 1, d);
+    var bm = mat(0xffffff, 0.55, 0, { map: bkTex, side: THREE.DoubleSide }), rim = mat(0xe5483a, 0.4);
+    var rl = geo(new THREE.BoxGeometry(w + 0.06, 0.05, 0.05)), rs = geo(new THREE.BoxGeometry(0.05, 0.05, d + 0.06));
+    for (var i = 0; i < N; i++) {
+      var y = -2.9 + h / 2 + i * step, jx = (Math.random() - 0.5) * 0.05, jz = (Math.random() - 0.5) * 0.04, jy = (Math.random() - 0.5) * 0.05;
+      var grp = new THREE.Group(); grp.position.set(cx + jx, y, cz + jz); grp.rotation.y = jy; scene.add(grp);
+      grp.add(mesh(bg, bm, 0, 0, 0));
+      [-1, 1].forEach(function (s) { grp.add(mesh(rl, rim, 0, h / 2, s * d / 2, false)); grp.add(mesh(rs, rim, s * w / 2, h / 2, 0, false)); });
+      if (i >= N - 2) [-1, 1].forEach(function (s) {                                       /* quai xách 2 rổ trên cùng */
+        var hd = mesh(geo(new THREE.TorusGeometry(0.26, 0.03, 8, 14, PI)), rim, s * w / 2, h / 2, 0, false); hd.rotation.y = PI / 2; grp.add(hd);
+      });
+    }
+    blob(cx, cz, w + 0.9, d + 0.9);
+  })();
+ 
+  /* 3) HÀNG XE ĐẨY LỒNG NHAU, CÁN HỒNG: rổ lưới (cutout), khung inox, 4 bánh, tay đẩy bọc nhựa hồng */
+  (function carts() {
+    var g = new THREE.Group();
+    function rod(a, b, r, m) {
+      var dv = new V(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = dv.length();
+      var o = mesh(geo(new THREE.CylinderGeometry(r, r, L, 8)), m, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, false);
+      o.quaternion.setFromUnitVectors(new V(0, 1, 0), dv.normalize()); g.add(o); return o;
+    }
+    var wire = tx(128, 64, function (c, w, h) {
+      c.strokeStyle = "#d5dae0"; c.lineWidth = 3;
+      for (var x = 0; x <= w; x += 16) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+      for (var y = 0; y <= h; y += 16) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+    });
+    wire.wrapS = wire.wrapT = THREE.RepeatWrapping; wire.repeat.set(6, 3);
+    var wireM = PM({ map: wire, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.35, metalness: 0.8 }, 1);
+    /* rổ: 2 thành dài nghiêng ra, thành sau, thành đầu vát, đáy */
+    var sideG = geo(new THREE.PlaneGeometry(2.1, 1.78));
+    [1, -1].forEach(function (s) { var m = new THREE.Mesh(sideG, wireM); m.position.set(1.25, -0.93, s * 0.62); m.rotation.x = s * 0.14; g.add(m); });
+    var endG = geo(new THREE.PlaneGeometry(1.24, 1.78));
+    var rear = new THREE.Group(); rear.position.set(2.3, -0.93, 0); rear.rotation.z = -0.12; g.add(rear);
+    var re = new THREE.Mesh(endG, wireM); re.rotation.y = PI / 2; rear.add(re);
+    var nose = new THREE.Group(); nose.position.set(0.25, -0.93, 0); nose.rotation.z = 0.5; g.add(nose);
+    var ne = new THREE.Mesh(geo(new THREE.PlaneGeometry(1.0, 1.78)), wireM); ne.rotation.y = PI / 2; nose.add(ne);
+    var bot = new THREE.Mesh(geo(new THREE.PlaneGeometry(1.8, 1.0)), wireM); bot.rotation.x = -PI / 2; bot.position.set(1.3, -1.82, 0); g.add(bot);
+    /* viền miệng rổ + khung gầm */
+    [-1, 1].forEach(function (s) { g.add(box(-0.18, 2.36, -0.08, -0.02, s * 0.74 - 0.03, s * 0.74 + 0.03, steel, false)); });
+    g.add(box(-0.21, -0.15, -0.08, -0.02, -0.74, 0.74, steel, false)); g.add(box(2.33, 2.39, -0.08, -0.02, -0.74, 0.74, steel, false));
+    [-1, 1].forEach(function (s) { g.add(box(0.25, 2.1, -2.41, -2.35, s * 0.42 - 0.03, s * 0.42 + 0.03, steel, false)); });
+    [0.4, 1.2, 2.0].forEach(function (x) { g.add(box(x - 0.03, x + 0.03, -2.41, -2.35, -0.42, 0.42, steel, false)); });
+    [0.45, 1.95].forEach(function (x) { [-1, 1].forEach(function (s) { rod([x, -2.38, s * 0.42], [x, -1.82, s * 0.42], 0.03, steel); }); });
+    /* tay đẩy: 2 trụ nghiêng + thanh ngang + vỏ nhựa HỒNG */
+    [-1, 1].forEach(function (s) { rod([2.05, -2.38, s * 0.5], [2.4, 0.3, s * 0.62], 0.035, steel); });
+    rod([2.4, 0.3, -0.62], [2.4, 0.3, 0.62], 0.035, steel);
+    var gr = mesh(geo(new THREE.CylinderGeometry(0.08, 0.08, 1.05, 14)), pinkM, 2.4, 0.3, 0); gr.rotation.x = PI / 2; g.add(gr);
+    [-1, 1].forEach(function (s) { g.add(mesh(geo(new THREE.SphereGeometry(0.08, 12, 8)), pinkM, 2.4, 0.3, s * 0.525, false)); });
+    /* bánh sau (cố định) và bánh trước (xoay) */
+    function wheel(x, z, r) {
+      var y = -2.9 + r, t = mesh(geo(new THREE.CylinderGeometry(r, r, 0.1, 16)), rubM, x, y, z); t.rotation.x = PI / 2; g.add(t);
+      var hb = mesh(geo(new THREE.CylinderGeometry(r * 0.5, r * 0.5, 0.12, 12)), steelD, x, y, z, false); hb.rotation.x = PI / 2; g.add(hb);
+      g.add(mesh(geo(new THREE.BoxGeometry(0.1, 0.26, 0.14)), steel, x, y + r + 0.05, z, false));
+    }
+    wheel(2.0, -0.5, 0.24); wheel(2.0, 0.5, 0.24); wheel(0.45, -0.45, 0.2); wheel(0.45, 0.45, 0.2);
+    var n = 5, x0 = -0.2, stepX = 0.7, cz = -4.1;
+    for (var i = 0; i < n; i++) {
+      var c = g.clone(true); c.position.set(x0 + i * stepX, 0, cz + (i % 2 ? 0.012 : -0.012)); scene.add(c);
+    }
+    blob(x0 + (2.5 + (n - 1) * stepX) / 2 - 0.1, cz, 2.5 + (n - 1) * stepX + 0.6, 2.1);
+  })();
+ 
+  /* 4) biển trên tường + bình chữa cháy dời sang cột phải */
+  var sg = lbl("GIỎ HÀNG · XE ĐẨY", 3.6, 0.7, "#ffffff", "#2f7a57", false); sg.position.set(2.4, 3.3, -4.86); scene.add(sg);
+  scene.add(mesh(geo(new THREE.CylinderGeometry(0.13, 0.13, 0.7, 14)), mat(0xb83a30, 0.5), 5.4, -1.2, -4.16));
+  scene.add(mesh(geo(new THREE.CylinderGeometry(0.05, 0.07, 0.12, 10)), mat(0x2a2d34, 0.55, 0.1), 5.4, -0.78, -4.16, false));
+  return {};
+})();
+/* =================== HẾT KHỐI 3 =================== */
 
     /* ---------- camera POV: 2 tư thế (rộng / màn hình), tự khớp khung ---------- */
     var W = 1,
