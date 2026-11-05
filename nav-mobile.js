@@ -380,6 +380,7 @@
   let active = readActive(), hot = -1, drag = null, swallow = false, pass = false, swT = 0, isOpen = false;
 
   function setHot(i) {
+    if (drag) drag.hot = i;          // ← THÊM DÒNG NÀY
     if (i === hot) return;
     hot = i;
     ghosts.forEach((g, j) => g.classList.toggle("hot", j === i));
@@ -455,9 +456,10 @@
     if (!it || it.parentNode !== panel || !measure()) return;
     const r = panel.getBoundingClientRect();
     const idx = items.indexOf(it);
-    drag = {
+        drag = {
       id: e.pointerId, r, k: r.width / panel.offsetWidth || 1,
-      x0: e.clientX, y0: e.clientY, idx, moved: false, out: false, t0: performance.now(),
+      x0: e.clientX, y0: e.clientY, idx, hot: idx,   // ← THÊM hot: idx
+      moved: false, out: false, t0: performance.now(),
     };
     const c = G.cells[idx];
     S.tx = c.cx; S.ty = c.cy; S.ts = 1; /* chạm là phồng ngay */
