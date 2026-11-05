@@ -269,11 +269,7 @@
 })();
 
 
-/* =====================================================================
-   nav-mobile-liquid.js – Liquid Lens: giữ & kéo giữa các tab trong bảng ☰
-   Nạp SAU nav-mobile.js. Không sửa logic điều hướng:
-   chọn tab = .click() lên đúng nút .mn-it (nav-mobile.js tự bấm hộ nút gốc + đóng menu).
-   ===================================================================== */
+/* ===== Liquid Lens v2: khúc xạ thật ở mép kính ===== */
 (() => {
   "use strict";
   const panel = document.getElementById("mnPanel");
@@ -281,13 +277,18 @@
   const items = [...panel.querySelectorAll(":scope > .mn-it")];
   if (!items.length) return;
 
+  const REFR = window.MN_REFRACT !== false; /* đặt window.MN_REFRACT=false để tắt khúc xạ */
+  const FM = 0.22;  /* mức phóng đại tối đa (khớp với scale của lớp icon) */
+  const PAD = 26;   /* vùng đệm của filter quanh viên kính (px) */
   const RM = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-  /* ---------- dựng viên kính + lớp icon phóng đại ---------- */
+  /* ---------- dựng viên kính: lens > win (filter khúc xạ) > lc (bản sao icon) ---------- */
   const lens = document.createElement("div");
   lens.className = "mn-lens";
   lens.setAttribute("aria-hidden", "true");
+  const win = document.createElement("div");
+  win.className = "mn-win";
   const lc = document.createElement("div");
   lc.className = "mn-lc";
   const ghosts = items.map((it) => {
@@ -297,11 +298,82 @@
     lc.appendChild(g);
     return g;
   });
-  lens.appendChild(lc);
+  win.appendChild(lc);
+  lens.appendChild(win);
   panel.appendChild(lens);
   panel.classList.add("mn-lq");
 
-  /* ---------- hình học: đo theo vị trí thật của các nút ---------- */
+  /* ---------- SVG filter: displacement map sinh bằng canvas ---------- */
+  let flt = null, fe = null, dm = null, MX = 1, mapKey = "";
+  function initFilter() {
+    if (flt) return;
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
+    svg.innerHTML =
+      '<filter id="mnRefr" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">' +
+      '<feImage result="m" preserveAspectRatio="none"/>' +
+      '<feDisplacementMap in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter>';
+    document.body.appendChild(svg);
+    flt = svg.querySelector("filter");
+    fe = svg.querySelector("feImage");
+    dm = svg.querySelector("feDisplacementMap");
+  }
+  function buildMap(w, h) {
+    const cw = Math.round(w + 2 * PAD), ch = Math.round(h + 2 * PAD);
+    const cv = document.createElement("canvas");
+    cv.width = cw; cv.height = ch;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return null;
+    const img = ctx.createImageData(cw, ch), px = img.data;
+    const hw = w / 2, hh = h / 2, r = Math.min(27, hh, hw), edgeW = Math.min(18, h * 0.3);
+    const ax = new Float32Array(cw * ch), ay = new Float32Array(cw * ch);
+    let mx = 1e-6;
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2;
+        /* khoảng cách có dấu tới hình chữ nhật bo góc (âm = bên trong) */
+        const qx = Math.abs(rx) - (hw - r), qy = Math.abs(ry) - (hh - r);
+        const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+        const t = clamp(-sd / edgeW, 0, 1);       /* 0 ở mép → 1 ở sâu bên trong */
+        const wgt = Math.pow(1 - t, 2.2) * 1.5;   /* mạnh nhất ở mép, vượt 1 để bẻ cong rõ */
+        const i = y * cw + x, dx = rx * FM * wgt, dy = ry * FM * wgt;
+        ax[i] = dx; ay[i] = dy;
+        mx = Math.max(mx, Math.abs(dx), Math.abs(dy));
+      }
+    }
+    for (let i = 0; i < cw * ch; i++) {
+      const j = i * 4;
+      px[j] = Math.round(127.5 + (127.5 * ax[i]) / mx);
+      px[j + 1] = Math.round(127.5 + (127.5 * ay[i]) / mx);
+      px[j + 2] = 128;
+      px[j + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return { url: cv.toDataURL("image/png"), mx, cw, ch };
+  }
+  function setupMap() {
+    if (!REFR || !G) return;
+    const key = G.w + "x" + G.h;
+    if (key === mapKey) return;
+    const m = buildMap(G.w, G.h);
+    if (!m) return;
+    mapKey = key;
+    initFilter();
+    MX = m.mx;
+    const set = (el) => {
+      el.setAttribute("x", -PAD); el.setAttribute("y", -PAD);
+      el.setAttribute("width", m.cw); el.setAttribute("height", m.ch);
+    };
+    set(flt); set(fe);
+    fe.setAttribute("href", m.url);
+    fe.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", m.url);
+  }
+
+  /* ---------- hình học ---------- */
   let G = null;
   function measure() {
     const W = panel.offsetWidth, H = panel.offsetHeight;
@@ -321,31 +393,53 @@
       g.style.width = c.w + "px"; g.style.height = c.h + "px";
     });
     const xs = cells.map((c) => c.cx), ys = cells.map((c) => c.cy);
-    return (G = {
+    G = {
       cells, w, h,
       minX: Math.min(...xs) - w * 0.3, maxX: Math.max(...xs) + w * 0.3,
       minY: Math.min(...ys) - h * 0.3, maxY: Math.max(...ys) + h * 0.3,
-    });
+    };
+    setupMap();
+    return G;
   }
 
-  /* ---------- vật lý lò xo: vị trí + độ phồng ---------- */
+  /* ---------- vật lý lò xo ---------- */
   const S = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, s: 0, vs: 0, ts: 0, raf: 0, last: 0 };
-  const K = 320, C = 2 * Math.sqrt(K) * 0.62;   /* vị trí: hơi nảy */
-  const KS = 300, CS = 2 * Math.sqrt(KS) * 0.5; /* độ phồng: nảy nhiều hơn */
+  const K = 320, C = 2 * Math.sqrt(K) * 0.62;
+  const KS = 300, CS = 2 * Math.sqrt(KS) * 0.5;
+  const pv = []; /* cache transform đẩy nước của từng tab */
 
+  /* nước bị đẩy: các tab quanh viên kính trượt nhẹ ra xa khi kính phồng */
+  function push() {
+    const s = clamp(S.s, 0, 1);
+    G.cells.forEach((c, i) => {
+      const dx = c.cx - S.x, dy = c.cy - S.y, d = Math.hypot(dx, dy);
+      let tx = 0, ty = 0;
+      if (s > 0.01 && d > 1) {
+        const inf = Math.pow(clamp(1 - d / (G.w * 1.15), 0, 1), 2) * s;
+        tx = (dx / d) * 7 * inf; ty = (dy / d) * 7 * inf;
+      }
+      const v = tx || ty ? `translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px)` : "";
+      if (pv[i] !== v) { pv[i] = v; items[i].style.transform = v; ghosts[i].style.transform = v; }
+    });
+  }
   function draw() {
     if (!G) return;
     const L = S.x - G.w / 2, T = S.y - G.h / 2;
     const sp = Math.hypot(S.vx, S.vy);
-    const st = Math.min(sp / 2400, 0.32);           /* kéo giãn theo vận tốc */
+    const st = Math.min(sp / 2400, 0.32);
     const a = (Math.atan2(S.vy, S.vx) * 180) / Math.PI;
-    const sw = 1 + 0.2 * Math.max(0, S.s);          /* phồng */
+    const se = clamp(S.s, 0, 1.4);
     const defo = st > 0.004 ? `rotate(${a}deg) scale(${1 + st},${1 - st * 0.6}) rotate(${-a}deg) ` : "";
-    lens.style.transform = `translate3d(${L}px,${T}px,0) ${defo}scale(${sw})`;
+    lens.style.transform = `translate3d(${L}px,${T}px,0) ${defo}scale(${1 + 0.2 * se})`;
     lens.style.setProperty("--s", clamp(S.s, 0, 1).toFixed(3));
-    /* lớp icon phóng đại quanh tâm viên kính, giữ thẳng hàng với panel */
     lc.style.transformOrigin = `${S.x}px ${S.y}px`;
-    lc.style.transform = `translate(${-L}px,${-T}px) scale(${1 + 0.22 * Math.max(0, S.s)})`;
+    lc.style.transform = `translate(${-L}px,${-T}px) scale(${1 + FM * se})`;
+    if (REFR && dm) { /* khúc xạ tăng theo độ phồng; nằm yên thì tắt filter cho nhẹ */
+      const on = se > 0.03;
+      win.style.filter = on ? "url(#mnRefr)" : "none";
+      if (on) dm.setAttribute("scale", (2 * MX * se).toFixed(2));
+    }
+    push();
   }
   function frame(t) {
     const dt = Math.min(0.032, (t - S.last) / 1000 || 0.016);
@@ -368,7 +462,7 @@
     S.raf = requestAnimationFrame(frame);
   }
   function kick() {
-    if (RM()) { /* giảm chuyển động: nhảy thẳng tới đích */
+    if (RM()) {
       S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0;
       return draw();
     }
@@ -380,7 +474,7 @@
   let active = readActive(), hot = -1, drag = null, swallow = false, pass = false, swT = 0, isOpen = false;
 
   function setHot(i) {
-    if (drag) drag.hot = i;          // ← THÊM DÒNG NÀY
+    if (drag) drag.hot = i;
     if (i === hot) return;
     hot = i;
     ghosts.forEach((g, j) => g.classList.toggle("hot", j === i));
@@ -411,7 +505,7 @@
     const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
     const dx = Math.max(0, r.left - e.clientX, e.clientX - r.right);
     const dy = Math.max(0, r.top - e.clientY, e.clientY - r.bottom);
-    if (Math.hypot(dx, dy) > 90) { /* kéo ra xa: hủy, viên kính quay về tab hiện tại */
+    if (Math.hypot(dx, dy) > 90) {
       if (!drag.out) { drag.out = true; setHot(-1); const c = G.cells[active]; S.tx = c.cx; S.ty = c.cy; S.ts = 0; kick(); }
       return;
     }
@@ -419,7 +513,7 @@
     let b = 0, bd = Infinity;
     G.cells.forEach((c, i) => { const d = (c.cx - px) ** 2 + (c.cy - py) ** 2; if (d < bd) { bd = d; b = i; } });
     setHot(b);
-    const c = G.cells[b], mag = 0.28; /* hít nhẹ về tâm ô */
+    const c = G.cells[b], mag = 0.28;
     S.tx = clamp(px + (c.cx - px) * mag, G.minX, G.maxX);
     S.ty = clamp(py + (c.cy - py) * mag, G.minY, G.maxY);
     S.ts = 1;
@@ -430,7 +524,7 @@
     const d = drag;
     listen(false);
     drag = null;
-    swallow = true; /* nuốt click gốc, tự bấm sau khi viên kính rơi vào ô */
+    swallow = true;
     clearTimeout(swT);
     swT = setTimeout(() => (swallow = false), 500);
     if (d.out || d.hot < 0) return rest(true);
@@ -456,18 +550,17 @@
     if (!it || it.parentNode !== panel || !measure()) return;
     const r = panel.getBoundingClientRect();
     const idx = items.indexOf(it);
-        drag = {
+    drag = {
       id: e.pointerId, r, k: r.width / panel.offsetWidth || 1,
-      x0: e.clientX, y0: e.clientY, idx, hot: idx,   // ← THÊM hot: idx
+      x0: e.clientX, y0: e.clientY, idx, hot: idx,
       moved: false, out: false, t0: performance.now(),
     };
     const c = G.cells[idx];
-    S.tx = c.cx; S.ty = c.cy; S.ts = 1; /* chạm là phồng ngay */
+    S.tx = c.cx; S.ty = c.cy; S.ts = 1;
     setHot(idx);
     kick();
     listen(true);
   });
-  /* nuốt click gốc sau khi kéo/thả (click tự bấm vẫn đi qua nhờ cờ pass) */
   panel.addEventListener("click", (e) => {
     if (pass || !swallow) return;
     swallow = false;
@@ -477,7 +570,7 @@
   panel.addEventListener("contextmenu", (e) => e.preventDefault());
 
   /* ---------- đồng bộ với nav-mobile.js ---------- */
-  new MutationObserver(() => { /* mở / đóng bảng */
+  new MutationObserver(() => {
     const o = panel.classList.contains("on");
     if (o === isOpen) return;
     isOpen = o;
@@ -485,14 +578,14 @@
       if (!measure()) return;
       active = readActive();
       rest(false);
-      if (!RM()) { S.s = 0.8; S.ts = 0; S.vs = 0; kick(); } /* hiệu ứng "phồng" khi mở */
+      if (!RM()) { S.s = 0.8; S.ts = 0; S.vs = 0; kick(); }
     } else if (drag) {
       listen(false);
       drag = null;
     }
   }).observe(panel, { attributes: true, attributeFilter: ["class"] });
 
-  const mo = new MutationObserver(() => { /* đổi tab từ nơi khác */
+  const mo = new MutationObserver(() => {
     const a = readActive();
     if (a === active) return;
     active = a;

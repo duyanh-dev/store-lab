@@ -684,3 +684,15 @@ section.np {
   .sc, .np-sheet, .np-head, .np-empty, .ph-hero, .ph-card, #npModal .box { animation: none }
   .sc, #shops .btn, #npModal .btn { transition: none }
 }
+
+@media (max-width: 720px) {
+  .mn-win { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible }
+  /* để JS điều khiển transform đẩy nước, không bị transition cũ làm trễ */
+  #mnPanel.mn-lq .mn-it { transition: color .2s }
+  .mn-gh { will-change: transform }
+  /* kính trong hơn để lớp khúc xạ hiện rõ */
+  .mn-lens { background: rgba(255, 255, 255, .22) }
+}
+@media (max-width: 720px) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mn-lens { background: rgba(255, 255, 255, .08) }
+}
