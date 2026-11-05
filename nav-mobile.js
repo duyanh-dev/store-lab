@@ -267,3 +267,237 @@
     vv.addEventListener("scroll", kb);
   }
 })();
+
+
+/* =====================================================================
+   nav-mobile-liquid.js – Liquid Lens: giữ & kéo giữa các tab trong bảng ☰
+   Nạp SAU nav-mobile.js. Không sửa logic điều hướng:
+   chọn tab = .click() lên đúng nút .mn-it (nav-mobile.js tự bấm hộ nút gốc + đóng menu).
+   ===================================================================== */
+(() => {
+  "use strict";
+  const panel = document.getElementById("mnPanel");
+  if (!panel) return console.warn("nav-mobile-liquid: thiếu #mnPanel – bỏ qua.");
+  const items = [...panel.querySelectorAll(":scope > .mn-it")];
+  if (!items.length) return;
+
+  const RM = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  /* ---------- dựng viên kính + lớp icon phóng đại ---------- */
+  const lens = document.createElement("div");
+  lens.className = "mn-lens";
+  lens.setAttribute("aria-hidden", "true");
+  const lc = document.createElement("div");
+  lc.className = "mn-lc";
+  const ghosts = items.map((it) => {
+    const g = document.createElement("div");
+    g.className = "mn-gh";
+    g.innerHTML = it.innerHTML;
+    lc.appendChild(g);
+    return g;
+  });
+  lens.appendChild(lc);
+  panel.appendChild(lens);
+  panel.classList.add("mn-lq");
+
+  /* ---------- hình học: đo theo vị trí thật của các nút ---------- */
+  let G = null;
+  function measure() {
+    const W = panel.offsetWidth, H = panel.offsetHeight;
+    if (!W || !H) return (G = null);
+    const cells = items.map((it) => ({
+      x: it.offsetLeft, y: it.offsetTop, w: it.offsetWidth, h: it.offsetHeight,
+      cx: it.offsetLeft + it.offsetWidth / 2, cy: it.offsetTop + it.offsetHeight / 2,
+    }));
+    const w = cells[0].w, h = cells[0].h;
+    lens.style.width = w + "px";
+    lens.style.height = h + "px";
+    lc.style.width = W + "px";
+    lc.style.height = H + "px";
+    ghosts.forEach((g, i) => {
+      const c = cells[i];
+      g.style.left = c.x + "px"; g.style.top = c.y + "px";
+      g.style.width = c.w + "px"; g.style.height = c.h + "px";
+    });
+    const xs = cells.map((c) => c.cx), ys = cells.map((c) => c.cy);
+    return (G = {
+      cells, w, h,
+      minX: Math.min(...xs) - w * 0.3, maxX: Math.max(...xs) + w * 0.3,
+      minY: Math.min(...ys) - h * 0.3, maxY: Math.max(...ys) + h * 0.3,
+    });
+  }
+
+  /* ---------- vật lý lò xo: vị trí + độ phồng ---------- */
+  const S = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, s: 0, vs: 0, ts: 0, raf: 0, last: 0 };
+  const K = 320, C = 2 * Math.sqrt(K) * 0.62;   /* vị trí: hơi nảy */
+  const KS = 300, CS = 2 * Math.sqrt(KS) * 0.5; /* độ phồng: nảy nhiều hơn */
+
+  function draw() {
+    if (!G) return;
+    const L = S.x - G.w / 2, T = S.y - G.h / 2;
+    const sp = Math.hypot(S.vx, S.vy);
+    const st = Math.min(sp / 2400, 0.32);           /* kéo giãn theo vận tốc */
+    const a = (Math.atan2(S.vy, S.vx) * 180) / Math.PI;
+    const sw = 1 + 0.2 * Math.max(0, S.s);          /* phồng */
+    const defo = st > 0.004 ? `rotate(${a}deg) scale(${1 + st},${1 - st * 0.6}) rotate(${-a}deg) ` : "";
+    lens.style.transform = `translate3d(${L}px,${T}px,0) ${defo}scale(${sw})`;
+    lens.style.setProperty("--s", clamp(S.s, 0, 1).toFixed(3));
+    /* lớp icon phóng đại quanh tâm viên kính, giữ thẳng hàng với panel */
+    lc.style.transformOrigin = `${S.x}px ${S.y}px`;
+    lc.style.transform = `translate(${-L}px,${-T}px) scale(${1 + 0.22 * Math.max(0, S.s)})`;
+  }
+  function frame(t) {
+    const dt = Math.min(0.032, (t - S.last) / 1000 || 0.016);
+    S.last = t;
+    const n = 2, h = dt / n;
+    for (let i = 0; i < n; i++) {
+      S.vx += (K * (S.tx - S.x) - C * S.vx) * h; S.x += S.vx * h;
+      S.vy += (K * (S.ty - S.y) - C * S.vy) * h; S.y += S.vy * h;
+      S.vs += (KS * (S.ts - S.s) - CS * S.vs) * h; S.s += S.vs * h;
+    }
+    draw();
+    const still = Math.abs(S.tx - S.x) < 0.2 && Math.abs(S.ty - S.y) < 0.2 && Math.hypot(S.vx, S.vy) < 4 &&
+      Math.abs(S.ts - S.s) < 0.003 && Math.abs(S.vs) < 0.02;
+    if (still) {
+      S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0;
+      draw();
+      S.raf = 0;
+      return;
+    }
+    S.raf = requestAnimationFrame(frame);
+  }
+  function kick() {
+    if (RM()) { /* giảm chuyển động: nhảy thẳng tới đích */
+      S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0;
+      return draw();
+    }
+    if (!S.raf) { S.last = performance.now(); S.raf = requestAnimationFrame(frame); }
+  }
+
+  /* ---------- trạng thái tab ---------- */
+  const readActive = () => Math.max(0, items.findIndex((b) => b.classList.contains("on")));
+  let active = readActive(), hot = -1, drag = null, swallow = false, pass = false, swT = 0, isOpen = false;
+
+  function setHot(i) {
+    if (i === hot) return;
+    hot = i;
+    ghosts.forEach((g, j) => g.classList.toggle("hot", j === i));
+    if (i >= 0 && drag && drag.moved && navigator.vibrate) navigator.vibrate(6);
+  }
+  function rest(animate) {
+    if (!G) return;
+    const c = G.cells[active];
+    S.tx = c.cx; S.ty = c.cy; S.ts = 0;
+    setHot(active);
+    if (animate) kick();
+    else { S.x = S.tx; S.y = S.ty; S.vx = S.vy = S.s = S.vs = 0; draw(); }
+  }
+
+  /* ---------- kéo thả ---------- */
+  function listen(on) {
+    const f = on ? addEventListener : removeEventListener;
+    f("pointermove", mv, { passive: false });
+    f("pointerup", up);
+    f("pointercancel", cancel);
+  }
+  function mv(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    e.preventDefault();
+    if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
+    drag.moved = true;
+    const { r, k } = drag;
+    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
+    const dx = Math.max(0, r.left - e.clientX, e.clientX - r.right);
+    const dy = Math.max(0, r.top - e.clientY, e.clientY - r.bottom);
+    if (Math.hypot(dx, dy) > 90) { /* kéo ra xa: hủy, viên kính quay về tab hiện tại */
+      if (!drag.out) { drag.out = true; setHot(-1); const c = G.cells[active]; S.tx = c.cx; S.ty = c.cy; S.ts = 0; kick(); }
+      return;
+    }
+    drag.out = false;
+    let b = 0, bd = Infinity;
+    G.cells.forEach((c, i) => { const d = (c.cx - px) ** 2 + (c.cy - py) ** 2; if (d < bd) { bd = d; b = i; } });
+    setHot(b);
+    const c = G.cells[b], mag = 0.28; /* hít nhẹ về tâm ô */
+    S.tx = clamp(px + (c.cx - px) * mag, G.minX, G.maxX);
+    S.ty = clamp(py + (c.cy - py) * mag, G.minY, G.maxY);
+    S.ts = 1;
+    kick();
+  }
+  function up(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag;
+    listen(false);
+    drag = null;
+    swallow = true; /* nuốt click gốc, tự bấm sau khi viên kính rơi vào ô */
+    clearTimeout(swT);
+    swT = setTimeout(() => (swallow = false), 500);
+    if (d.out || d.hot < 0) return rest(true);
+    const idx = d.hot, c = G.cells[idx];
+    S.tx = c.cx; S.ty = c.cy; S.ts = 0;
+    kick();
+    const wait = RM() ? 0 : d.moved ? 260 : performance.now() - d.t0 > 250 ? 200 : 120;
+    setTimeout(() => {
+      pass = true;
+      try { items[idx].click(); } finally { pass = false; }
+    }, wait);
+  }
+  function cancel(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    listen(false);
+    drag = null;
+    rest(true);
+  }
+
+  panel.addEventListener("pointerdown", (e) => {
+    if (drag || e.button > 0) return;
+    const it = e.target.closest(".mn-it");
+    if (!it || it.parentNode !== panel || !measure()) return;
+    const r = panel.getBoundingClientRect();
+    const idx = items.indexOf(it);
+    drag = {
+      id: e.pointerId, r, k: r.width / panel.offsetWidth || 1,
+      x0: e.clientX, y0: e.clientY, idx, moved: false, out: false, t0: performance.now(),
+    };
+    const c = G.cells[idx];
+    S.tx = c.cx; S.ty = c.cy; S.ts = 1; /* chạm là phồng ngay */
+    setHot(idx);
+    kick();
+    listen(true);
+  });
+  /* nuốt click gốc sau khi kéo/thả (click tự bấm vẫn đi qua nhờ cờ pass) */
+  panel.addEventListener("click", (e) => {
+    if (pass || !swallow) return;
+    swallow = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }, true);
+  panel.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  /* ---------- đồng bộ với nav-mobile.js ---------- */
+  new MutationObserver(() => { /* mở / đóng bảng */
+    const o = panel.classList.contains("on");
+    if (o === isOpen) return;
+    isOpen = o;
+    if (o) {
+      if (!measure()) return;
+      active = readActive();
+      rest(false);
+      if (!RM()) { S.s = 0.8; S.ts = 0; S.vs = 0; kick(); } /* hiệu ứng "phồng" khi mở */
+    } else if (drag) {
+      listen(false);
+      drag = null;
+    }
+  }).observe(panel, { attributes: true, attributeFilter: ["class"] });
+
+  const mo = new MutationObserver(() => { /* đổi tab từ nơi khác */
+    const a = readActive();
+    if (a === active) return;
+    active = a;
+    if (isOpen && !drag) rest(true);
+  });
+  items.forEach((it) => mo.observe(it, { attributes: true, attributeFilter: ["class"] }));
+
+  addEventListener("resize", () => { if (isOpen && measure()) rest(false); });
+  if (panel.classList.contains("on")) { isOpen = true; if (measure()) rest(false); }
+})();

@@ -814,6 +814,244 @@
 .sx-spin.on{background:var(--ink);color:var(--bg)}
 .sx-spin.on svg{color:inherit}
 .sx-spin:active{transform:scale(.95)}
+
+/* ===== v6: Liquid Glass nổi khối cho Danh sách quầy (không gradient, không chấm, không line màu) ===== */
+:root{
+ --lg-glass:rgba(255,255,255,.38);
+ --lg-card:rgba(255,255,255,.66);
+ --lg-card-hi:rgba(255,255,255,.96);
+ --lg-in:rgba(120,120,128,.13);
+ --lg-e1:rgba(255,255,255,.95);   /* mép sáng (trên-trái) */
+ --lg-e2:rgba(255,255,255,.4);    /* mép sáng yếu (dưới-phải) */
+ --lg-sh:rgba(20,24,44,.18);
+ --lg-sh2:rgba(20,24,44,.10);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --lg-glass:rgba(40,40,46,.42);
+ --lg-card:rgba(255,255,255,.10);
+ --lg-card-hi:rgba(255,255,255,.22);
+ --lg-in:rgba(0,0,0,.28);
+ --lg-e1:rgba(255,255,255,.30);
+ --lg-e2:rgba(255,255,255,.08);
+ --lg-sh:rgba(0,0,0,.5);
+ --lg-sh2:rgba(0,0,0,.3);
+}}
+
+/* tấm kính chính: trong hơn, mờ mạnh hơn, mép khúc xạ bằng inset shadow */
+#legend{
+ background:var(--lg-glass);
+ -webkit-backdrop-filter:blur(36px) saturate(210%) brightness(1.05);
+ backdrop-filter:blur(36px) saturate(210%) brightness(1.05);
+ box-shadow:
+  0 28px 64px var(--lg-sh),
+  0 6px 16px var(--lg-sh2),
+  inset 1.5px 1.5px 1px var(--lg-e1),
+  inset -1px -1px 1px var(--lg-e2);
+}
+
+/* nút tròn trên header: nổi khối */
+#legend .sx-ib{
+ background:var(--lg-card);color:var(--ink);
+ box-shadow:0 4px 10px var(--lg-sh2),0 1px 2px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1),inset -1px -1px 1px var(--lg-e2);
+ transition:transform .15s,box-shadow .15s;
+}
+#legend .sx-ib:active{transform:scale(.92);background:var(--lg-card);box-shadow:0 1px 3px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1)}
+
+/* ô tìm kiếm: lõm xuống (debossed) */
+.sx-sr input{
+ background:var(--lg-in);
+ box-shadow:inset 0 2px 5px rgba(0,0,0,.10),inset 0 -1px 0 var(--lg-e1);
+}
+.sx-sr input:focus{background:var(--lg-in);box-shadow:inset 0 2px 6px rgba(0,0,0,.14),inset 0 -1px 0 var(--lg-e1)}
+
+/* nút lọc: nổi, trạng thái đang lọc = nút trắng nổi cao (bỏ chấm xanh) */
+.sx-fb{
+ background:var(--lg-card);color:var(--ink);
+ box-shadow:0 4px 10px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1),inset -1px -1px 1px var(--lg-e2);
+ transition:transform .15s,box-shadow .15s;
+}
+.sx-fb:active{transform:scale(.93);background:var(--lg-card)}
+.sx-fb.open{background:var(--ink);color:var(--bg);box-shadow:0 6px 14px var(--lg-sh)}
+.sx-fb.act{background:var(--lg-card-hi);box-shadow:0 8px 18px var(--lg-sh),inset 1px 1px 0 var(--lg-e1)}
+.sx-fb.act::after{display:none}
+
+/* bảng lọc: một tấm kính nổi */
+.sx-fx{
+ background:var(--lg-card);
+ box-shadow:0 8px 22px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1),inset -1px -1px 1px var(--lg-e2);
+}
+.sx-fc .sx-ch,.sx-ch{
+ background:var(--lg-card);color:var(--ink);
+ box-shadow:0 3px 8px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1);
+ transition:transform .15s,box-shadow .15s;
+}
+.sx-ch:active{background:var(--lg-card);transform:scale(.95);box-shadow:0 1px 3px var(--lg-sh2)}
+.sx-ch.act{background:var(--ink);color:var(--bg);box-shadow:0 6px 14px var(--lg-sh)}
+.sx-sg{background:var(--lg-in);box-shadow:inset 0 2px 4px rgba(0,0,0,.08)}
+.sx-sg button.act{background:var(--lg-card-hi);box-shadow:0 3px 8px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1)}
+
+/* tiêu đề nhóm: chữ + số lượng nổi, không chấm */
+.sx-gl{margin:16px 8px 8px}
+.sx-gl .sx-dot{display:none}
+.sx-gl span:not(.sx-dot){font-size:12px;font-weight:700;letter-spacing:.01em;color:var(--ink)}
+.sx-gl i{
+ background:var(--lg-card);color:var(--sx-sub);
+ box-shadow:0 2px 6px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1);
+}
+
+/* danh sách: chừa chỗ cho bóng đổ */
+#legend .sx-body{padding:2px 12px 20px}
+.sx-grp{gap:10px}
+
+/* ===== THẺ QUẦY: nổi khối, icon trần (không khung) ===== */
+#legend .sx-it{
+ align-items:center;gap:13px;
+ padding:12px 14px 12px 12px;border-radius:20px;
+ background:var(--lg-card);
+ box-shadow:
+  0 10px 22px var(--lg-sh2),
+  0 2px 5px var(--lg-sh2),
+  inset 1.5px 1.5px 1px var(--lg-e1),
+  inset -1px -1px 2px var(--lg-e2);
+ transition:transform .18s cubic-bezier(.2,.9,.2,1),box-shadow .18s,background .18s;
+}
+@media(hover:hover){
+ #legend .sx-it:hover{
+  background:var(--lg-card-hi);transform:translateY(-2px);
+  box-shadow:0 16px 30px var(--lg-sh),0 3px 8px var(--lg-sh2),inset 1.5px 1.5px 1px var(--lg-e1),inset -1px -1px 2px var(--lg-e2);
+ }
+}
+#legend .sx-it:active{
+ background:var(--lg-card);transform:scale(.985);
+ box-shadow:0 3px 8px var(--lg-sh2),inset 1.5px 1.5px 1px var(--lg-e1);
+}
+
+/* icon: bỏ hẳn khung bo góc, chỉ còn nét icon tô màu theo loại, to hơn */
+#legend .sx-it .sx-ti,
+#legend .sx-it.on .sx-ti{
+ width:auto;height:auto;min-width:28px;padding:0;border-radius:0;
+ background:none!important;box-shadow:none;
+ color:var(--tc,var(--ink));
+}
+#legend .sx-it .sx-ti svg{width:26px;height:26px;stroke-width:1.6;filter:drop-shadow(0 3px 4px rgba(0,0,0,.18))}
+
+/* chữ */
+#legend .sx-tx b{font-size:14.5px;font-weight:600;color:var(--ink)}
+#legend .sx-tx small{color:var(--sx-sub)}
+
+/* thông số: viên nhỏ lõm xuống */
+.sx-p{
+ background:var(--lg-in);color:var(--sx-sub);
+ box-shadow:inset 0 1px 3px rgba(0,0,0,.10),inset 0 -1px 0 var(--lg-e1);
+}
+
+/* quầy đang chọn: kính trắng nổi cao nhất, không đổi sang màu xanh */
+#legend .sx-it.on,
+#legend .sx-it.on:hover,
+#legend .sx-it.on:active{
+ background:var(--lg-card-hi);color:var(--ink);transform:translateY(-3px);
+ box-shadow:
+  0 22px 40px var(--lg-sh),
+  0 5px 12px var(--lg-sh2),
+  inset 2px 2px 1px var(--lg-e1),
+  inset -1px -1px 2px var(--lg-e2);
+}
+#legend .sx-it.on .sx-tx b{font-weight:700;color:var(--ink)}
+#legend .sx-it.on .sx-tx small{color:var(--sx-sub)}
+#legend .sx-it.on .sx-ti{color:var(--tc,var(--ink))}
+#legend .sx-it.on .sx-p{background:var(--lg-in);color:var(--ink)}
+
+@media(max-width:720px){
+ #legend .sx-it{padding:10px 12px 10px 10px;border-radius:18px}
+ #legend .sx-it .sx-ti svg{width:24px;height:24px}
+ #legend .sx-body{padding:2px 10px 16px}
+ .sx-grp{gap:8px}
+}
+
+/* ===== v7: icon đơn sắc + số liệu dạng kính dễ đọc + kính lỏng hơn ===== */
+:root{
+ --lg-pill:rgba(255,255,255,.55);
+ --lg-pill-tx:#1c1c1e;
+ --lg-glow:rgba(255,255,255,.55);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --lg-pill:rgba(255,255,255,.16);
+ --lg-pill-tx:#f5f5f7;
+ --lg-glow:rgba(255,255,255,.14);
+}}
+
+/* ---- icon: bỏ màu theo loại, chỉ còn màu chữ ---- */
+#legend .sx-it .sx-ti,
+#legend .sx-it.on .sx-ti,
+#legend .sx-gl{color:var(--ink)}
+#legend .sx-it .sx-ti svg{stroke:currentColor;opacity:.88;filter:drop-shadow(0 2px 3px rgba(0,0,0,.14))}
+.sx-ch svg{color:var(--ink);opacity:.7}
+
+/* ---- thẻ quầy: kính lỏng hơn (blur nền + ánh sáng bên trong) ---- */
+#legend .sx-it{
+ background:var(--lg-card);
+ -webkit-backdrop-filter:blur(18px) saturate(190%);
+ backdrop-filter:blur(18px) saturate(190%);
+ box-shadow:
+  0 12px 26px var(--lg-sh2),
+  0 2px 6px var(--lg-sh2),
+  inset 1.5px 1.5px 1px var(--lg-e1),
+  inset -1px -1px 2px var(--lg-e2),
+  inset 0 0 14px var(--lg-glow);
+}
+@media(hover:hover){
+ #legend .sx-it:hover{
+  box-shadow:0 18px 34px var(--lg-sh),0 3px 8px var(--lg-sh2),inset 1.5px 1.5px 1px var(--lg-e1),inset -1px -1px 2px var(--lg-e2),inset 0 0 16px var(--lg-glow);
+ }
+}
+#legend .sx-it.on,
+#legend .sx-it.on:hover,
+#legend .sx-it.on:active{
+ box-shadow:
+  0 24px 44px var(--lg-sh),
+  0 6px 14px var(--lg-sh2),
+  inset 2px 2px 1px var(--lg-e1),
+  inset -1px -1px 2px var(--lg-e2),
+  inset 0 0 20px var(--lg-glow);
+}
+
+/* ---- số liệu: viên kính nổi, chữ đậm, rõ nét ---- */
+#legend .sx-ps{gap:6px;margin-top:6px}
+#legend .sx-p{
+ height:24px;padding:0 10px;border-radius:999px;
+ background:var(--lg-pill);color:var(--lg-pill-tx);
+ font:600 12px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+ letter-spacing:0;font-variant-numeric:tabular-nums;
+ -webkit-backdrop-filter:blur(10px) saturate(180%);
+ backdrop-filter:blur(10px) saturate(180%);
+ box-shadow:
+  0 3px 8px var(--lg-sh2),
+  inset 1px 1px 0 var(--lg-e1),
+  inset -1px -1px 1px var(--lg-e2),
+  inset 0 0 8px var(--lg-glow);
+}
+#legend .sx-it.on .sx-p{
+ background:var(--lg-pill);color:var(--lg-pill-tx);
+}
+
+/* mã quầy (RICE_SHELF_001...) đậm hơn một chút cho dễ đọc */
+#legend .sx-tx small{font-size:11.5px;font-weight:500;color:var(--sx-sub);opacity:1}
+
+/* số lượng ở tiêu đề nhóm + chip lọc: cũng chữ đậm, rõ */
+.sx-gl i{
+ padding:2px 10px;font-size:12px;font-weight:700;color:var(--lg-pill-tx);
+ background:var(--lg-pill);
+ -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+ box-shadow:0 3px 8px var(--lg-sh2),inset 1px 1px 0 var(--lg-e1),inset 0 0 8px var(--lg-glow);
+}
+.sx-ch i{font-weight:700;color:var(--ink);opacity:.75}
+.sx-ch.act i{color:inherit;opacity:.8}
+#lgn{font-weight:700;color:var(--ink);opacity:.6}
+
+@media(max-width:720px){
+ #legend .sx-p{height:22px;padding:0 9px;font-size:11.5px}
+}
+
 `;
   document.head.appendChild(css);
   /* gỡ rule cũ của #legend button / #legend b (nguyên nhân thẻ xếp dọc, chữ mono xanh) */
