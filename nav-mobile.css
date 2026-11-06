@@ -379,3 +379,72 @@
     .mn-lens { background: var(--mn-solid); -webkit-backdrop-filter: none; backdrop-filter: none }
   }
 }
+
+@media (max-width: 720px) {
+  .mn-gh, .mn-gh.hot { color: var(--mn-acc) }   /* mọi thứ trong kính ăn màu nhấn */
+  .mn-lens { background: rgba(255, 255, 255, .16) }
+  .mn-lens::after {
+    box-shadow:
+      inset 2px 2px 1.5px var(--mn-lens1),
+      inset -1.5px -1.5px 2px var(--mn-lens2),
+      inset 0 0 0 1px var(--mn-rim),
+      inset 0 0 calc(14px + 16px * var(--s)) rgba(255, 255, 255, .5);
+  }
+}
+
+
+/* ===== nav-mobile: Liquid Lens (bản v4) ===== */
+@media (max-width: 720px) {
+  #mnPanel { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none }
+
+  /* nội dung tab thật vô hình nhưng vẫn bấm/focus được; bản hiển thị là lớp .mn-lc */
+  #mnPanel.mn-lq .mn-it, #mnPanel.mn-lq .mn-it.on {
+    color: transparent; background: transparent; box-shadow: none; transition: none;
+  }
+  #mnPanel.mn-lq .mn-it .mn-ic, #mnPanel.mn-lq .mn-it .mn-lb { opacity: 0 }
+  #mnPanel.mn-lq .mn-it:active { transform: none; background: transparent }
+
+  /* thân kính (dưới icon) + viền kính (trên icon) */
+  .mn-lens, .mn-rim {
+    --s: 0; position: absolute; left: 0; top: 0; pointer-events: none;
+    border-radius: calc(20px + 14px * var(--s)); will-change: transform;
+  }
+  .mn-lens {
+    z-index: 1; background: rgba(255, 255, 255, .2);
+    box-shadow:
+      0 calc(3px + 16px * var(--s)) calc(8px + 26px * var(--s)) rgba(10, 14, 40, calc(.12 + .12 * var(--s))),
+      0 1px 3px rgba(10, 14, 40, .12);
+  }
+  .mn-rim { z-index: 3; overflow: hidden }
+  .mn-rim::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit;
+    box-shadow:
+      inset 2px 2px 1.5px var(--mn-lens1),
+      inset -1.5px -1.5px 2px var(--mn-lens2),
+      inset 0 0 0 1px var(--mn-rim),
+      inset 0 0 calc(14px + 16px * var(--s)) rgba(255, 255, 255, .5);
+  }
+  .mn-rim::before {
+    content: ""; position: absolute; z-index: 1; left: 12%; top: 7%; width: 38%; height: 15%;
+    border-radius: 50%; background: rgba(255, 255, 255, .8); -webkit-filter: blur(3px); filter: blur(3px);
+    opacity: calc(.22 + .6 * var(--s));
+  }
+
+  /* lớp icon hiển thị duy nhất (được khúc xạ) */
+  .mn-lc { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none }
+  .mn-gh {
+    --t: 0; position: absolute; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 5px; min-width: 0; padding: 0 4px; color: var(--mn-mute);
+    font: 600 11px/1.15 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  }
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
+    .mn-gh { color: color-mix(in srgb, var(--mn-acc) calc(var(--t) * 100%), var(--mn-mute)) }
+  }
+  @supports not (color: color-mix(in srgb, red 50%, blue)) { .mn-gh.hot { color: var(--mn-acc) } }
+  @media (max-width: 350px) { .mn-gh { font-size: 10.5px } }
+}
+@media (max-width: 720px) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mn-lens { background: rgba(255, 255, 255, .07) }
+}
+:root[data-theme="dark"] .mn-lens { background: rgba(255, 255, 255, .07) }

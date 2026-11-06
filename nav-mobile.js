@@ -269,7 +269,7 @@
 })();
 
 
-/* ===== Liquid Lens v2: khúc xạ thật ở mép kính ===== */
+/* ===== Liquid Lens v4 (mobile): một lớp icon bị khúc xạ liên tục + nhận dạng ý định kéo ===== */
 (() => {
   "use strict";
   const panel = document.getElementById("mnPanel");
@@ -277,20 +277,20 @@
   const items = [...panel.querySelectorAll(":scope > .mn-it")];
   if (!items.length) return;
 
-  const REFR = window.MN_REFRACT !== false; /* đặt window.MN_REFRACT=false để tắt khúc xạ */
-  const FM = 0.22;  /* mức phóng đại tối đa (khớp với scale của lớp icon) */
-  const PAD = 26;   /* vùng đệm của filter quanh viên kính (px) */
+  const REFR = window.MN_REFRACT !== false; /* window.MN_REFRACT=false để tắt khúc xạ */
+  const F = 0.14;    /* phóng đại quanh tâm kính */
+  const BEND = 1;    /* độ bẻ cong ở mép (nhân với biên độ gốc) */
+  const HALO = 6;   /* vùng khúc xạ giảm dần ra ngoài mép (px) */
+  const CA = 0.1;    /* tách màu cầu vồng ở mép (0 = tắt) */
   const RM = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  let G = null;
 
-  /* ---------- dựng viên kính: lens > win (filter khúc xạ) > lc (bản sao icon) ---------- */
-  const lens = document.createElement("div");
-  lens.className = "mn-lens";
-  lens.setAttribute("aria-hidden", "true");
-  const win = document.createElement("div");
-  win.className = "mn-win";
-  const lc = document.createElement("div");
-  lc.className = "mn-lc";
+  /* ---------- DOM: thân kính (dưới) · lớp icon khúc xạ · viền kính (trên) ---------- */
+  const lens = document.createElement("div"); lens.className = "mn-lens"; lens.setAttribute("aria-hidden", "true");
+  const rim = document.createElement("div"); rim.className = "mn-rim"; rim.setAttribute("aria-hidden", "true");
+  const lc = document.createElement("div"); lc.className = "mn-lc"; lc.setAttribute("aria-hidden", "true");
   const ghosts = items.map((it) => {
     const g = document.createElement("div");
     g.className = "mn-gh";
@@ -298,59 +298,70 @@
     lc.appendChild(g);
     return g;
   });
-  win.appendChild(lc);
-  lens.appendChild(win);
-  panel.appendChild(lens);
+  panel.append(lens, lc, rim);
   panel.classList.add("mn-lq");
 
-  /* ---------- SVG filter: displacement map sinh bằng canvas ---------- */
-  let flt = null, fe = null, dm = null, MX = 1, mapKey = "";
+  /* ---------- SVG filter: trường khúc xạ liên tục + tách màu R/G/B ---------- */
+  const XL = "http://www.w3.org/1999/xlink";
+  let flt = null, fe = null, dms = null, mp = null, mapKey = "";
   function initFilter() {
     if (flt) return;
     const NS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("width", "0");
-    svg.setAttribute("height", "0");
-    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("width", "0"); svg.setAttribute("height", "0"); svg.setAttribute("aria-hidden", "true");
     svg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
+    const dmap = (r) => `<feDisplacementMap in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G" result="${r}"/>`;
+    const ch = (v) => `<feColorMatrix type="matrix" values="${v}"`;
     svg.innerHTML =
       '<filter id="mnRefr" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">' +
-      '<feImage result="m" preserveAspectRatio="none"/>' +
-      '<feDisplacementMap in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter>';
+      '<feFlood flood-color="rgb(128,128,128)" flood-opacity="1" result="n"/>' +  /* nền trung tính = không lệch */
+      '<feImage result="im" preserveAspectRatio="none"/>' +
+      '<feMerge result="m"><feMergeNode in="n"/><feMergeNode in="im"/></feMerge>' +
+      dmap("dr") + ch("1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0") + ' in="dr" result="r"/>' +
+      dmap("dg") + ch("0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0") + ' in="dg" result="g"/>' +
+      dmap("db") + ch("0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0") + ' in="db" result="b"/>' +
+      '<feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/></filter>';
     document.body.appendChild(svg);
     flt = svg.querySelector("filter");
     fe = svg.querySelector("feImage");
-    dm = svg.querySelector("feDisplacementMap");
+    dms = [...svg.querySelectorAll("feDisplacementMap")];
   }
-  function buildMap(w, h) {
-    const cw = Math.round(w + 2 * PAD), ch = Math.round(h + 2 * PAD);
-    const cv = document.createElement("canvas");
-    cv.width = cw; cv.height = ch;
+  /* trường: phóng đại (kéo mẫu về tâm) + bẻ cong theo pháp tuyến ở mép trong,
+     nhân với đường bao E: =1 trong kính, giảm mượt về 0 trong vùng HALO bên ngoài → liên tục, không có ranh giới cứng */
+    function buildMap(w, h) {
+    const cw = Math.round(w + 2 * HALO), ch = Math.round(h + 2 * HALO);
+    const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
     const ctx = cv.getContext("2d");
     if (!ctx) return null;
     const img = ctx.createImageData(cw, ch), px = img.data;
-    const hw = w / 2, hh = h / 2, r = Math.min(27, hh, hw), edgeW = Math.min(18, h * 0.3);
-    const ax = new Float32Array(cw * ch), ay = new Float32Array(cw * ch);
+    const hw = w / 2, hh = h / 2, r = Math.min(hh, 28);
+    const edgeIn = Math.min(h * 0.45, 26), amp = Math.min(h * 0.42, 24) * BEND, rc = edgeIn * 0.4, rw = edgeIn * 0.55;
+    const sdf = (x, y) => {
+      const qx = Math.abs(x) - (hw - r), qy = Math.abs(y) - (hh - r);
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+    };
+    const vx = new Float32Array(cw * ch), vy = new Float32Array(cw * ch);
     let mx = 1e-6;
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2;
-        /* khoảng cách có dấu tới hình chữ nhật bo góc (âm = bên trong) */
-        const qx = Math.abs(rx) - (hw - r), qy = Math.abs(ry) - (hh - r);
-        const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
-        const t = clamp(-sd / edgeW, 0, 1);       /* 0 ở mép → 1 ở sâu bên trong */
-        const wgt = Math.pow(1 - t, 2.2) * 1.5;   /* mạnh nhất ở mép, vượt 1 để bẻ cong rõ */
-        const i = y * cw + x, dx = rx * FM * wgt, dy = ry * FM * wgt;
-        ax[i] = dx; ay[i] = dy;
-        mx = Math.max(mx, Math.abs(dx), Math.abs(dy));
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2, sd = sdf(rx, ry);
+      let ex = 0, ey = 0;
+      if (sd < 0) { /* chỉ bên trong kính: 0 ở mép → tăng mượt vào trong */
+        const dp = -sd, m = sstep(0, edgeIn, dp);
+        ex = -rx * F * m; ey = -ry * F * m;                      /* phóng đại về tâm */
+        const q = (dp - rc) / rw, b = Math.exp(-q * q) * sstep(0, rc * 0.7, dp);
+        if (b > 0.001) {                                         /* bẻ cong ngay sau mép */
+          const nx = sdf(rx + 0.5, ry) - sdf(rx - 0.5, ry), ny = sdf(rx, ry + 0.5) - sdf(rx, ry - 0.5), nl = Math.hypot(nx, ny) || 1;
+          ex += (nx / nl) * amp * b; ey += (ny / nl) * amp * b;
+        }
       }
+      const i = y * cw + x;
+      vx[i] = ex; vy[i] = ey; mx = Math.max(mx, Math.abs(ex), Math.abs(ey));
     }
     for (let i = 0; i < cw * ch; i++) {
       const j = i * 4;
-      px[j] = Math.round(127.5 + (127.5 * ax[i]) / mx);
-      px[j + 1] = Math.round(127.5 + (127.5 * ay[i]) / mx);
-      px[j + 2] = 128;
-      px[j + 3] = 255;
+      px[j] = Math.round(128 + (127 * vx[i]) / mx);
+      px[j + 1] = Math.round(128 + (127 * vy[i]) / mx);
+      px[j + 2] = 128; px[j + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
     return { url: cv.toDataURL("image/png"), mx, cw, ch };
@@ -358,23 +369,21 @@
   function setupMap() {
     if (!REFR || !G) return;
     const key = G.w + "x" + G.h;
-    if (key === mapKey) return;
-    const m = buildMap(G.w, G.h);
-    if (!m) return;
-    mapKey = key;
-    initFilter();
-    MX = m.mx;
-    const set = (el) => {
-      el.setAttribute("x", -PAD); el.setAttribute("y", -PAD);
-      el.setAttribute("width", m.cw); el.setAttribute("height", m.ch);
-    };
-    set(flt); set(fe);
-    fe.setAttribute("href", m.url);
-    fe.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", m.url);
+    if (key !== mapKey) {
+      const m = buildMap(G.w, G.h);
+      if (!m) return;
+      mapKey = key; mp = m;
+      initFilter();
+      fe.setAttribute("href", m.url);
+      fe.setAttributeNS(XL, "xlink:href", m.url);
+    }
+    if (flt) {
+      flt.setAttribute("x", 0); flt.setAttribute("y", 0);
+      flt.setAttribute("width", panel.offsetWidth); flt.setAttribute("height", panel.offsetHeight);
+    }
   }
 
   /* ---------- hình học ---------- */
-  let G = null;
   function measure() {
     const W = panel.offsetWidth, H = panel.offsetHeight;
     if (!W || !H) return (G = null);
@@ -383,10 +392,8 @@
       cx: it.offsetLeft + it.offsetWidth / 2, cy: it.offsetTop + it.offsetHeight / 2,
     }));
     const w = cells[0].w, h = cells[0].h;
-    lens.style.width = w + "px";
-    lens.style.height = h + "px";
-    lc.style.width = W + "px";
-    lc.style.height = H + "px";
+    [lens, rim].forEach((e) => { e.style.width = w + "px"; e.style.height = h + "px"; });
+    lc.style.width = W + "px"; lc.style.height = H + "px";
     ghosts.forEach((g, i) => {
       const c = cells[i];
       g.style.left = c.x + "px"; g.style.top = c.y + "px";
@@ -406,55 +413,46 @@
   const S = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, s: 0, vs: 0, ts: 0, raf: 0, last: 0 };
   const K = 320, C = 2 * Math.sqrt(K) * 0.62;
   const KS = 300, CS = 2 * Math.sqrt(KS) * 0.5;
-  const pv = []; /* cache transform đẩy nước của từng tab */
+  const tc = [];
 
-  /* nước bị đẩy: các tab quanh viên kính trượt nhẹ ra xa khi kính phồng */
-  function push() {
-    const s = clamp(S.s, 0, 1);
-    G.cells.forEach((c, i) => {
-      const dx = c.cx - S.x, dy = c.cy - S.y, d = Math.hypot(dx, dy);
-      let tx = 0, ty = 0;
-      if (s > 0.01 && d > 1) {
-        const inf = Math.pow(clamp(1 - d / (G.w * 1.15), 0, 1), 2) * s;
-        tx = (dx / d) * 7 * inf; ty = (dy / d) * 7 * inf;
-      }
-      const v = tx || ty ? `translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px)` : "";
-      if (pv[i] !== v) { pv[i] = v; items[i].style.transform = v; ghosts[i].style.transform = v; }
-    });
-  }
-
-  const po = [];
-  /* tab thật mờ dần khi viên kính phủ lên (tan vào kính, không chồng chéo) */
-  function fade(se) {
-    const sw = 1 + 0.2 * se, hw = (G.w * sw) / 2, hh = (G.h * sw) / 2;
+  /* màu nhấn chuyển dần theo mức kính phủ lên từng icon */
+  function tint(kx, ky) {
+    const hw = (G.w * kx) / 2, hh = (G.h * ky) / 2;
     G.cells.forEach((c, i) => {
       const ox = clamp((Math.min(S.x + hw, c.x + c.w) - Math.max(S.x - hw, c.x)) / c.w, 0, 1);
       const oy = clamp((Math.min(S.y + hh, c.y + c.h) - Math.max(S.y - hh, c.y)) / c.h, 0, 1);
-      const t = clamp((ox * oy - 0.08) / 0.6, 0, 1);
-      const op = (1 - t * t * (3 - 2 * t)).toFixed(2); /* smoothstep */
-      if (po[i] !== op) { po[i] = op; items[i].style.opacity = op; }
+      const t = sstep(0.12, 0.7, ox * oy).toFixed(2);
+      if (tc[i] !== t) { tc[i] = t; ghosts[i].style.setProperty("--t", t); }
     });
   }
-
   function draw() {
     if (!G) return;
-    const L = S.x - G.w / 2, T = S.y - G.h / 2;
-    const sp = Math.hypot(S.vx, S.vy);
-    const st = Math.min(sp / 2400, 0.32);
-    const a = (Math.atan2(S.vy, S.vx) * 180) / Math.PI;
-    const se = clamp(S.s, 0, 1.4);
-    const defo = st > 0.004 ? `rotate(${a}deg) scale(${1 + st},${1 - st * 0.6}) rotate(${-a}deg) ` : "";
-    lens.style.transform = `translate3d(${L}px,${T}px,0) ${defo}scale(${1 + 0.2 * se})`;
-    lens.style.setProperty("--s", clamp(S.s, 0, 1).toFixed(3));
-    lc.style.transformOrigin = `${S.x}px ${S.y}px`;
-    lc.style.transform = `translate(${-L}px,${-T}px) scale(${1 + FM * se})`;
-    if (REFR && dm) { /* khúc xạ tăng theo độ phồng; nằm yên thì tắt filter cho nhẹ */
+    const se = clamp(S.s, 0, 1.4), sw = 1 + 0.2 * se;
+    const sp = Math.hypot(S.vx, S.vy), st = Math.min(sp / 2400, 0.32);
+    const ang = Math.atan2(S.vy, S.vx), L = S.x - G.w / 2, T = S.y - G.h / 2;
+    const defo = st > 0.004 ? `rotate(${(ang * 180) / Math.PI}deg) scale(${1 + st},${1 - st * 0.6}) rotate(${(-ang * 180) / Math.PI}deg) ` : "";
+    const tf = `translate3d(${L}px,${T}px,0) ${defo}scale(${sw})`;
+    lens.style.transform = tf; rim.style.transform = tf;
+    const sv = clamp(S.s, 0, 1).toFixed(3);
+    lens.style.setProperty("--s", sv); rim.style.setProperty("--s", sv);
+    /* kích thước hiệu dụng của kính sau phồng + giãn (để trường khúc xạ bám đúng hình kính) */
+    const c = Math.cos(ang), s_ = Math.sin(ang);
+    const ex = st > 0.004 ? Math.hypot((1 + st) * c, (1 - st * 0.6) * s_) : 1;
+    const ey = st > 0.004 ? Math.hypot((1 + st) * s_, (1 - st * 0.6) * c) : 1;
+    if (REFR && mp && dms) {
       const on = se > 0.03;
-      win.style.filter = on ? "url(#mnRefr)" : "none";
-      if (on) dm.setAttribute("scale", (2 * MX * se).toFixed(2));
+      lc.style.filter = on ? "url(#mnRefr)" : "none";
+      if (on) {
+        const fw = mp.cw * sw * ex, fh = mp.ch * sw * ey;
+        fe.setAttribute("x", (S.x - fw / 2).toFixed(1)); fe.setAttribute("y", (S.y - fh / 2).toFixed(1));
+        fe.setAttribute("width", fw.toFixed(1)); fe.setAttribute("height", fh.toFixed(1));
+        const b = 2 * mp.mx * se;
+        dms[0].setAttribute("scale", (b * (1 + CA)).toFixed(2));
+        dms[1].setAttribute("scale", b.toFixed(2));
+        dms[2].setAttribute("scale", (b * (1 - CA)).toFixed(2));
+      }
     }
-        fade(se);
-    push();
+    tint(sw * ex, sw * ey);
   }
   function frame(t) {
     const dt = Math.min(0.032, (t - S.last) / 1000 || 0.016);
@@ -470,17 +468,12 @@
       Math.abs(S.ts - S.s) < 0.003 && Math.abs(S.vs) < 0.02;
     if (still) {
       S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0;
-      draw();
-      S.raf = 0;
-      return;
+      draw(); S.raf = 0; return;
     }
     S.raf = requestAnimationFrame(frame);
   }
   function kick() {
-    if (RM()) {
-      S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0;
-      return draw();
-    }
+    if (RM()) { S.x = S.tx; S.y = S.ty; S.s = S.ts; S.vx = S.vy = S.vs = 0; return draw(); }
     if (!S.raf) { S.last = performance.now(); S.raf = requestAnimationFrame(frame); }
   }
 
@@ -504,6 +497,26 @@
     else { S.x = S.tx; S.y = S.ty; S.vx = S.vy = S.s = S.vs = 0; draw(); }
   }
 
+  /* ---------- nhận dạng ý định ---------- */
+  /* ô gần điểm (qx,qy) nhất; hysteresis để không nhấp nháy ở biên giữa 2 ô */
+  function pick(qx, qy, cur) {
+    let b = 0, bd = Infinity, cd = Infinity;
+    G.cells.forEach((c, i) => {
+      const d = Math.hypot((c.cx - qx) / c.w, (c.cy - qy) / c.h);
+      if (i === cur) cd = d;
+      if (d < bd) { bd = d; b = i; }
+    });
+    return cur >= 0 && b !== cur && cd - bd < 0.12 ? cur : b;
+  }
+  /* vận tốc ngón tay (px/s) trong cửa sổ ~120ms gần nhất */
+  function vel(d) {
+    const s = d.smp;
+    if (s.length < 2) return [0, 0];
+    const a = s[0], b = s[s.length - 1], dt = b.t - a.t;
+    if (dt < 12 || performance.now() - b.t > 90) return [0, 0]; /* dừng tay → vận tốc 0 */
+    return [((b.x - a.x) / dt) * 1000, ((b.y - a.y) / dt) * 1000];
+  }
+
   /* ---------- kéo thả ---------- */
   function listen(on) {
     const f = on ? addEventListener : removeEventListener;
@@ -514,24 +527,25 @@
   function mv(e) {
     if (!drag || e.pointerId !== drag.id) return;
     e.preventDefault();
+    const { r, k } = drag, now = performance.now();
+    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
+    drag.smp.push({ t: now, x: px, y: py });
+    while (drag.smp.length > 2 && now - drag.smp[0].t > 120) drag.smp.shift();
     if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
     drag.moved = true;
-    const { r, k } = drag;
-    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
     const dx = Math.max(0, r.left - e.clientX, e.clientX - r.right);
     const dy = Math.max(0, r.top - e.clientY, e.clientY - r.bottom);
-    if (Math.hypot(dx, dy) > 90) {
+    if (Math.hypot(dx, dy) > 90) { /* kéo ra xa: hủy */
       if (!drag.out) { drag.out = true; setHot(-1); const c = G.cells[active]; S.tx = c.cx; S.ty = c.cy; S.ts = 0; kick(); }
       return;
     }
     drag.out = false;
-    let b = 0, bd = Infinity;
-    G.cells.forEach((c, i) => { const d = (c.cx - px) ** 2 + (c.cy - py) ** 2; if (d < bd) { bd = d; b = i; } });
-    setHot(b);
-    const c = G.cells[b], mag = 0.28;
-    S.tx = clamp(px + (c.cx - px) * mag, G.minX, G.maxX);
-    S.ty = clamp(py + (c.cy - py) * mag, G.minY, G.maxY);
+    /* kính bám theo ngón tay, giữ nguyên chỗ nắm – không hít vào ô nào */
+    S.tx = clamp(px + drag.ox, G.minX, G.maxX);
+    S.ty = clamp(py + drag.oy, G.minY, G.maxY);
     S.ts = 1;
+    const [vx, vy] = vel(drag);
+    setHot(pick(S.tx + vx * 0.07, S.ty + vy * 0.07, hot)); /* ô đang "nhắm tới" */
     kick();
   }
   function up(e) {
@@ -543,8 +557,19 @@
     clearTimeout(swT);
     swT = setTimeout(() => (swallow = false), 500);
     if (d.out || d.hot < 0) return rest(true);
-    const idx = d.hot, c = G.cells[idx];
+    let idx = d.idx;
+    if (d.moved) { /* dừng tay → ô dưới kính; vuốt nhanh → chiếu quán tính */
+      const [vx, vy] = vel(d);
+      let qx = S.tx, qy = S.ty;
+      if (Math.hypot(vx, vy) > 250) {
+        qx += clamp(vx * 0.14, -G.w * 1.6, G.w * 1.6);
+        qy += clamp(vy * 0.14, -G.h * 1.6, G.h * 1.6);
+      }
+      idx = pick(qx, qy, d.hot);
+    }
+    const c = G.cells[idx];
     S.tx = c.cx; S.ty = c.cy; S.ts = 0;
+    setHot(idx);
     kick();
     const wait = RM() ? 0 : d.moved ? 260 : performance.now() - d.t0 > 250 ? 200 : 120;
     setTimeout(() => {
@@ -563,14 +588,14 @@
     if (drag || e.button > 0) return;
     const it = e.target.closest(".mn-it");
     if (!it || it.parentNode !== panel || !measure()) return;
-    const r = panel.getBoundingClientRect();
-    const idx = items.indexOf(it);
+    const r = panel.getBoundingClientRect(), k = r.width / panel.offsetWidth || 1;
+    const idx = items.indexOf(it), c = G.cells[idx];
+    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
     drag = {
-      id: e.pointerId, r, k: r.width / panel.offsetWidth || 1,
-      x0: e.clientX, y0: e.clientY, idx, hot: idx,
+      id: e.pointerId, r, k, x0: e.clientX, y0: e.clientY, idx, hot: idx,
+      ox: c.cx - px, oy: c.cy - py, smp: [{ t: performance.now(), x: px, y: py }],
       moved: false, out: false, t0: performance.now(),
     };
-    const c = G.cells[idx];
     S.tx = c.cx; S.ty = c.cy; S.ts = 1;
     setHot(idx);
     kick();

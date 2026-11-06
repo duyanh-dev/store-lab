@@ -276,7 +276,7 @@
   });
 })();
 
-/* ===== PC Liquid Lens: giữ & kéo giữa các tab trên thanh #tabs (>720px) ===== */
+/* ===== PC Liquid Lens v4: một lớp tab bị khúc xạ liên tục + nhận dạng ý định kéo ===== */
 (() => {
   "use strict";
   const tabs = document.getElementById("tabs");
@@ -286,49 +286,51 @@
 
   const MQ = matchMedia("(min-width:721px)");
   const REFR = window.PC_REFRACT !== false; /* window.PC_REFRACT=false để tắt khúc xạ */
-  const FM = 0.2;   /* mức phóng đại icon trong kính */
-  const PAD = 24;   /* vùng đệm của filter */
+    const F = 0.12, BEND = 1, HALO = 6, CA = 0.1;
   const RM = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  let G = null;
 
   /* ---------- CSS ---------- */
   const st = document.createElement("style");
   st.textContent = `
-.pc-lens{display:none}
+.pc-lens,.pc-rim,.pc-lc{display:none}
 @media (min-width:721px){
  #tabs.pc-lq{position:relative;overflow:visible!important;touch-action:none;-webkit-user-select:none;user-select:none}
+ #tabs.pc-lq button[data-t]{color:transparent!important;text-shadow:none!important}
+ #tabs.pc-lq button[data-t] *{opacity:0!important}
  #tabs.pc-lq button[data-t].on{background:transparent!important;box-shadow:none!important;border-color:transparent!important}
- .pc-lens{
-  --s:0;--pc-bg:rgba(255,255,255,.28);--pc-rim:rgba(255,255,255,.9);--pc-rim2:rgba(255,255,255,.4);
-  position:absolute;left:0;top:0;z-index:3;display:block;overflow:hidden;pointer-events:none;border-radius:999px;
-  background:var(--pc-bg);
-  -webkit-backdrop-filter:blur(calc(8px + 6px*var(--s))) saturate(200%) brightness(1.1);
-  backdrop-filter:blur(calc(8px + 6px*var(--s))) saturate(200%) brightness(1.1);
-  box-shadow:0 calc(2px + 14px*var(--s)) calc(8px + 24px*var(--s)) rgba(10,14,40,calc(.12 + .14*var(--s))),0 1px 2px rgba(10,14,40,.14);
-  will-change:transform,width,height}
- .pc-lens::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  box-shadow:inset 1.5px 1.5px 1px var(--pc-rim),inset -1px -1px 1.5px var(--pc-rim2),inset 0 -2px 4px rgba(10,14,40,.07),
-   inset 0 0 0 1px var(--pc-rim2),inset 0 0 calc(8px + 12px*var(--s)) rgba(255,255,255,.4)}
- .pc-lens::before{content:"";position:absolute;z-index:1;left:14%;top:8%;width:32%;height:26%;border-radius:50%;
-  background:rgba(255,255,255,.8);-webkit-filter:blur(3px);filter:blur(3px);opacity:calc(.2 + .6*var(--s));pointer-events:none}
- .pc-win{position:absolute;inset:0;overflow:visible}
- .pc-lc{position:absolute;left:0;top:0;pointer-events:none}
- .pc-gh{position:absolute;box-sizing:border-box;display:flex;align-items:center;justify-content:center;white-space:nowrap;
-  color:var(--ink,currentColor);transition:color .15s}
- .pc-gh[data-hot]{color:var(--acc,#0a84ff)}
+ .pc-lens,.pc-rim{--s:0;position:absolute;left:0;top:0;display:block;pointer-events:none;border-radius:999px;will-change:transform,width,height}
+ .pc-lens{--pc-bg:rgba(255,255,255,.2);--pc-rim:rgba(255,255,255,.9);--pc-rim2:rgba(255,255,255,.4);z-index:1;background:var(--pc-bg);
+  box-shadow:0 calc(2px + 14px*var(--s)) calc(8px + 24px*var(--s)) rgba(10,14,40,calc(.12 + .14*var(--s))),0 1px 2px rgba(10,14,40,.14)}
+ .pc-rim{--pc-rim:rgba(255,255,255,.9);--pc-rim2:rgba(255,255,255,.4);z-index:3;overflow:hidden}
+ .pc-rim::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 2px 2px 1.5px var(--pc-rim),inset -1.5px -1.5px 2px var(--pc-rim2),inset 0 0 0 1px var(--pc-rim2),
+   inset 0 0 calc(10px + 14px*var(--s)) rgba(255,255,255,.45)}
+ .pc-rim::before{content:"";position:absolute;z-index:1;left:14%;top:8%;width:32%;height:26%;border-radius:50%;
+  background:rgba(255,255,255,.8);-webkit-filter:blur(3px);filter:blur(3px);opacity:calc(.2 + .6*var(--s))}
+ .pc-lc{display:block;position:absolute;left:0;top:0;z-index:2;pointer-events:none}
+ .pc-gh{--t:0;position:absolute;box-sizing:border-box;display:flex;align-items:center;justify-content:center;white-space:nowrap;
+  color:var(--pc-base,currentColor)}
 }
+@supports (color:color-mix(in srgb,red 50%,blue)){
+ .pc-gh{color:color-mix(in srgb,var(--acc,#0a84ff) calc(var(--t)*100%),var(--pc-base,currentColor))}
+}
+@supports not (color:color-mix(in srgb,red 50%,blue)){.pc-gh.hot{color:var(--acc,#0a84ff)}}
 @media (min-width:721px) and (prefers-color-scheme:dark){
- :root:not([data-theme="light"]) .pc-lens{--pc-bg:rgba(255,255,255,.1);--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}
+ :root:not([data-theme="light"]) .pc-lens{--pc-bg:rgba(255,255,255,.07);--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}
+ :root:not([data-theme="light"]) .pc-rim{--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}
 }
-:root[data-theme="dark"] .pc-lens{--pc-bg:rgba(255,255,255,.1);--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}
-@media (prefers-reduced-transparency:reduce){.pc-lens{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--pc-bg)}}`;
+:root[data-theme="dark"] .pc-lens{--pc-bg:rgba(255,255,255,.07);--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}
+:root[data-theme="dark"] .pc-rim{--pc-rim:rgba(255,255,255,.32);--pc-rim2:rgba(255,255,255,.12)}`;
   document.head.appendChild(st);
 
-  /* ---------- dựng viên kính: lens > win (filter khúc xạ) > lc (bản sao tab phóng đại) ---------- */
+  /* ---------- DOM: thân kính · lớp tab khúc xạ · viền kính ---------- */
   if (getComputedStyle(tabs).position === "static") tabs.style.position = "relative";
   const lens = document.createElement("div"); lens.className = "pc-lens"; lens.setAttribute("aria-hidden", "true");
-  const win = document.createElement("div"); win.className = "pc-win";
-  const lc = document.createElement("div"); lc.className = "pc-lc";
+  const rim = document.createElement("div"); rim.className = "pc-rim"; rim.setAttribute("aria-hidden", "true");
+  const lc = document.createElement("div"); lc.className = "pc-lc"; lc.setAttribute("aria-hidden", "true");
   const ghosts = btns.map((b) => {
     const g = document.createElement("div");
     g.className = "pc-gh";
@@ -336,12 +338,19 @@
     lc.appendChild(g);
     return g;
   });
-  win.appendChild(lc); lens.appendChild(win); tabs.appendChild(lens);
-  tabs.classList.add("pc-lq");
+  tabs.append(lens, lc, rim);
+  /* màu chữ gốc của tab (đọc trước khi ẩn nội dung thật) */
+  function refreshBase() {
+    tabs.classList.remove("pc-lq");
+    const ref = btns.find((b) => !b.classList.contains("on")) || btns[0];
+    tabs.style.setProperty("--pc-base", getComputedStyle(ref).color);
+    tabs.classList.add("pc-lq");
+  }
+  refreshBase();
 
-  /* ---------- SVG filter khúc xạ (displacement map theo từng kích thước tab) ---------- */
+  /* ---------- SVG filter ---------- */
   const XL = "http://www.w3.org/1999/xlink";
-  let flt = null, fe = null, dm = null, mapCur = -1, MXc = 1, lastFW = 0, lastFH = 0;
+  let flt = null, fe = null, dms = null, mapCur = -1, mpCur = null;
   const mapCache = new Map();
   function initFilter() {
     if (flt) return;
@@ -349,141 +358,156 @@
     const svg = document.createElementNS(NS, "svg");
     svg.setAttribute("width", "0"); svg.setAttribute("height", "0"); svg.setAttribute("aria-hidden", "true");
     svg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
+    const dmap = (r) => `<feDisplacementMap in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G" result="${r}"/>`;
+    const ch = (v) => `<feColorMatrix type="matrix" values="${v}"`;
     svg.innerHTML =
       '<filter id="pcRefr" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">' +
-      '<feImage result="m" preserveAspectRatio="none"/>' +
-      '<feDisplacementMap in="SourceGraphic" in2="m" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter>';
+      '<feFlood flood-color="rgb(128,128,128)" flood-opacity="1" result="n"/>' +
+      '<feImage result="im" preserveAspectRatio="none"/>' +
+      '<feMerge result="m"><feMergeNode in="n"/><feMergeNode in="im"/></feMerge>' +
+      dmap("dr") + ch("1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0") + ' in="dr" result="r"/>' +
+      dmap("dg") + ch("0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0") + ' in="dg" result="g"/>' +
+      dmap("db") + ch("0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0") + ' in="db" result="b"/>' +
+      '<feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/></filter>';
     document.body.appendChild(svg);
-    flt = svg.querySelector("filter"); fe = svg.querySelector("feImage"); dm = svg.querySelector("feDisplacementMap");
-    [flt, fe].forEach((el) => { el.setAttribute("x", -PAD); el.setAttribute("y", -PAD); });
+    flt = svg.querySelector("filter"); fe = svg.querySelector("feImage");
+    dms = [...svg.querySelectorAll("feDisplacementMap")];
   }
-  function buildMap(w, h) {
-    const cw = Math.round(w + 2 * PAD), ch = Math.round(h + 2 * PAD);
+    function buildMap(w, h) {
+    const cw = Math.round(w + 2 * HALO), ch = Math.round(h + 2 * HALO);
     const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
     const ctx = cv.getContext("2d");
     if (!ctx) return null;
     const img = ctx.createImageData(cw, ch), px = img.data;
-    const hw = w / 2, hh = h / 2, r = Math.min(hh, hw), edgeW = Math.min(16, h * 0.38);
-    const ax = new Float32Array(cw * ch), ay = new Float32Array(cw * ch);
+    const hw = w / 2, hh = h / 2, r = Math.min(hh, hw);
+    const edgeIn = Math.min(h * 0.45, 22), amp = Math.min(h * 0.42, 20) * BEND, rc = edgeIn * 0.4, rw = edgeIn * 0.55;
+    const sdf = (x, y) => {
+      const qx = Math.abs(x) - (hw - r), qy = Math.abs(y) - (hh - r);
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+    };
+    const vx = new Float32Array(cw * ch), vy = new Float32Array(cw * ch);
     let mx = 1e-6;
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-      const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2;
-      const qx = Math.abs(rx) - (hw - r), qy = Math.abs(ry) - (hh - r);
-      const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
-      const t = clamp(-sd / edgeW, 0, 1);
-      const wgt = Math.pow(1 - t, 2.2) * 1.5;
-      const i = y * cw + x, dx = rx * FM * wgt, dy = ry * FM * wgt;
-      ax[i] = dx; ay[i] = dy; mx = Math.max(mx, Math.abs(dx), Math.abs(dy));
+      const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2, sd = sdf(rx, ry);
+      let ex = 0, ey = 0;
+      if (sd < 0) {
+        const dp = -sd, m = sstep(0, edgeIn, dp);
+        ex = -rx * F * m; ey = -ry * F * m;
+        const q = (dp - rc) / rw, b = Math.exp(-q * q) * sstep(0, rc * 0.7, dp);
+        if (b > 0.001) {
+          const nx = sdf(rx + 0.5, ry) - sdf(rx - 0.5, ry), ny = sdf(rx, ry + 0.5) - sdf(rx, ry - 0.5), nl = Math.hypot(nx, ny) || 1;
+          ex += (nx / nl) * amp * b; ey += (ny / nl) * amp * b;
+        }
+      }
+      const i = y * cw + x;
+      vx[i] = ex; vy[i] = ey; mx = Math.max(mx, Math.abs(ex), Math.abs(ey));
     }
     for (let i = 0; i < cw * ch; i++) {
       const j = i * 4;
-      px[j] = Math.round(127.5 + (127.5 * ax[i]) / mx);
-      px[j + 1] = Math.round(127.5 + (127.5 * ay[i]) / mx);
+      px[j] = Math.round(128 + (127 * vx[i]) / mx);
+      px[j + 1] = Math.round(128 + (127 * vy[i]) / mx);
       px[j + 2] = 128; px[j + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    return { url: cv.toDataURL("image/png"), mx };
+    return { url: cv.toDataURL("image/png"), mx, cw, ch, bw: w, bh: h };
   }
   function mapFor(i) {
     const c = G.cells[i], key = Math.round(c.w) + "x" + Math.round(c.h);
     if (!mapCache.has(key)) mapCache.set(key, buildMap(c.w, c.h));
     return mapCache.get(key);
   }
-  function useMap(i) {
+  function useMap(i) { /* dùng map của tab gần nhất rồi co giãn theo kích thước kính hiện tại */
     if (!REFR || !G || mapCur === i) return;
     const m = mapFor(i);
     if (!m) return;
     initFilter();
-    mapCur = i; MXc = m.mx;
+    mapCur = i; mpCur = m;
     fe.setAttribute("href", m.url);
     fe.setAttributeNS(XL, "xlink:href", m.url);
   }
 
-  /* ---------- hình học: đo theo vị trí thật của các nút ---------- */
-  let G = null;
+  /* ---------- hình học ---------- */
   function measure() {
+    const tr0 = tabs.getBoundingClientRect();
+    if (!tr0.width || !MQ.matches) return (G = null);
+    refreshBase();
     const tr = tabs.getBoundingClientRect();
-    if (!tr.width || !MQ.matches) return (G = null);
     const ox = tr.left + tabs.clientLeft - tabs.scrollLeft, oy = tr.top + tabs.clientTop - tabs.scrollTop;
     const cells = btns.map((b) => {
       const r = b.getBoundingClientRect(), x = r.left - ox, y = r.top - oy;
       return { x, y, w: r.width, h: r.height, cx: x + r.width / 2, cy: y + r.height / 2 };
     });
-    lc.style.width = Math.max(tr.width, tabs.scrollWidth) + "px";
-    lc.style.height = Math.max(tr.height, tabs.scrollHeight) + "px";
-    btns.forEach((b, i) => { /* bản sao copy đúng font của nút thật */
+    const W = Math.max(tr.width, tabs.scrollWidth), H = Math.max(tr.height, tabs.scrollHeight);
+    lc.style.width = W + "px"; lc.style.height = H + "px";
+    btns.forEach((b, i) => {
       const c = cells[i], g = ghosts[i], cs = getComputedStyle(b);
       g.style.cssText =
         `left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;font-family:${cs.fontFamily};font-size:${cs.fontSize};` +
         `font-weight:${cs.fontWeight};letter-spacing:${cs.letterSpacing};line-height:${cs.lineHeight};text-transform:${cs.textTransform};gap:${cs.columnGap === "normal" ? "6px" : cs.columnGap}`;
     });
     const xs = cells.map((c) => c.cx);
-    G = { cells, ox, oy, tr, minX: Math.min(...xs), maxX: Math.max(...xs) };
+    G = { cells, ox, oy, tr, W, H, minX: Math.min(...xs), maxX: Math.max(...xs), avgW: cells.reduce((a, c) => a + c.w, 0) / cells.length };
     mapCur = -1;
-    if (REFR) cells.forEach((_, i) => mapFor(i));
+    if (REFR) {
+      cells.forEach((_, i) => mapFor(i));
+      initFilter();
+      flt.setAttribute("x", 0); flt.setAttribute("y", 0); flt.setAttribute("width", W); flt.setAttribute("height", H);
+    }
     return G;
   }
 
-  /* ---------- vật lý lò xo: vị trí, kích thước, độ phồng ---------- */
+  /* ---------- vật lý lò xo ---------- */
   const S = { x: 0, y: 0, w: 0, h: 0, vx: 0, vy: 0, vw: 0, vh: 0, tx: 0, ty: 0, tw: 0, th: 0, s: 0, vs: 0, ts: 0, raf: 0, last: 0 };
   const K = 340, C = 2 * Math.sqrt(K) * 0.64;
   const KS = 300, CS = 2 * Math.sqrt(KS) * 0.5;
-  const pv = [];
+  const tc = [];
 
-  function push() { /* nước bị đẩy: tab bên cạnh trượt ra xa khi kính phồng */
-    const s = clamp(S.s, 0, 1);
-    G.cells.forEach((c, i) => {
-      const dx = c.cx - S.x, d = Math.abs(dx);
-      let tx = 0;
-      if (s > 0.01 && d > 1) tx = Math.sign(dx) * 6 * Math.pow(clamp(1 - d / (S.w * 1.7), 0, 1), 2) * s;
-      const v = tx ? tx.toFixed(2) + "px 0px" : "";
-      if (pv[i] !== v) { pv[i] = v; btns[i].style.translate = v; ghosts[i].style.translate = v; }
-    });
-  }
-
-  const po = [];
-  function fade(se) {
-    const hw = (S.w * (1 + 0.16 * se)) / 2, hh = (S.h * (1 + 0.3 * se)) / 2;
+  function tint(kx, ky) {
+    const hw = (S.w * kx) / 2, hh = (S.h * ky) / 2;
     G.cells.forEach((c, i) => {
       const ox = clamp((Math.min(S.x + hw, c.x + c.w) - Math.max(S.x - hw, c.x)) / c.w, 0, 1);
       const oy = clamp((Math.min(S.y + hh, c.y + c.h) - Math.max(S.y - hh, c.y)) / c.h, 0, 1);
-      const t = clamp((ox * oy - 0.08) / 0.6, 0, 1);
-      const op = (1 - t * t * (3 - 2 * t)).toFixed(2);
-      if (po[i] !== op) { po[i] = op; btns[i].style.opacity = op; }
+      const t = sstep(0.12, 0.7, ox * oy).toFixed(2);
+      if (tc[i] !== t) { tc[i] = t; ghosts[i].style.setProperty("--t", t); }
     });
   }
-
   function draw() {
     if (!G || !S.w) return;
+    const se = clamp(S.s, 0, 1.4), sx = 1 + 0.16 * se, sy = 1 + 0.3 * se;
+    const sp = Math.hypot(S.vx, S.vy), stt = Math.min(sp / 2600, 0.3), ang = Math.atan2(S.vy, S.vx);
     const L = S.x - S.w / 2, T = S.y - S.h / 2;
-    const sp = Math.hypot(S.vx, S.vy), stt = Math.min(sp / 2600, 0.3), a = (Math.atan2(S.vy, S.vx) * 180) / Math.PI;
-    const se = clamp(S.s, 0, 1.4);
-    const defo = stt > 0.004 ? `rotate(${a}deg) scale(${1 + stt},${1 - stt * 0.6}) rotate(${-a}deg) ` : "";
-    lens.style.width = S.w + "px"; lens.style.height = S.h + "px";
-    lens.style.transform = `translate3d(${L}px,${T}px,0) ${defo}scale(${1 + 0.16 * se},${1 + 0.3 * se})`;
-    lens.style.setProperty("--s", clamp(S.s, 0, 1).toFixed(3));
-    lc.style.transformOrigin = `${S.x}px ${S.y}px`;
-    lc.style.transform = `translate(${-L}px,${-T}px) scale(${1 + FM * se})`;
+    const defo = stt > 0.004 ? `rotate(${(ang * 180) / Math.PI}deg) scale(${1 + stt},${1 - stt * 0.6}) rotate(${(-ang * 180) / Math.PI}deg) ` : "";
+    const tf = `translate3d(${L}px,${T}px,0) ${defo}scale(${sx},${sy})`;
+    [lens, rim].forEach((e) => { e.style.width = S.w + "px"; e.style.height = S.h + "px"; e.style.transform = tf; });
+    const sv = clamp(S.s, 0, 1).toFixed(3);
+    lens.style.setProperty("--s", sv); rim.style.setProperty("--s", sv);
+    const c = Math.cos(ang), s_ = Math.sin(ang);
+    const ex = stt > 0.004 ? Math.hypot((1 + stt) * c, (1 - stt * 0.6) * s_) : 1;
+    const ey = stt > 0.004 ? Math.hypot((1 + stt) * s_, (1 - stt * 0.6) * c) : 1;
     if (REFR) {
       let ni = 0, nd = Infinity;
-      G.cells.forEach((c, i) => { const d = Math.abs(c.cx - S.x); if (d < nd) { nd = d; ni = i; } });
+      G.cells.forEach((cc, i) => { const d = Math.abs(cc.cx - S.x); if (d < nd) { nd = d; ni = i; } });
       useMap(ni);
-      if (dm) {
+      if (mpCur && dms) {
         const on = se > 0.03;
-        win.style.filter = on ? "url(#pcRefr)" : "none";
+        lc.style.filter = on ? "url(#pcRefr)" : "none";
         if (on) {
-          const fw = S.w + 2 * PAD, fh = S.h + 2 * PAD;
-          if (Math.abs(fw - lastFW) > 0.5 || Math.abs(fh - lastFH) > 0.5) {
-            lastFW = fw; lastFH = fh;
-            [flt, fe].forEach((el) => { el.setAttribute("width", fw); el.setAttribute("height", fh); });
-          }
-          dm.setAttribute("scale", (2 * MXc * se).toFixed(2));
+          const fw = mpCur.cw * (S.w / mpCur.bw) * sx * ex, fh = mpCur.ch * (S.h / mpCur.bh) * sy * ey;
+          fe.setAttribute("x", (S.x - fw / 2).toFixed(1)); fe.setAttribute("y", (S.y - fh / 2).toFixed(1));
+          fe.setAttribute("width", fw.toFixed(1)); fe.setAttribute("height", fh.toFixed(1));
+          const b = 2 * mpCur.mx * se;
+          dms[0].setAttribute("scale", (b * (1 + CA)).toFixed(2));
+          dms[1].setAttribute("scale", b.toFixed(2));
+          dms[2].setAttribute("scale", (b * (1 - CA)).toFixed(2));
         }
       }
     }
-    fade(se);
-    push();
-    }
+    tint(sx * ex, sy * ey);
+  }
+  function snap() {
+    S.x = S.tx; S.y = S.ty; S.w = S.tw; S.h = S.th; S.s = S.ts;
+    S.vx = S.vy = S.vw = S.vh = S.vs = 0;
+  }
   function frame(t) {
     const dt = Math.min(0.032, (t - S.last) / 1000 || 0.016);
     S.last = t;
@@ -501,10 +525,6 @@
     if (still) { snap(); draw(); S.raf = 0; return; }
     S.raf = requestAnimationFrame(frame);
   }
-  function snap() {
-    S.x = S.tx; S.y = S.ty; S.w = S.tw; S.h = S.th; S.s = S.ts;
-    S.vx = S.vy = S.vw = S.vh = S.vs = 0;
-  }
   function kick() {
     if (RM()) { snap(); return draw(); }
     if (!S.raf) { S.last = performance.now(); S.raf = requestAnimationFrame(frame); }
@@ -519,13 +539,31 @@
     if (drag) drag.hot = i;
     if (i === hot) return;
     hot = i;
-    ghosts.forEach((g, j) => (j === i ? g.setAttribute("data-hot", "") : g.removeAttribute("data-hot")));
+    ghosts.forEach((g, j) => g.classList.toggle("hot", j === i));
   }
   function rest(animate) {
     if (!G) return;
     aim(G.cells[active], 0);
     setHot(active);
     if (animate) kick(); else { snap(); draw(); }
+  }
+
+  /* ---------- nhận dạng ý định (1 chiều ngang) ---------- */
+  function pick(qx, cur) {
+    let b = 0, bd = Infinity, cd = Infinity;
+    G.cells.forEach((c, i) => {
+      const d = Math.abs(c.cx - qx) / c.w;
+      if (i === cur) cd = d;
+      if (d < bd) { bd = d; b = i; }
+    });
+    return cur >= 0 && b !== cur && cd - bd < 0.12 ? cur : b;
+  }
+  function velX(d) {
+    const s = d.smp;
+    if (s.length < 2) return 0;
+    const a = s[0], b = s[s.length - 1], dt = b.t - a.t;
+    if (dt < 12 || performance.now() - b.t > 90) return 0;
+    return ((b.x - a.x) / dt) * 1000;
   }
 
   /* ---------- kéo thả ---------- */
@@ -535,31 +573,28 @@
     f("pointerup", up);
     f("pointercancel", cancel);
   }
-  function near(px) { /* tab chứa con trỏ, hoặc tab gần nhất */
-    let b = 0, bd = Infinity;
-    G.cells.forEach((c, i) => {
-      const d = (px < c.x ? c.x - px : px > c.x + c.w ? px - c.x - c.w : 0) + Math.abs(px - c.cx) * 0.001;
-      if (d < bd) { bd = d; b = i; }
-    });
-    return b;
-  }
   function mv(e) {
     if (!drag || e.pointerId !== drag.id) return;
     e.preventDefault();
+    const now = performance.now(), r = G.tr, px = e.clientX - G.ox, py = e.clientY - G.oy;
+    drag.smp.push({ t: now, x: px });
+    while (drag.smp.length > 2 && now - drag.smp[0].t > 120) drag.smp.shift();
     if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 4) return;
     drag.moved = true;
-    const r = G.tr, px = e.clientX - G.ox, py = e.clientY - G.oy;
     const dx = Math.max(0, r.left - e.clientX, e.clientX - r.right), dy = Math.max(0, r.top - e.clientY, e.clientY - r.bottom);
-    if (Math.hypot(dx, dy) > 90) { /* kéo ra xa: hủy */
+    if (Math.hypot(dx, dy) > 90) {
       if (!drag.out) { drag.out = true; setHot(-1); aim(G.cells[active], 0); kick(); }
       return;
     }
     drag.out = false;
-    const b = near(px), c = G.cells[b];
+    /* kính bám theo ngón tay/chuột, giữ nguyên chỗ nắm – không hít vào tab nào */
+    const rowY = G.cells[0].cy;
+    S.tx = clamp(px + drag.ox, G.minX, G.maxX);
+    S.ty = rowY + clamp(py + drag.oy - rowY, -8, 8);
+    S.ts = 1;
+    const b = pick(S.tx + velX(drag) * 0.07, hot);
     setHot(b);
-    aim(c, 1);
-    S.tx = clamp(px + (c.cx - px) * 0.28, G.minX, G.maxX); /* hít nhẹ về tâm tab */
-    S.ty = c.cy + clamp((py - c.cy) * 0.25, -8, 8);        /* hơi theo tay theo chiều dọc */
+    S.tw = G.cells[b].w; S.th = G.cells[b].h; /* kích thước kính biến hình theo tab đang nhắm */
     kick();
   }
   function up(e) {
@@ -568,8 +603,15 @@
     listen(false); drag = null;
     swallow = true; clearTimeout(swT); swT = setTimeout(() => (swallow = false), 500);
     if (d.out || d.hot < 0) return rest(true);
-    const idx = d.hot;
+    let idx = d.idx;
+    if (d.moved) { /* dừng tay → tab dưới kính; vuốt nhanh → chiếu quán tính */
+      const vx = velX(d);
+      let q = S.tx;
+      if (Math.abs(vx) > 250) q += clamp(vx * 0.14, -G.avgW * 1.6, G.avgW * 1.6);
+      idx = pick(q, d.hot);
+    }
     aim(G.cells[idx], 0);
+    setHot(idx);
     kick();
     const wait = RM() ? 0 : d.moved ? 260 : performance.now() - d.t0 > 250 ? 180 : 90;
     setTimeout(() => { pass = true; try { btns[idx].click(); } finally { pass = false; } }, wait);
@@ -585,13 +627,18 @@
     if (!b || !measure()) return;
     const idx = btns.indexOf(b);
     if (idx < 0) return;
-    drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, idx, hot: idx, moved: false, out: false, t0: performance.now() };
-    aim(G.cells[idx], 1); /* chạm là phồng ngay */
+    const c = G.cells[idx], px = e.clientX - G.ox;
+    drag = {
+      id: e.pointerId, x0: e.clientX, y0: e.clientY, idx, hot: idx,
+      ox: c.cx - px, oy: c.cy - (e.clientY - G.oy), smp: [{ t: performance.now(), x: px }],
+      moved: false, out: false, t0: performance.now(),
+    };
+    aim(c, 1);
     setHot(idx);
     kick();
     listen(true);
   });
-  tabs.addEventListener("click", (e) => { /* nuốt click gốc, tự bấm sau khi kính rơi vào ô */
+  tabs.addEventListener("click", (e) => {
     if (pass || !swallow) return;
     swallow = false;
     e.stopImmediatePropagation();
@@ -600,7 +647,7 @@
   tabs.addEventListener("contextmenu", (e) => { if (e.target.closest("button[data-t]")) e.preventDefault(); });
 
   /* ---------- đồng bộ ---------- */
-  const mo = new MutationObserver(() => { /* đổi tab từ nơi khác (phím tắt, nút "Xem cửa hàng"...) */
+  const mo = new MutationObserver(() => {
     const a = readActive();
     if (a === active) return;
     active = a;
@@ -615,7 +662,8 @@
     if (e.matches) relayout();
     else if (drag) { listen(false); drag = null; }
   });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", relayout);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
   requestAnimationFrame(relayout);
-  setTimeout(relayout, 600); /* boot() của store-link chạy bất đồng bộ */
+  setTimeout(relayout, 600);
 })();
