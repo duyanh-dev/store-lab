@@ -286,7 +286,7 @@
 
   const MQ = matchMedia("(min-width:721px)");
   const REFR = window.PC_REFRACT !== false; /* window.PC_REFRACT=false để tắt khúc xạ */
-    const F = 0.12, BEND = 1, HALO = 6, CA = 0.1;
+  const F = 0.12, BEND = 1, HALO = 26, CA = 0.1;
   const RM = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -373,14 +373,14 @@
     flt = svg.querySelector("filter"); fe = svg.querySelector("feImage");
     dms = [...svg.querySelectorAll("feDisplacementMap")];
   }
-    function buildMap(w, h) {
+  function buildMap(w, h) {
     const cw = Math.round(w + 2 * HALO), ch = Math.round(h + 2 * HALO);
     const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
     const ctx = cv.getContext("2d");
     if (!ctx) return null;
     const img = ctx.createImageData(cw, ch), px = img.data;
     const hw = w / 2, hh = h / 2, r = Math.min(hh, hw);
-    const edgeIn = Math.min(h * 0.45, 22), amp = Math.min(h * 0.42, 20) * BEND, rc = edgeIn * 0.4, rw = edgeIn * 0.55;
+    const edgeIn = Math.min(h * 0.45, 22), amp = Math.min(h * 0.42, 20) * BEND, rc = edgeIn * 0.35, rw = edgeIn * 0.6;
     const sdf = (x, y) => {
       const qx = Math.abs(x) - (hw - r), qy = Math.abs(y) - (hh - r);
       return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
@@ -389,15 +389,12 @@
     let mx = 1e-6;
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
       const rx = x + 0.5 - cw / 2, ry = y + 0.5 - ch / 2, sd = sdf(rx, ry);
-      let ex = 0, ey = 0;
-      if (sd < 0) {
-        const dp = -sd, m = sstep(0, edgeIn, dp);
-        ex = -rx * F * m; ey = -ry * F * m;
-        const q = (dp - rc) / rw, b = Math.exp(-q * q) * sstep(0, rc * 0.7, dp);
-        if (b > 0.001) {
-          const nx = sdf(rx + 0.5, ry) - sdf(rx - 0.5, ry), ny = sdf(rx, ry + 0.5) - sdf(rx, ry - 0.5), nl = Math.hypot(nx, ny) || 1;
-          ex += (nx / nl) * amp * b; ey += (ny / nl) * amp * b;
-        }
+      const E = sd <= 0 ? 1 : 1 - sstep(0, HALO, sd);
+      let ex = -rx * F * E, ey = -ry * F * E;
+      const q = (sd + rc) / rw, b = Math.exp(-q * q) * (sd > 0 ? E : 1);
+      if (b > 0.001) {
+        const nx = sdf(rx + 0.5, ry) - sdf(rx - 0.5, ry), ny = sdf(rx, ry + 0.5) - sdf(rx, ry - 0.5), nl = Math.hypot(nx, ny) || 1;
+        ex += (nx / nl) * amp * b; ey += (ny / nl) * amp * b;
       }
       const i = y * cw + x;
       vx[i] = ex; vy[i] = ey; mx = Math.max(mx, Math.abs(ex), Math.abs(ey));
